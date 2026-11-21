@@ -953,3 +953,88 @@ table.saves {
   font-weight: 700;
   vertical-align: middle;
 }
+
+/* ---- Secciones plegables ----------------------------------------------
+   Cada render escribe su propio <h3 class="inv-title"> dentro del bloque.
+   En vez de duplicar el texto en el summary, lo copiamos por JS y ocultamos
+   el h3 original: así los renders no se tocan y el título sigue llevando sus
+   contadores ("Evolución · 12 guardados"). */
+
+.acc {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--panel-2) 0%, rgba(27, 31, 39, 0.35) 100%);
+  overflow: hidden;
+}
+
+.acc[hidden] {
+  display: none;
+}
+
+.acc > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  user-select: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.acc > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Flechita que gira al abrir. */
+.acc > summary::before {
+  content: "";
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 6px solid var(--accent-dim);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.15s ease, border-left-color 0.15s ease;
+}
+
+.acc[open] > summary::before {
+  transform: rotate(90deg);
+  border-left-color: var(--accent);
+}
+
+.acc > summary:hover {
+  color: var(--text);
+  background: rgba(255, 158, 61, 0.06);
+}
+
+.acc[open] > summary {
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+}
+
+.acc > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.acc > div {
+  padding: 14px;
+}
+
+/* El título original queda oculto: su texto vive ahora en el summary. */
+.acc .inv-title {
+  display: none;
+}
+
+/* La carpeta solo se toca una vez; que no ocupe sitio el resto del tiempo. */
+.folder-bar {
+  margin-top: 0;
+  margin-bottom: 4px;
+}

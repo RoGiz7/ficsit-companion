@@ -109,6 +109,58 @@ let noteLabel: HTMLElement;
 
 let worldSelect: HTMLSelectElement;
 
+// ---- Secciones plegables ----
+// Cada render escribe su propio <h3 class="inv-title"> dentro del bloque. En
+// vez de repetir ese texto en el summary (y tener que tocar todos los renders),
+// lo copiamos al abrir/actualizar y ocultamos el h3 por CSS. Así el título
+// conserva sus contadores y los renders siguen sin enterarse.
+// Y si un bloque se queda vacío, su sección entera desaparece en lugar de
+// dejar una cabecera que no lleva a ninguna parte.
+function syncAccordion(acc: HTMLDetailsElement) {
+  const body = acc.querySelector<HTMLElement>(":scope > div");
+  if (!body) return;
+  const empty = body.innerHTML.trim() === "";
+  acc.hidden = empty;
+  if (empty) return;
+  const title = body.querySelector<HTMLElement>(".inv-title");
+  const label = acc.querySelector<HTMLElement>(".acc-title");
+  if (title && label && title.textContent) label.textContent = title.textContent;
+}
+
+function setupAccordions() {
+  // Los que se rellenan por render: vigilamos su contenido para mantener el
+  // título y la visibilidad al día sin tener que llamar a nada desde fuera.
+  document.querySelectorAll<HTMLDetailsElement>("details.acc[data-sync]").forEach((acc) => {
+    const body = acc.querySelector<HTMLElement>(":scope > div");
+    if (body) {
+      new MutationObserver(() => syncAccordion(acc)).observe(body, {
+        childList: true,
+        subtree: true,
+      });
+    }
+    syncAccordion(acc);
+  });
+
+  // Recordamos qué dejó abierto el usuario, para no obligarle a desplegar lo
+  // mismo cada vez que arranca.
+  document.querySelectorAll<HTMLDetailsElement>("details.acc").forEach((acc) => {
+    if (!acc.id) return;
+    try {
+      const saved = localStorage.getItem(`acc:${acc.id}`);
+      if (saved !== null) acc.open = saved === "1";
+    } catch {
+      /* sin almacenamiento local, se queda con el valor por defecto */
+    }
+    acc.addEventListener("toggle", () => {
+      try {
+        localStorage.setItem(`acc:${acc.id}`, acc.open ? "1" : "0");
+      } catch {
+        /* igual: que no poder recordarlo no rompa nada */
+      }
+    });
+  });
+}
+
 // Cambia la pestaña visible.
 function showTab(name: string) {
   document.querySelectorAll<HTMLElement>(".tab-panel").forEach((p) => {
@@ -1694,6 +1746,10 @@ async function refresh() {
     tableBody.innerHTML = "";
     statusEl.className = "status err";
     statusEl.textContent = String(e);
+    // Si la carpeta no vale, de poco sirve tenerla plegada: la abrimos para
+    // que se pueda corregir sin ir a buscarla.
+    const folderAcc = document.querySelector<HTMLDetailsElement>("#acc-folder");
+    if (folderAcc) folderAcc.open = true;
   }
 }
 
@@ -1788,6 +1844,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   noteStatus = document.querySelector("#note-status") as HTMLElement;
   noteLabel = document.querySelector("#note-label") as HTMLElement;
   folderInput.value = DEFAULT_FOLDER;
+
+  setupAccordions();
 
   document.querySelector("#refresh")?.addEventListener("click", () => {
     refresh();

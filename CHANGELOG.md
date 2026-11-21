@@ -25,6 +25,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Project documentation: bilingual README, MIT license, security policy and this changelog.
 
 ### Changed
+- **The Summary tab now fits on one screen.** It kept stacking eight blocks vertically. Progress,
+  inventory, stored materials, exploration and evolution are now collapsible sections, closed by
+  default and remembering whether you left them open; "Resume here" and the vitals stay in view.
+  The production calculator collapses the same way. Built on native `<details>`, so it works with
+  the keyboard and needs no library.
+- The save folder row is collapsed behind a heading, since it is set once and then never touched.
+  It opens by itself if the folder turns out to be unreadable.
+- Empty sections hide themselves instead of showing a header that leads nowhere.
 - Project metadata is no longer the Tauri starter template.
 
 ### Fixed
