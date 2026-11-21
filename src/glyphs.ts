@@ -53,17 +53,81 @@ const FAMILIES: Family[] = [
   // Más oscuro que el hierro a propósito: con el gris anterior eran el
   // mismo glifo a 18 píxeles.
   { key: "carbon", re: /Coal|Coke|Carbon|Petroleum/i, color: "#5f6670" },
-  { key: "petroleo", re: /Oil|Plastic|Rubber|Fuel|Polymer|Resin|Turbofuel|Diluted/i, color: "#8f7fc0" },
+  // El "Fuel" de Biofuel no es petróleo: el biocombustible es biomasa quemada
+  // y caía aquí por la palabra, antes de llegar a orgánico. La mirada atrás
+  // excluye Biofuel sin tocar Packaged Fuel, Rocket Fuel ni Ionized Fuel.
+  { key: "petroleo", re: /Oil|Plastic|Rubber|(?<!Bio)Fuel|Polymer|Resin|Diluted/i, color: "#8f7fc0" },
   { key: "nitrogeno", re: /Nitrogen|Nitric/i, color: "#6fa8d0" },
   { key: "agua", re: /Water|Ice/i, color: "#4f9fd8" },
-  { key: "organico", re: /Biomass|Leaves|Wood|Mycelia|Shroom|Protein|Berry|Nut|Flower|Fabric|Medicinal/i, color: "#7fb060" },
+  // "Parts" son los restos de bicho y solo hay cuatro clases con esa palabra:
+  // incubador, jabalí, escupidor y picador. Comprobado antes de meterlo.
+  { key: "organico", re: /Biomass|Leaves|Wood|Mycelia|Shroom|Protein|Berry|Nut|Flower|Fabric|Medicinal|Parts/i, color: "#7fb060" },
 ];
 
 const DEFAULT_COLOR = "#8b93a3";
 
-export function familyColor(cls: string): string {
+/** Familia por el nombre de la clase, sin mirar recetas. null si no encaja. */
+export function familyKey(cls: string): string | null {
   const f = FAMILIES.find((x) => x.re.test(cls));
-  return f ? f.color : DEFAULT_COLOR;
+  return f ? f.key : null;
+}
+
+const BY_KEY: Record<string, string> = Object.fromEntries(FAMILIES.map((f) => [f.key, f.color]));
+
+export function familyColor(cls: string, family?: string | null): string {
+  const k = familyKey(cls) ?? family;
+  return (k && BY_KEY[k]) || DEFAULT_COLOR;
+}
+
+// Las piezas ensambladas no son de ningún material: un rotor no es hierro, es
+// hierro montado. Por eso ninguna regex las cogía y caían las 58 en el gris de
+// lo desconocido, que es justo lo que no son.
+//
+// En vez de estrenar un color decimoséptimo para "componente", heredan el de su
+// ingrediente principal, que es lo que de verdad quieres saber mirando la lista:
+// el rotor sale color hierro porque es hierro montado. Sale de las recetas del
+// propio juego, no de una tabla escrita a mano.
+//
+// Las alternativas quedan fuera: una receta alternativa cambia los materiales de
+// una pieza, y la identidad de un rotor no depende de qué desbloqueos lleves.
+//
+// 47 de las 58 se resuelven así. Las once que quedan son de FICSIVIDAD —
+// bastones de caramelo, fuegos artificiales, bolas de nieve — y esas no son de
+// ningún material: se quedan en gris, que ahí sí es la respuesta correcta.
+type RecipeLike = { out: string; building: string | null; inputs: { item: string; rate: number }[] };
+
+export function deriveFamilies(recipes: Record<string, RecipeLike>): Record<string, string> {
+  const canon: Record<string, RecipeLike> = {};
+  for (const [rc, r] of Object.entries(recipes)) {
+    // Se admiten también las recetas sin edificio: son las de mano y el banco
+    // de trabajo, y la motosierra se fabrica así. Antes se quedaba sin color
+    // por un filtro mío, no por falta de datos.
+    if (!r.out || /Alternate/i.test(rc)) continue;
+    if (!canon[r.out]) canon[r.out] = r;
+  }
+  const out: Record<string, string> = {};
+  const seen = new Set<string>();
+  const walk = (cls: string, depth: number): string | null => {
+    const direct = familyKey(cls);
+    if (direct) return direct;
+    if (depth > 4) return null;
+    if (out[cls]) return out[cls];
+    if (seen.has(cls)) return null; // receta circular: no colgarse
+    seen.add(cls);
+    const r = canon[cls];
+    if (!r || !r.inputs || !r.inputs.length) return null;
+    const main = [...r.inputs].sort((a, b) => (b.rate || 0) - (a.rate || 0));
+    for (const i of main) {
+      const f = walk(i.item, depth + 1);
+      if (f) {
+        out[cls] = f;
+        return f;
+      }
+    }
+    return null;
+  };
+  for (const cls of Object.keys(canon)) walk(cls, 0);
+  return out;
 }
 
 /// Un glifo en SVG, listo para meter en el HTML. `fluid` decide la forma:
@@ -113,10 +177,16 @@ function bandShape(band: number, c: string): string {
 
 export function glyphSVG(
   cls: string,
-  opts: { fluid?: boolean; building?: boolean; size?: number; tier?: number } = {}
+  opts: {
+    fluid?: boolean;
+    building?: boolean;
+    size?: number;
+    tier?: number;
+    family?: string | null;
+  } = {}
 ): string {
   const s = opts.size ?? 18;
-  const c = familyColor(cls);
+  const c = familyColor(cls, opts.family);
   const body = opts.building
     ? `<rect x="4" y="4" width="16" height="16" rx="3" fill="${c}" fill-opacity="0.22" stroke="${c}" stroke-width="1.6"/>`
     : opts.fluid

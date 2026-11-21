@@ -30,7 +30,7 @@ import {
   speciesNote,
   type FaunaEntry,
 } from "./fauna";
-import { glyphSVG } from "./glyphs";
+import { deriveFamilies, glyphSVG } from "./glyphs";
 import { medalIcon } from "./medalicons";
 import { applyStaticI18n, detectLang, getLang, setLang, t, type Lang } from "./i18n";
 import {
@@ -719,6 +719,15 @@ function itemTiers(): Record<string, number> {
   return tierCache.map;
 }
 
+// Familia heredada de los ingredientes, para las piezas ensambladas. Igual que
+// el tier: se calcula una vez por juego cargado.
+let familyCache: { data: GameData | null; map: Record<string, string> } = { data: null, map: {} };
+function itemFamilies(): Record<string, string> {
+  if (familyCache.data === gameData) return familyCache.map;
+  familyCache = { data: gameData, map: gameData ? deriveFamilies(gameData.recipes) : {} };
+  return familyCache.map;
+}
+
 function isCraftable(item: string): boolean {
   const set = craftableItems();
   return set.size ? set.has(item) : !!RECIPES[item];
@@ -809,6 +818,7 @@ function iconGlyph(cls: string, display: string, size = 18): string {
     building: isBuilding,
     size,
     tier: itemTiers()[cls],
+    family: itemFamilies()[cls],
   });
 }
 
@@ -827,6 +837,7 @@ function iconImg(display: string, size = 18): string {
     building: isBuilding,
     size,
     tier: itemTiers()[cls],
+    family: itemFamilies()[cls],
   });
 }
 
