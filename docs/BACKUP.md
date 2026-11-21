@@ -78,3 +78,19 @@ Two things worth carrying forward. **A backup that is written non-atomically is 
 backup**, because you believe you are covered; that write is now atomic too. And **the merge-rather
 -than-replace rule for restoring**, decided when backups were built, is what made the recovery
 painless: the afternoon's four readings survived alongside the forty-five.
+
+
+## The rule that follows from it
+
+Restoring that backup then failed with `missing field \`cls\``. A field added to `InvItem` that
+afternoon had no default, so every snapshot written before it — all forty-five, five months of them
+— became unreadable. The loader no longer destroys what it cannot read, but it still could not read
+it.
+
+**Every struct that ends up on disk carries `Default` and `#[serde(default)]`.** Without it, adding
+one field makes everything saved before that moment unparseable, and the whole file dies for the
+sake of three missing words on one line. Checked across `InvItem`, `ItemRate`, `ItemCount`,
+`ZoneSnap`, `Snapshot`, `SnapshotMetrics` and `BackupFile`; three were missing it and now are not.
+
+This belongs with the other backup rule: when something new is persisted, decide whether it goes in
+the backup **and** give its struct a default. Both or neither.

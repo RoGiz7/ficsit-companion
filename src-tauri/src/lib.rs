@@ -699,7 +699,17 @@ fn start_watching(app: AppHandle, folder: String) -> Result<(), String> {
 const CHUNK_SIG: [u8; 8] = [0xC1, 0x83, 0x2A, 0x9E, 0x22, 0x22, 0x22, 0x22];
 
 // Una construcción del inventario: nombre legible y cuántas hay.
-#[derive(Serialize, Deserialize, Clone)]
+// REGLA: toda estructura que acabe guardada en disco lleva Default y
+// #[serde(default)]. Sin eso, añadir un campo nuevo hace que TODO lo guardado
+// antes deje de parsear, y entonces el archivo entero se vuelve ilegible por
+// un campo que no estaba el mes pasado.
+//
+// No es teoría. El 21/11/2026 se añadió `cls` aquí sin default, y la
+// restauración de una copia con 45 lecturas falló con "missing field `cls`".
+// Cuarenta y cinco lecturas de cinco meses, bloqueadas por tres palabras que
+// faltaban en una línea.
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(default)]
 struct InvItem {
     name: String,
     count: u32,
@@ -1137,7 +1147,8 @@ struct SnapshotMetrics {
     hunted: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
 struct ZoneSnap {
     x: f64,
     y: f64,
@@ -1311,7 +1322,8 @@ fn get_history(app: AppHandle, session: String) -> Result<Vec<Snapshot>, String>
 const BACKUP_SCHEMA: u32 = 1;
 const KEEP_AUTO_BACKUPS: usize = 10;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(default)]
 struct BackupFile {
     schema: u32,
     app_version: String,
