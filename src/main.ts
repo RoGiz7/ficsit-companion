@@ -2,7 +2,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Parser } from "@etothepii/satisfactory-file-parser";
+import { Parser, SatisfactorySaveHeader, SaveReader } from "@etothepii/satisfactory-file-parser";
 
 // Carpeta de partidas por defecto. Editable desde la propia app.
 const DEFAULT_FOLDER =
@@ -72,6 +72,11 @@ interface SnapshotMetrics {
   deficits: ItemRate[] | null;
   stored: ItemCount[] | null;
   collectables: ItemCount[] | null;
+  modded: boolean | null;
+  mod_count: number | null;
+  save_version: number | null;
+  build_version: number | null;
+  recipe_coverage: number | null;
   levels: number | null;
   extent_m: number | null;
   game_version: string | null;
@@ -103,6 +108,7 @@ let balanceEl: HTMLElement;
 let storedEl: HTMLElement;
 let explorationEl: HTMLElement;
 let mapEl: HTMLElement;
+let compatEl: HTMLElement;
 let noteText: HTMLTextAreaElement;
 let noteSave: HTMLButtonElement;
 let noteStatus: HTMLElement;
@@ -319,6 +325,119 @@ const COLLECT_ES: Record<string, string> = {
 };
 
 // El mundo (sesión) al que pertenece un guardado.
+// ---- Compatibilidad de la partida ----
+// La cabecera del .sav lleva la version del juego, si la partida usa mods y
+// cuales, y si es creativa. Antes lo leiamos a mano en Rust buscando el texto
+// "++FactoryGame" dentro del cuerpo descomprimido, que no esta en los saves
+// antiguos (de ahi el "version desconocida"). Ahora lo lee la libreria, que
+// conoce el formato de verdad, y solo necesita los primeros 64 KB: medio
+// milisegundo por partida.
+interface ModInfo {
+  name: string;
+  version: string;
+}
+interface SaveMeta {
+  saveVersion: number;
+  buildVersion: number;
+  isModded: boolean;
+  mods: ModInfo[];
+  creative: boolean;
+}
+
+const metaCache: Record<string, SaveMeta> = {};
+let savesMeta: Record<string, SaveMeta> = {}; // por nombre de archivo
+let newestSaveVersion = 0; // la mas moderna que tiene el usuario
+
+async function readSaveMeta(folder: string, s: SaveEntry): Promise<SaveMeta | null> {
+  const key = `${s.name}|${s.modified_ms}`; // si el archivo cambia, se relee
+  if (metaCache[key]) return metaCache[key];
+  try {
+    const bytes = await invoke<ArrayBuffer>("read_save_head", { folder, name: s.name });
+    const h = SatisfactorySaveHeader.Parse(new SaveReader(bytes)) as any;
+    const raw = (h.modMetadata && h.modMetadata.Mods) || [];
+    const mods: ModInfo[] = raw.map((m: any) => ({
+      name: m.Name || m.Reference || "?",
+      version: m.Version || "",
+    }));
+    const meta: SaveMeta = {
+      saveVersion: h.saveVersion || 0,
+      buildVersion: h.buildVersion || 0,
+      isModded: !!h.isModdedSave || mods.length > 0,
+      mods,
+      creative: !!h.creativeModeEnabled,
+    };
+    metaCache[key] = meta;
+    return meta;
+  } catch (e) {
+    console.warn("No se pudo leer la cabecera de", s.name, e);
+    return null;
+  }
+}
+
+// Etiquetas de estado de una partida. Vacio = nada que advertir.
+function compatBadges(meta: SaveMeta | undefined): string {
+  if (!meta) return "";
+  const out: string[] = [];
+  if (meta.isModded) {
+    const list = meta.mods.map((m) => `${m.name} ${m.version}`).join(", ");
+    out.push(
+      `<span class="tagw" title="Esta partida necesita estos mods para abrirse en el juego:\n${escapeAttr(list)}">⚙ ${meta.mods.length} mods</span>`
+    );
+  }
+  if (newestSaveVersion && meta.saveVersion < newestSaveVersion) {
+    out.push(
+      `<span class="tagw" title="Guardada con un formato anterior (v${meta.saveVersion}) al de tus partidas mas nuevas (v${newestSaveVersion}).">formato v${meta.saveVersion}</span>`
+    );
+  }
+  if (meta.creative) out.push(`<span class="tagw">creativa</span>`);
+  return out.join(" ");
+}
+
+// Aviso de compatibilidad del mundo abierto. Solo aparece si hay algo que
+// decir: partida con mods, formato antiguo, o recetas que no sabemos leer.
+function renderCompat(
+  meta: SaveMeta | undefined,
+  machineCount: number,
+  unknown: number,
+  bySource: Record<string, number>
+) {
+  if (!compatEl) return;
+  const lines: string[] = [];
+
+  if (meta && meta.isModded) {
+    const list = meta.mods.map((m) => `${m.name} ${m.version}`).join(" · ");
+    lines.push(
+      `<b>Partida con ${meta.mods.length} mods.</b> El juego no la abrirá sin ellos instalados. ` +
+        `<span class="muted">${escapeXml(list)}</span>`
+    );
+  }
+  if (meta && newestSaveVersion && meta.saveVersion < newestSaveVersion) {
+    lines.push(
+      `Guardada en formato <b>v${meta.saveVersion}</b>, por detrás de tus partidas más nuevas (v${newestSaveVersion}).`
+    );
+  }
+  if (meta && meta.creative) {
+    lines.push(`Modo creativo activado: los datos no son comparables con una partida normal.`);
+  }
+  if (unknown > 0 && machineCount > 0) {
+    const pct = Math.round((unknown / machineCount) * 100);
+    const src = Object.entries(bySource)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `${v} de ${escapeXml(k)}`)
+      .join(", ");
+    lines.push(
+      `<b>${unknown} de ${machineCount} máquinas (${pct}%)</b> fabrican recetas que no sé interpretar, ` +
+        `así que su producción y su consumo no entran en los cálculos: ${src}.`
+    );
+  }
+
+  compatEl.innerHTML = lines.length
+    ? `<div class="compat-card"><h3 class="compat-title">⚠ Ojo con los datos de esta partida</h3>` +
+      lines.map((l) => `<p>${l}</p>`).join("") +
+      `</div>`
+    : "";
+}
+
 function worldKey(s: SaveEntry): string {
   return s.header?.session_name || s.name;
 }
@@ -352,11 +471,18 @@ function populateWorldSelect() {
     .join("");
 }
 
-// El save trae el marcador crudo ("++FactoryGame+rel-main-1.2.6"); al pionero
-// le interesa el numero.
-function prettyGameVersion(raw: string): string {
+// El marcador del cuerpo ("++FactoryGame+rel-main-1.2.6") no existe en los
+// saves antiguos, que por eso salian como "version desconocida". La cabecera
+// si trae siempre el numero de build, asi que ese manda y el texto es el
+// respaldo.
+function gameVersionOf(saveName: string, raw: string): string {
+  const meta = savesMeta[saveName];
   const m = raw.match(/(\d+\.\d+(?:\.\d+)?)/);
-  return m ? m[1] : raw;
+  const pretty = m ? m[1] : "";
+  if (meta && meta.buildVersion) {
+    return pretty ? `${pretty} (build ${meta.buildVersion})` : `build ${meta.buildVersion}`;
+  }
+  return pretty || raw;
 }
 
 function formatSize(bytes: number): string {
@@ -392,13 +518,19 @@ function render(saves: SaveEntry[]) {
     const playTime = h ? formatDuration(h.play_duration_seconds) : "—";
     // Fecha de la partida (de la cabecera); si no se pudo leer, usamos la del archivo.
     const dateMs = h && h.save_date_ms ? h.save_date_ms : s.modified_ms;
-    const build = h ? `<span class="build">build ${h.build_version}</span>` : "";
+    const meta = savesMeta[s.name];
+    const build = meta
+      ? `<span class="build">build ${meta.buildVersion}</span>`
+      : h
+        ? `<span class="build">build ${h.build_version}</span>`
+        : "";
 
     tr.innerHTML =
       `<td>${s.name}${tag}<br>${build}</td>` +
       `<td>${playTime}</td>` +
       `<td>${formatDate(dateMs)}</td>` +
-      `<td class="num">${formatSize(s.size_bytes)}</td>`;
+      `<td class="num">${formatSize(s.size_bytes)}</td>` +
+      `<td>${compatBadges(meta)}</td>`;
     tr.addEventListener("click", () => inspect(s.name));
     tableBody.appendChild(tr);
   }
@@ -420,6 +552,7 @@ async function inspect(name: string) {
   noteLabel.textContent = `Notas del mundo "${key}"`;
   noteStatus.textContent = "";
 
+  compatEl.innerHTML = "";
   detailStatus.textContent = "Leyendo el interior de la partida…";
   detailStatus.className = "detail-status";
   detailGrid.innerHTML = "";
@@ -432,7 +565,7 @@ async function inspect(name: string) {
     detailGrid.innerHTML =
       cell("Construcciones", String(info.total_buildings)) +
       cell("Tipos distintos", String(info.type_count)) +
-      cell("Versión del juego", prettyGameVersion(info.game_version)) +
+      cell("Versión del juego", gameVersionOf(name, info.game_version)) +
       cell("Datos descomprimidos", `${mb} MB`);
     renderInventory(info.inventory);
 
@@ -475,6 +608,7 @@ async function inspect(name: string) {
       // Centro de mando: signos vitales + "Retoma aquí".
       const deficits = computeDeficits(a.perItem, a.consumed);
       renderVitals(currentPowerMW, currentGenMW, deficits.length, a.points, a.stored);
+      renderCompat(savesMeta[name], a.machineCount, a.unknownRecipes, a.unknownBySource);
       snapMetrics = buildMetrics(a, info, deficits, currentPowerMW, currentGenMW, name);
       try {
         const snaps = await invoke<Snapshot[]>("get_history", { session: key });
@@ -498,6 +632,7 @@ async function inspect(name: string) {
       mapLevels = [];
       renderMap([], []);
       renderVitals(currentPowerMW, currentGenMW, 0, [], {});
+      renderCompat(savesMeta[name], 0, 0, {});
       renderResume(currentNoteKey, [], notesCache[currentNoteKey] || "", 0, info.progression);
     }
 
@@ -993,6 +1128,12 @@ async function analyzeWithParser(folder: string, name: string) {
   const points: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string }[] = [];
   const belts: { pts: [number, number][]; z: number }[] = []; // cinta = polilínea [x,y] + altura media
   const collect: Record<string, number> = {};
+  // Lo que no sabemos interpretar. El save se lee entero, pero nuestras tablas
+  // de recetas solo conocen el juego base: una maquina de un mod fabrica algo
+  // que no esta en RECIPE_OUTPUT. En vez de ignorarlo en silencio, lo contamos
+  // y decimos de donde viene.
+  const unknownBySource: Record<string, number> = {};
+  let unknownRecipes = 0;
   let machineCount = 0;
   let overclocked = 0;
 
@@ -1064,6 +1205,15 @@ async function analyzeWithParser(folder: string, name: string) {
               consumed[inp.item] = (consumed[inp.item] || 0) + inp.rate * oc;
             }
           }
+        } else {
+          unknownRecipes++;
+          // La ruta dice el origen: /Game/FactoryGame/... es del juego base,
+          // /RefinedPower/... es de ese mod.
+          const p = rec.value.pathName as string;
+          const src = p.startsWith("/Game/FactoryGame/")
+            ? "juego base"
+            : p.split("/")[1] || "desconocido";
+          unknownBySource[src] = (unknownBySource[src] || 0) + 1;
         }
       }
 
@@ -1113,7 +1263,19 @@ async function analyzeWithParser(folder: string, name: string) {
   }
   flushLevel();
 
-  return { perItem, consumed, machineCount, overclocked, stored, points, belts, collect, levels: floorLevels };
+  return {
+    perItem,
+    consumed,
+    machineCount,
+    overclocked,
+    stored,
+    points,
+    belts,
+    collect,
+    levels: floorLevels,
+    unknownRecipes,
+    unknownBySource,
+  };
 }
 
 // ---- Histórico rico: qué nos llevamos de cada guardado ----
@@ -1159,6 +1321,7 @@ function buildMetrics(
   powerGen: number,
   saveName: string
 ): SnapshotMetrics {
+  const meta = savesMeta[saveName];
   return {
     schema: SNAPSHOT_SCHEMA,
     tier: info.progression.current_tier,
@@ -1173,6 +1336,14 @@ function buildMetrics(
     deficits: deficits.map((d) => ({ item: d.item, rate: Math.round(d.deficit * 100) / 100 })),
     stored: toCounts(a.stored),
     collectables: toCounts(a.collect),
+    modded: meta ? meta.isModded : null,
+    mod_count: meta ? meta.mods.length : null,
+    save_version: meta ? meta.saveVersion : null,
+    build_version: meta ? meta.buildVersion : null,
+    recipe_coverage:
+      a.machineCount > 0
+        ? Math.round(((a.machineCount - a.unknownRecipes) / a.machineCount) * 1000) / 1000
+        : null,
     levels: a.levels.length,
     extent_m: extentMeters(a.points),
     game_version: info.game_version,
@@ -1743,6 +1914,17 @@ async function refresh() {
   try {
     const saves = await invoke<SaveEntry[]>("list_saves", { folder });
     currentSaves = saves;
+
+    // Cabeceras de todas las partidas: medio milisegundo cada una, asi que se
+    // leen todas de golpe y tenemos compatibilidad y version real en la lista.
+    savesMeta = {};
+    const metas = await Promise.all(saves.map((s) => readSaveMeta(folder, s)));
+    saves.forEach((s, i) => {
+      const m = metas[i];
+      if (m) savesMeta[s.name] = m;
+    });
+    newestSaveVersion = Math.max(0, ...Object.values(savesMeta).map((m) => m.saveVersion));
+
     currentWorlds = buildWorlds(saves);
     populateWorldSelect();
     render(currentWorlds[selectedWorld] || []);
@@ -1842,6 +2024,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   planEl = document.querySelector("#plan") as HTMLElement;
   calcEl = document.querySelector("#calc") as HTMLElement;
   progressEl = document.querySelector("#progress") as HTMLElement;
+  compatEl = document.querySelector("#compat") as HTMLElement;
   productionEl = document.querySelector("#production") as HTMLElement;
   balanceEl = document.querySelector("#balance") as HTMLElement;
   storedEl = document.querySelector("#stored") as HTMLElement;

@@ -7,6 +7,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
+- **Save compatibility check.** Each save's header is now read with the parser library instead of
+  hand-rolled byte offsets, which takes about half a millisecond per save. The saves list shows
+  whether a save needs mods (and which ones, with versions), whether it was written in an older
+  format than your newest save, and whether creative mode was on.
+- **Honest reporting of what the app cannot interpret.** The save is read in full, but the recipe
+  tables only know the base game, so a modded machine produces something the app has never heard
+  of. Instead of silently dropping those machines, it now counts them and says where they come
+  from: "8 of 30 machines (27%) run recipes I can't interpret: 6 from RefinedPower, 2 from
+  ContentLib". Snapshots record the coverage figure, so history knows which numbers to trust.
 - **Rich history snapshots.** Every snapshot now stores what the save actually contained: tier,
   milestones and research, machines with a recipe and how many are overclocked, estimated power
   consumption and generation, production and consumption per item, the deficits found, stored
@@ -36,6 +45,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Project metadata is no longer the Tauri starter template.
 
 ### Fixed
+- The game version no longer shows as "unknown" for older saves. It was being read by searching the
+  decompressed body for a `++FactoryGame` marker that simply is not present in saves from earlier
+  versions; the build number is now taken from the header, where it always is.
 - Non-game `.sav` files living in the save folder (`ServerManager.sav`, `TelemetrySettings.sav`) are
   now ignored instead of being parsed as worlds.
 

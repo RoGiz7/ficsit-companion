@@ -192,6 +192,20 @@ fn read_save_bytes(folder: String, name: String) -> Result<tauri::ipc::Response,
     Ok(tauri::ipc::Response::new(data))
 }
 
+// Comando: devuelve solo el principio del archivo. La interfaz parsea ahi la
+// cabecera con la libreria completa (version del juego, mods, modo creativo).
+// Leer 2 MB enteros solo para saber si una partida lleva mods seria un
+// desperdicio: la cabecera cabe de sobra en 64 KB.
+#[tauri::command]
+fn read_save_head(folder: String, name: String) -> Result<tauri::ipc::Response, String> {
+    let path = Path::new(&folder).join(&name);
+    let mut f = File::open(&path).map_err(|e| e.to_string())?;
+    let mut buf = vec![0u8; 65_536];
+    let n = f.read(&mut buf).map_err(|e| e.to_string())?;
+    buf.truncate(n);
+    Ok(tauri::ipc::Response::new(buf))
+}
+
 // Comando: vigila la carpeta y emite "saves-changed" cuando un .sav cambia.
 #[tauri::command]
 fn start_watching(app: AppHandle, folder: String) -> Result<(), String> {
@@ -653,6 +667,11 @@ struct SnapshotMetrics {
     deficits: Option<Vec<ItemRate>>,     // pieza → déficit/min (cuellos de botella)
     stored: Option<Vec<ItemCount>>,      // almacenes, máquinas, depósito, jugador
     collectables: Option<Vec<ItemCount>>, // lo que sigue sin recoger en el mundo
+    modded: Option<bool>,                // la partida llevaba mods
+    mod_count: Option<u32>,
+    save_version: Option<i32>,
+    build_version: Option<i32>,
+    recipe_coverage: Option<f64>,        // 0..1 de maquinas cuya receta entendemos
     levels: Option<u32>,                 // plantas detectadas
     extent_m: Option<f64>,               // diagonal de la fábrica en metros
     game_version: Option<String>,
@@ -804,7 +823,8 @@ pub fn run() {
             get_history,
             get_plans,
             set_plan,
-            read_save_bytes
+            read_save_bytes,
+            read_save_head
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1038,3 +1038,50 @@ table.saves {
   margin-top: 0;
   margin-bottom: 4px;
 }
+
+/* ---- Compatibilidad de la partida -------------------------------------
+   Etiquetas en la lista de guardados y aviso en el resumen. El tono es de
+   advertencia, no de error: la partida se lee bien, lo que pasa es que sus
+   numeros hay que mirarlos con contexto. */
+
+.tagw {
+  display: inline-block;
+  margin: 1px 3px 1px 0;
+  padding: 2px 8px;
+  border: 1px solid rgba(244, 197, 49, 0.35);
+  border-radius: 999px;
+  background: rgba(244, 197, 49, 0.1);
+  color: #f4c531;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.compat-card {
+  margin: 12px 0 4px;
+  padding: 13px 16px;
+  border: 1px solid rgba(244, 197, 49, 0.3);
+  border-left: 3px solid #f4c531;
+  border-radius: 12px;
+  background: rgba(244, 197, 49, 0.06);
+}
+
+.compat-title {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #f4c531;
+}
+
+.compat-card p {
+  margin: 6px 0 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.compat-card p:first-of-type {
+  margin-top: 0;
+}
