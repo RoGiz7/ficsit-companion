@@ -54,37 +54,44 @@
         </div>
       </details>
 
-      <section class="world-bar">
-        <label for="world-select" data-i18n="world">Mundo</label>
+      <!-- Barra de contexto: qué mundo, qué partida y cómo va, todo en una
+           línea. Antes esto ocupaba cinco bloques apilados y había que pasar
+           por delante de ellos para llegar al primer dato útil, que es justo
+           lo contrario de para lo que se abre esta app. -->
+      <section class="ctx">
+        <label for="world-select" class="ctx-label" data-i18n="world">Mundo</label>
         <select id="world-select"></select>
+        <span id="status" class="status" data-i18n="loading">Cargando…</span>
       </section>
 
-      <p id="status" class="status" data-i18n="loading">Cargando…</p>
+      <!-- Qué partida estoy mirando: contexto global, así que vive fuera de
+           las pestañas. Antes estaba dentro de Resumen y al irte al mapa
+           perdías de vista de qué mundo hablaba la pantalla. -->
+      <div class="ctx-save">
+        <h2 id="detail-title">—</h2>
+        <p id="detail-status" class="detail-status"></p>
+      </div>
 
+      <!-- Una pestaña, una pregunta. Antes "Resumen" mezclaba lo urgente, lo
+           que hacer, el inventario, la exploración y dos gráficas: cinco
+           trabajos en un cajón. El orden es el de un pionero que abre la
+           tablet: ¿algo roto? ¿qué fabrico? ¿dónde está? ¿cómo voy? -->
       <nav class="tabs">
-        <button class="tab active" data-tab="resumen" type="button" data-i18n="tab.summary">Resumen</button>
-        <button class="tab" data-tab="produccion" type="button" data-i18n="tab.production">Producción</button>
-        <button class="tab" data-tab="mapa" type="button" data-i18n="tab.map">Mapa</button>
-        <button class="tab" data-tab="logros" type="button" data-i18n="tab.achievements">Logros</button>
-        <button class="tab" data-tab="plan" type="button" data-i18n="tab.plan">Plan y notas</button>
+        <button class="tab active" data-tab="ahora" type="button" data-i18n="tab.now">Ahora</button>
+        <button class="tab" data-tab="fabrica" type="button" data-i18n="tab.factory">Fábrica</button>
+        <button class="tab" data-tab="planeta" type="button" data-i18n="tab.planet">Planeta</button>
+        <button class="tab" data-tab="historia" type="button" data-i18n="tab.history">Historia</button>
+        <button class="tab" data-tab="bitacora" type="button" data-i18n="tab.log">Bitácora</button>
         <button class="tab" data-tab="guardados" type="button" data-i18n="tab.saves">Guardados</button>
       </nav>
 
-      <!-- RESUMEN: estado del mundo abierto -->
-      <section class="tab-panel" id="tab-resumen">
-        <h2 id="detail-title">—</h2>
+      <!-- AHORA: qué reclama atención y por dónde voy -->
+      <section class="tab-panel" id="tab-ahora">
         <div id="alerts" class="alerts"></div>
-        <p id="detail-status" class="detail-status"></p>
         <div id="compat" class="compat"></div>
         <div id="resume" class="resume"></div>
         <div id="detail-grid" class="detail-grid"></div>
         <div id="vitals" class="progress"></div>
-
-        <!-- Lo de abajo va plegado: la pestaña tiene que entrar en una pantalla
-             y que sea el usuario quien decida qué desplegar. El título de cada
-             sección lo escribe su propio render; se copia al summary. -->
-        <!-- Abierto por defecto: es la respuesta a "¿y ahora qué?", que es
-             para lo que existe esta app. -->
         <details class="acc" id="acc-milestone" data-sync open>
           <summary><span class="acc-title" data-i18n="sec.milestone">Siguiente hito</span></summary>
           <div id="milestone" class="milestone"></div>
@@ -92,6 +99,16 @@
         <details class="acc" id="acc-progress" data-sync>
           <summary><span class="acc-title" data-i18n="sec.progress">Progreso de la partida</span></summary>
           <div id="progress" class="progress"></div>
+        </details>
+      </section>
+
+      <!-- FÁBRICA: qué fabrico, qué me falta y qué he construido -->
+      <section class="tab-panel hidden" id="tab-fabrica">
+        <div id="production" class="production"></div>
+        <div id="balance" class="balance"></div>
+        <details class="acc" id="acc-calc" data-sync>
+          <summary><span class="acc-title" data-i18n="sec.calc">Calculadora de producción</span></summary>
+          <div id="calc" class="calc"></div>
         </details>
         <details class="acc" id="acc-inventory" data-sync>
           <summary><span class="acc-title" data-i18n="sec.inventory">Inventario de construcciones</span></summary>
@@ -101,42 +118,32 @@
           <summary><span class="acc-title" data-i18n="sec.stored">Materiales almacenados</span></summary>
           <div id="stored" class="inventory"></div>
         </details>
-        <details class="acc" id="acc-exploration" data-sync>
+      </section>
+
+      <!-- PLANETA: dónde está todo. El mapa y lo que queda ahí fuera. -->
+      <section class="tab-panel hidden" id="tab-planeta">
+        <div id="map" class="map"></div>
+        <details class="acc" id="acc-exploration" data-sync open>
           <summary><span class="acc-title" data-i18n="sec.exploration">Exploración</span></summary>
           <div id="exploration" class="progress"></div>
         </details>
-        <details class="acc" id="acc-energy" data-sync>
+      </section>
+
+      <!-- HISTORIA: lo que ha pasado con el tiempo -->
+      <section class="tab-panel hidden" id="tab-historia">
+        <details class="acc" id="acc-energy" data-sync open>
           <summary><span class="acc-title" data-i18n="sec.energy">Energía en el tiempo</span></summary>
           <div id="energy" class="history"></div>
         </details>
-        <details class="acc" id="acc-history" data-sync>
+        <details class="acc" id="acc-history" data-sync open>
           <summary><span class="acc-title" data-i18n="sec.history">Evolución</span></summary>
           <div id="history" class="history"></div>
         </details>
-      </section>
-
-      <!-- PRODUCCIÓN: calculadora de cadenas -->
-      <section class="tab-panel hidden" id="tab-produccion">
-        <div id="production" class="production"></div>
-        <div id="balance" class="balance"></div>
-        <details class="acc" id="acc-calc" data-sync>
-          <summary><span class="acc-title" data-i18n="sec.calc">Calculadora de producción</span></summary>
-          <div id="calc" class="calc"></div>
-        </details>
-      </section>
-
-      <!-- MAPA: plano 2D de la fábrica -->
-      <section class="tab-panel hidden" id="tab-mapa">
-        <div id="map" class="map"></div>
-      </section>
-
-      <!-- LOGROS: la evaluación de desempeño de FICSIT -->
-      <section class="tab-panel hidden" id="tab-logros">
         <div id="achievements" class="achievements"></div>
       </section>
 
-      <!-- PLAN Y NOTAS -->
-      <section class="tab-panel hidden" id="tab-plan">
+      <!-- BITÁCORA: el plan y las notas del pionero -->
+      <section class="tab-panel hidden" id="tab-bitacora">
         <div id="plan" class="plan"></div>
         <div class="notes">
           <label for="note-text" id="note-label" data-i18n="notes.label">Notas de esta partida</label>

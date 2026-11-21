@@ -28,10 +28,11 @@ export const STRINGS: Record<string, Entry> = {
   "loading": { es: "Cargando…", en: "Loading…" },
 
   // ---- Pestañas ----
-  "tab.summary": { es: "Resumen", en: "Summary" },
-  "tab.production": { es: "Producción", en: "Production" },
-  "tab.map": { es: "Mapa", en: "Map" },
-  "tab.plan": { es: "Plan y notas", en: "Plan and notes" },
+  "tab.now": { es: "Ahora", en: "Now" },
+  "tab.factory": { es: "Fábrica", en: "Factory" },
+  "tab.planet": { es: "Planeta", en: "Planet" },
+  "tab.history": { es: "Historia", en: "History" },
+  "tab.log": { es: "Bitácora", en: "Log" },
   "tab.saves": { es: "Guardados", en: "Saves" },
 
   // ---- Secciones ----
@@ -399,7 +400,6 @@ export const STRINGS: Record<string, Entry> = {
   },
 
   // ---- Logros ----
-  "tab.achievements": { es: "Logros", en: "Achievements" },
   "ach.review": { es: "Evaluación de Desempeño", en: "Performance Review" },
   "ach.thisMonth": { es: "Mes en curso", en: "Current month" },
   "ach.history": { es: "Meses anteriores", en: "Previous months" },

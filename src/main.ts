@@ -2060,7 +2060,7 @@ function renderAlerts(alerts: Alert[]) {
       mapZone = a.zone >= 0 ? a.zone : null;
       mapFloor = null;
       highlightSpot = { x: a.x, y: a.y, label: `${a.count}× ${a.name}` };
-      showTab("mapa");
+      showTab("planeta");
       renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
       mapEl.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -3264,7 +3264,7 @@ function metresFromPlayer(x: number, y: number): number | null {
 function highlightOnMap(item: string) {
   highlightItem = item;
   highlightSpot = null;
-  showTab("mapa");
+  showTab("planeta");
   renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
 }
 
