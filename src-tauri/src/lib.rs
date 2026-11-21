@@ -627,8 +627,10 @@ fn get_game_data(app: AppHandle) -> Result<Option<serde_json::Value>, String> {
 #[tauri::command]
 fn set_game_data(app: AppHandle, data: serde_json::Value) -> Result<(), String> {
     let path = game_data_file(&app)?;
-    let json = serde_json::to_vec(&data).map_err(|e| e.to_string())?;
-    std::fs::write(&path, json).map_err(|e| e.to_string())
+    // Esto se regenera leyendo el juego, así que perderlo no es grave. Pero
+    // dejarlo a medias obliga a releer 10 MB sin decir por qué, y el
+    // renombrado cuesta lo mismo que no hacerlo.
+    write_json_atomic(&path, &data)
 }
 
 // Comando: devuelve solo el principio del archivo. La interfaz parsea ahi la
@@ -1047,28 +1049,22 @@ fn notes_file(app: &AppHandle) -> Result<PathBuf, String> {
 // Comando: devuelve todas las notas como mapa { mundo: texto }.
 #[tauri::command]
 fn get_notes(app: AppHandle) -> Result<HashMap<String, String>, String> {
-    let path = notes_file(&app)?;
-    if !path.exists() {
-        return Ok(HashMap::new());
-    }
-    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
-    let map: HashMap<String, String> = serde_json::from_slice(&bytes).unwrap_or_default();
-    Ok(map)
+    // Una sola puerta de entrada: antes este comando leía el archivo por su
+    // cuenta con su propio unwrap_or_default, así que blindar load_notes no
+    // habría servido de nada.
+    load_notes(&app)
 }
 
 // Comando: guarda (o borra, si el texto está vacío) la nota de un mundo.
 #[tauri::command]
 fn set_note(app: AppHandle, key: String, text: String) -> Result<(), String> {
-    let path = notes_file(&app)?;
-    let mut map = get_notes(app.clone())?;
+    let mut map = load_notes(&app)?;
     if text.trim().is_empty() {
         map.remove(&key);
     } else {
         map.insert(key, text);
     }
-    let json = serde_json::to_vec_pretty(&map).map_err(|e| e.to_string())?;
-    std::fs::write(&path, json).map_err(|e| e.to_string())?;
-    Ok(())
+    save_notes(&app, &map)
 }
 
 // ---- Histórico: una "foto" del inventario por cada guardado ----
@@ -1169,19 +1165,74 @@ fn history_file(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("history.json"))
 }
 
+// ---- Lectura y escritura de los datos del usuario ----
+//
+// Estas dos funciones existen por un fallo real, no por precaución teórica.
+//
+// Antes, cargar un archivo hacía `from_slice(..).unwrap_or_default()`: si el
+// JSON no parseaba por lo que fuera, se devolvía un mapa VACÍO en silencio, y
+// la siguiente escritura lo guardaba encima. Y guardar era un fs::write
+// directo, que deja el archivo truncado si el proceso muere a mitad.
+//
+// Las dos cosas juntas forman una cadena que destruye datos: una escritura
+// interrumpida deja el archivo roto, la carga siguiente lo lee como vacío, y
+// la escritura siguiente borra meses de histórico. Pasó de verdad: un
+// histórico de 45 lecturas en tres mundos, de junio a noviembre, se quedó en
+// 4. Se recuperó de la copia automática, que para eso está, pero el agujero
+// había que taparlo.
+//
+// Ahora: escribir es atómico (archivo temporal y renombrado, que en el mismo
+// volumen es una operación indivisible), y una carga que falla NO devuelve
+// vacío sin más — aparta el archivo roto con fecha, para que se pueda
+// recuperar a mano o comparar, y lo deja dicho en el log.
+fn read_json_or_preserve<T: serde::de::DeserializeOwned + Default>(
+    path: &Path,
+    what: &str,
+) -> T {
+    if !path.exists() {
+        return T::default();
+    }
+    let bytes = match std::fs::read(path) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("[{what}] no se pudo leer: {e}");
+            return T::default();
+        }
+    };
+    match serde_json::from_slice::<T>(&bytes) {
+        Ok(v) => v,
+        Err(e) => {
+            // Nunca se pierde: se aparta con nombre propio antes de seguir.
+            let stamp = now_ms();
+            let side = path.with_extension(format!("roto-{stamp}.json"));
+            let _ = std::fs::rename(path, &side);
+            eprintln!(
+                "[{what}] el archivo no se pudo interpretar ({e}). Se ha apartado en {}. \
+                 Se sigue con datos vacios; use Ajustes > Copias de seguridad para restaurar.",
+                side.display()
+            );
+            T::default()
+        }
+    }
+}
+
+/// Escribe de forma atómica: primero a un temporal, luego renombrado. Si el
+/// proceso muere a mitad, el archivo bueno sigue intacto.
+fn write_json_atomic<T: serde::Serialize>(path: &Path, value: &T) -> Result<(), String> {
+    let json = serde_json::to_vec_pretty(value).map_err(|e| e.to_string())?;
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, &json).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+}
+
 fn load_history(app: &AppHandle) -> Result<HashMap<String, Vec<Snapshot>>, String> {
     let path = history_file(app)?;
-    if !path.exists() {
-        return Ok(HashMap::new());
-    }
-    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
-    Ok(serde_json::from_slice(&bytes).unwrap_or_default())
+    Ok(read_json_or_preserve(&path, "historico"))
 }
 
 fn save_history(app: &AppHandle, map: &HashMap<String, Vec<Snapshot>>) -> Result<(), String> {
     let path = history_file(app)?;
-    let json = serde_json::to_vec_pretty(map).map_err(|e| e.to_string())?;
-    std::fs::write(&path, json).map_err(|e| e.to_string())
+    write_json_atomic(&path, map)
 }
 
 // Comando: registra una foto de una partida en el histórico de su mundo.
@@ -1296,26 +1347,19 @@ struct ImportReport {
 // linea; la copia de seguridad necesita lo mismo desde fuera.
 fn load_notes(app: &AppHandle) -> Result<HashMap<String, String>, String> {
     let path = notes_file(app)?;
-    if !path.exists() {
-        return Ok(HashMap::new());
-    }
-    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
-    Ok(serde_json::from_slice(&bytes).unwrap_or_default())
+    // Las notas las escribió una persona a mano: aún menos recuperables que
+    // el histórico.
+    Ok(read_json_or_preserve(&path, "notas"))
 }
 
 fn save_notes(app: &AppHandle, map: &HashMap<String, String>) -> Result<(), String> {
     let path = notes_file(app)?;
-    let json = serde_json::to_vec_pretty(map).map_err(|e| e.to_string())?;
-    std::fs::write(&path, json).map_err(|e| e.to_string())
+    write_json_atomic(&path, map)
 }
 
 fn load_plans(app: &AppHandle) -> Result<HashMap<String, HashMap<String, u32>>, String> {
     let path = plans_file(app)?;
-    if !path.exists() {
-        return Ok(HashMap::new());
-    }
-    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
-    Ok(serde_json::from_slice(&bytes).unwrap_or_default())
+    Ok(read_json_or_preserve(&path, "planes"))
 }
 
 fn save_plans(
@@ -1323,8 +1367,7 @@ fn save_plans(
     map: &HashMap<String, HashMap<String, u32>>,
 ) -> Result<(), String> {
     let path = plans_file(app)?;
-    let json = serde_json::to_vec_pretty(map).map_err(|e| e.to_string())?;
-    std::fs::write(&path, json).map_err(|e| e.to_string())
+    write_json_atomic(&path, map)
 }
 
 fn backups_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -1358,8 +1401,9 @@ fn collect_backup(app: &AppHandle) -> Result<BackupFile, String> {
 fn write_backup(app: &AppHandle, name: &str) -> Result<String, String> {
     let data = collect_backup(app)?;
     let path = backups_dir(app)?.join(name);
-    let json = serde_json::to_vec_pretty(&data).map_err(|e| e.to_string())?;
-    std::fs::write(&path, json).map_err(|e| e.to_string())?;
+    // La copia, atómica por encima de todo: una copia truncada es peor que no
+    // tener copia, porque uno se cree cubierto. Hoy ha hecho falta de verdad.
+    write_json_atomic(&path, &data)?;
     Ok(path.to_string_lossy().to_string())
 }
 
@@ -1548,25 +1592,18 @@ fn plans_file(app: &AppHandle) -> Result<PathBuf, String> {
 
 #[tauri::command]
 fn get_plans(app: AppHandle) -> Result<HashMap<String, HashMap<String, u32>>, String> {
-    let path = plans_file(&app)?;
-    if !path.exists() {
-        return Ok(HashMap::new());
-    }
-    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
-    Ok(serde_json::from_slice(&bytes).unwrap_or_default())
+    load_plans(&app)
 }
 
 #[tauri::command]
 fn set_plan(app: AppHandle, world: String, goals: HashMap<String, u32>) -> Result<(), String> {
-    let path = plans_file(&app)?;
-    let mut map = get_plans(app.clone())?;
+    let mut map = load_plans(&app)?;
     if goals.is_empty() {
         map.remove(&world);
     } else {
         map.insert(world, goals);
     }
-    let json = serde_json::to_vec_pretty(&map).map_err(|e| e.to_string())?;
-    std::fs::write(&path, json).map_err(|e| e.to_string())
+    save_plans(&app, &map)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

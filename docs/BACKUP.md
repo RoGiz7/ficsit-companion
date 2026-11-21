@@ -51,3 +51,30 @@ moved out.
 
 There is no backup folder setting yet, so automatic copies stay beside the app's data. Pointing
 them at a synced folder would make them survive the machine. Deliberately left for later.
+
+
+## The day the backup earned its keep
+
+On 21 November 2026 the history went from 45 readings across three worlds — one of them going back
+to June — down to 4 readings from that afternoon. The automatic backup from 12:17 had all of it,
+and restoring merged it back without losing the new ones.
+
+The cause was a chain of two mistakes in the code, both mine, and both now fixed:
+
+1. **Loading did `from_slice(..).unwrap_or_default()`.** Any parse failure silently became an empty
+   map instead of an error.
+2. **Saving did a direct `fs::write`.** A process killed mid-write leaves a truncated file.
+
+Together they destroy data: an interrupted write breaks the file, the next load reads it as empty,
+and the next write saves that emptiness over everything. Stopping and starting `tauri dev` all day
+is more than enough to land a kill inside a write.
+
+Now: every write of history, notes, plans, game data and the backups themselves goes to a temporary
+file and is renamed into place, which is atomic on the same volume. And a load that fails no longer
+returns empty quietly — it moves the unreadable file aside as `<name>.roto-<timestamp>.json` and
+says so in the log, so nothing is destroyed even in the case the backup does not cover.
+
+Two things worth carrying forward. **A backup that is written non-atomically is worse than no
+backup**, because you believe you are covered; that write is now atomic too. And **the merge-rather
+-than-replace rule for restoring**, decided when backups were built, is what made the recovery
+painless: the afternoon's four readings survived alongside the forty-five.
