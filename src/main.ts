@@ -1514,6 +1514,10 @@ async function analyzeWithParser(folder: string, name: string) {
           }
         } else {
           const leaf = (o.typePath.split("/").pop() || "").split(".")[0];
+          // El ensamblaje del Ascensor Espacial lo coloca el juego en órbita, a
+          // 23 km de altura. Es un solo objeto y arrasaba con la escala del
+          // plano y con la detección de alturas. No forma parte de la fábrica.
+          if (NOT_FACTORY.test(leaf)) continue;
           // ¿Qué fabrica? (solo máquinas con receta) para el tooltip y el resaltado.
           let detail = "";
           let prodItem = "";
@@ -1617,6 +1621,10 @@ async function analyzeWithParser(folder: string, name: string) {
     const k = Math.round(z / 100) * 100;
     zBins.set(k, (zBins.get(k) || 0) + 1);
   }
+  // Un cimiento de Satisfactory mide 4 m, así que dos pisos distintos están
+  // separados al menos eso. Fusionar sólo lo que esté a menos de 2 m partía un
+  // mismo altillo en cinco "pisos".
+  const FLOOR_GAP = 800; // 8 m: dos cimientos de margen
   const zPeaks = [...zBins.entries()].filter(([, c]) => c >= 2).sort((a, b) => a[0] - b[0]);
   const floorLevels: number[] = [];
   let accZ = 0, accN = 0, lastPeak = NaN;
@@ -1626,7 +1634,7 @@ async function analyzeWithParser(folder: string, name: string) {
     accN = 0;
   };
   for (const [z, c] of zPeaks) {
-    if (!isNaN(lastPeak) && z - lastPeak > 200) flushLevel();
+    if (!isNaN(lastPeak) && z - lastPeak > FLOOR_GAP) flushLevel();
     accZ += z * c;
     accN += c;
     lastPeak = z;
@@ -1796,6 +1804,10 @@ function renderExploration(collect: Record<string, number>) {
 }
 
 // Rota un vector local por un cuaternión (para llevar el trazado de la cinta al mundo).
+// Cosas que aparecen con coordenadas pero no son parte de la fábrica que el
+// pionero ha construido sobre el terreno.
+const NOT_FACTORY = /ProjectAssembly|Orbital/i;
+
 function qrot(q: any, v: any) {
   const tx = 2 * (q.y * v.z - q.z * v.y);
   const ty = 2 * (q.z * v.x - q.x * v.z);
@@ -1877,6 +1889,24 @@ function renderMap(
   }
   if (!isFinite(minZ)) { minZ = 0; maxZ = 1; }
   if (maxZ - minZ < 1) maxZ = minZ + 1;
+
+  // La caja de la vista se calcula por percentiles, no por mínimo y máximo: un
+  // único objeto despistado no debe encoger la fábrica entera hasta dejarla en
+  // cuatro píxeles. Lo que quede fuera se sigue dibujando, solo que al borde.
+  const pct = (arr: number[], f: number) => {
+    const a = [...arr].sort((x, y) => x - y);
+    return a.length ? a[Math.floor((a.length - 1) * f)] : 0;
+  };
+  const allX = points.map((p) => p.x);
+  const allY = points.map((p) => p.y);
+  if (allX.length >= 20) {
+    const mx = (pct(allX, 0.99) - pct(allX, 0.01)) * 0.08 + 500;
+    const my = (pct(allY, 0.99) - pct(allY, 0.01)) * 0.08 + 500;
+    minX = Math.max(minX, pct(allX, 0.01) - mx);
+    maxX = Math.min(maxX, pct(allX, 0.99) + mx);
+    minY = Math.max(minY, pct(allY, 0.01) - my);
+    maxY = Math.min(maxY, pct(allY, 0.99) + my);
+  }
 
   const W = 720, H = 620, pad = 14;
   const s = Math.min((W - 2 * pad) / (maxX - minX || 1), (H - 2 * pad) / (maxY - minY || 1));
