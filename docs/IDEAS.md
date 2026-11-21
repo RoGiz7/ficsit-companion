@@ -145,6 +145,30 @@ This rule should be applied to anything added later that knows more than the pla
 nodes above all, since the save locates 1,147 of them whether or not the pioneer has ever been
 there.
 
+## Hostile fauna: what the save knows, and why there is no to-do list
+
+Every creature nest in the save carries, per creature, `WasKilled`, `NumTimesKilled` and
+`KilledOnDayNr`. `BP_TimeOfDaySubsystem` carries `mNumberOfPassedDays`, so a day number becomes
+"cleared six days ago", and `mNumberOfDaysSinceLastDeath`, which is a days-without-an-accident
+board that writes itself.
+
+Two things the data decided, against the obvious design.
+
+**Proximity is computed here, not read.** Nests carry `mCachedIsNearBase`, which looks perfect and
+is not: it is only written when it differs from the default, so its absence means unknown, not far.
+Same trap as the generator fuel flag. Distance to the nearest building is unambiguous and the
+threshold is ours.
+
+**There is no list of nests to clear.** The first version listed untouched nests near the factory.
+Measured against real saves: 26 nests within 150 m of one plant and 59 of another, essentially
+none cleared. That is not a backlog, it is what living on this planet looks like — pioneers wall
+them off or ignore them, and cleared nests repopulate anyway. So the panel gives the counts, the
+nearest one and the last hunt, and stops. A to-do list nobody asked for is worse than no panel.
+
+Worth knowing: the save only contains nests in areas that have been loaded, so 95-99% of them pass
+the fog filter already. The filter stays because it costs nothing and the rule is the rule, but the
+save was already honest here by construction.
+
 ## The map in time: matching blocks between readings
 
 Each snapshot now stores its blocks — centre and machine count, at most forty, nothing else. Not

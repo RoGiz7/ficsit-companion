@@ -152,6 +152,7 @@ let gameDataEl: HTMLElement;
 let iconsEl: HTMLElement;
 let backupsEl: HTMLElement;
 let achievementsEl: HTMLElement;
+let dangerEl: HTMLElement;
 let alertsEl: HTMLElement;
 let milestoneEl: HTMLElement;
 let gameData: GameData | null = null;
@@ -1163,6 +1164,9 @@ async function inspect(name: string) {
       lastZones = a.zones;
       lastPlayers = a.players;
       lastFog = a.fog;
+      gameDays = a.gameDays;
+      daysSinceDeath = a.daysSinceDeath;
+      lastNests = a.nests.filter((nst) => fogSeen(a.fog, nst.x, nst.y));
       // Aquí se aplica la regla: lo que está en territorio sin explorar no se
       // guarda con su posición. Se cuenta y ya.
       lastCollect = a.collectPts.filter((c) => fogSeen(a.fog, c.x, c.y));
@@ -1172,6 +1176,7 @@ async function inspect(name: string) {
       mapZone = null;
       renderMap(a.points, a.belts, a.slabs, a.zones);
       renderAlerts(computeAlerts(a.points, a.zones));
+      renderDanger(a.points);
 
       // Centro de mando: signos vitales + "Retoma aquí".
       const deficits = computeDeficits(a.perItem, a.consumed);
@@ -1253,7 +1258,13 @@ function renderNextMilestone(
 ) {
   if (!milestoneEl) return;
   if (!gameData) {
-    milestoneEl.innerHTML = "";
+    // Antes esto devolvía vacío y se quedaba callado. El panel de "y ahora
+    // qué" es justo lo que más falta le hace a quien acaba de empezar, y
+    // quien acaba de empezar es exactamente quien todavía no ha entrado en
+    // ajustes. Un hueco en blanco no es una explicación.
+    milestoneEl.innerHTML =
+      `<h3 class="inv-title">${t("sec.milestone")}</h3>` +
+      `<p class="muted">${t("ms.needdocs")}</p>`;
     return;
   }
 
@@ -1559,6 +1570,13 @@ function renderVitals(
     cellColor(t("vitals.margin"), generation > 0 ? `${margin >= 0 ? "+" : ""}${fmt(margin)} MW` : "—", generation > 0 ? mColor : "#8b93a3") +
     cell(t("vitals.size"), size) +
     cell(t("vitals.stored"), storedTotal.toLocaleString()) +
+    (daysSinceDeath === null
+      ? ""
+      : cellColor(
+          t("vitals.safe"),
+          t("vitals.safe_n", { n: daysSinceDeath }),
+          daysSinceDeath >= 10 ? "#5fd38d" : daysSinceDeath >= 3 ? "#f4c531" : "#ff6b6b"
+        )) +
     `</div>` +
     (dryCount > 0
       ? `<p class="muted vit-dry">${t("vitals.dry", { n: dryCount, mw: fmt(dryGen) })}</p>`
@@ -1897,6 +1915,47 @@ function prettyItem(pathName: string): string {
 }
 
 // Parser COMPLETO (etothepii): producción exacta con overclock + materiales almacenados.
+// Fauna hostil: los nidos que ya ha visto, y cuáles están pegados a lo que ha
+// construido. La cercanía la medimos nosotros contra los edificios; el juego
+// cachea una marca propia pero solo la escribe cuando no vale el valor por
+// defecto, así que su ausencia no significa "lejos".
+const NEST_NEAR_M = 150;
+
+function renderDanger(points: { x: number; y: number }[]) {
+  if (!dangerEl) return;
+  if (!lastNests.length) {
+    dangerEl.innerHTML = "";
+    return;
+  }
+  const cleared = lastNests.filter((n) => n.killed >= n.n).length;
+  const dists = lastNests.map((n) => ({ n, m: metresFromFactory(n.x, n.y, points) }));
+  const near = dists.filter((e) => e.m <= NEST_NEAR_M).length;
+  const closest = dists.reduce((a, b) => (b.m < a.m ? b : a));
+
+  // Esto informa, no manda. Medido contra partidas reales: 26 nidos a menos
+  // de 150 m de una planta y 59 de otra, ninguno limpiado. Listarlos uno a
+  // uno sería una lista de tareas que nadie pidió — un pionero no limpia los
+  // nidos de su patio, los rodea con un muro o convive con ellos. Así que van
+  // los números y el más cercano, y se acabó.
+  const recent = lastNests
+    .filter((n) => n.lastDay >= 0)
+    .sort((a, b) => b.lastDay - a.lastDay)[0];
+
+  const cells =
+    cell(t("danger.seen"), String(lastNests.length)) +
+    cell(t("danger.near"), String(near)) +
+    cell(t("danger.closest"), `${closest.m} m`) +
+    cell(t("danger.cleared"), `${cleared} / ${lastNests.length}`) +
+    (recent && gameDays
+      ? cell(t("danger.last_hunt"), t("danger.days_ago", { n: gameDays - recent.lastDay }))
+      : "");
+
+  dangerEl.innerHTML =
+    `<h3 class="inv-title">${t("sec.danger")}</h3>` +
+    `<div class="detail-grid">${cells}</div>` +
+    `<p class="muted">${t("danger.note")}</p>`;
+}
+
 // ---- La niebla: lo que ha visto de verdad ----
 //
 // REGLA DE LA CASA: la app no revela lo que el juego no le ha revelado. Ayuda
@@ -2190,6 +2249,11 @@ async function analyzeWithParser(folder: string, name: string) {
   const players: { name: string; x: number; y: number; z: number }[] = [];
   const collectPts: { kind: string; x: number; y: number; z: number }[] = [];
   let fog: Uint8Array | null = null;
+  // Nidos de criaturas. Cada uno guarda, por bicho, si lo has abatido, cuántas
+  // veces y en qué día. Es un diario de caza que nadie estaba leyendo.
+  const nests: { x: number; y: number; z: number; n: number; killed: number; lastDay: number }[] = [];
+  let gameDays = 0;
+  let daysSinceDeath: number | null = null;
   const collect: Record<string, number> = {};
   // Lo que no sabemos interpretar. El save se lee entero, pero nuestras tablas
   // de recetas solo conocen el juego base: una maquina de un mod fabrica algo
@@ -2307,6 +2371,32 @@ async function analyzeWithParser(folder: string, name: string) {
       }
 
       if (!fog && /FGMapManager/.test(o.typePath || "")) fog = extractFog(o.properties);
+
+      if (/BP_TimeOfDaySubsystem/.test(o.typePath || "")) {
+        const pr: any = o.properties || {};
+        const d = pr.mNumberOfPassedDays;
+        if (d) gameDays = Math.round(d.value !== undefined ? d.value : d);
+        const sd = pr.mNumberOfDaysSinceLastDeath;
+        if (sd) daysSinceDeath = Math.round(sd.value !== undefined ? sd.value : sd);
+      }
+
+      if (/CreatureSpawner/i.test(o.typePath || "")) {
+        const t = o.transform && o.transform.translation;
+        const sd: any = o.properties && (o.properties as any).mSpawnData;
+        const vals = sd && (sd.values || (sd.value && sd.value.values));
+        if (t && Array.isArray(vals) && vals.length) {
+          let killed = 0;
+          let lastDay = -1;
+          for (const e of vals) {
+            const ep = (e && e.properties) || {};
+            const wk = ep.WasKilled && (ep.WasKilled.value !== undefined ? ep.WasKilled.value : ep.WasKilled);
+            if (wk) killed++;
+            const kd = ep.KilledOnDayNr && (ep.KilledOnDayNr.value !== undefined ? ep.KilledOnDayNr.value : ep.KilledOnDayNr);
+            if (typeof kd === "number" && kd > lastDay) lastDay = kd;
+          }
+          nests.push({ x: t.x, y: t.y, z: t.z, n: vals.length, killed, lastDay });
+        }
+      }
 
       if (/Char_Player\.Char_Player_C/.test(o.typePath || "")) {
         const t = o.transform && o.transform.translation;
@@ -2501,6 +2591,9 @@ async function analyzeWithParser(folder: string, name: string) {
     players,
     collectPts,
     fog,
+    nests,
+    gameDays,
+    daysSinceDeath,
     powerFromDocs,
     storedByClass,
     slabs,
@@ -3211,6 +3304,7 @@ function renderMap(
     ["other", t("layer.other")],
   ];
   if (lastCollect.length) filterDefs.push(["collect", t("layer.collect")]);
+  if (lastNests.length) filterDefs.push(["nest", t("layer.nest")]);
   const filters = filterDefs
     .map(
       ([k, lbl]) =>
@@ -3319,6 +3413,26 @@ function renderMap(
     }
   }
 
+  // Nidos. Triángulo invertido y hueco: la misma familia de tinta que el
+  // resto del mundo, apuntando hacia abajo porque no es algo que buscas.
+  let nestSvg = "";
+  if (mapNests) {
+    for (const nst of lastNests) {
+      const nx = px(nst.x);
+      const ny = py(nst.y);
+      const clear = nst.killed >= nst.n;
+      const col = clear ? "#6f7585" : "#d98a8a";
+      const ago = nst.lastDay >= 0 && gameDays ? gameDays - nst.lastDay : null;
+      nestSvg +=
+        `<g data-cat="nest" data-z="${Math.round(nst.z)}" data-floor="-1">` +
+        `<polygon class="mk" points="${nx.toFixed(1)},${(ny + 2.8).toFixed(1)} ${(nx - 2.8).toFixed(1)},${(ny - 2.2).toFixed(1)} ${(nx + 2.8).toFixed(1)},${(ny - 2.2).toFixed(1)}" ` +
+        `fill="none" stroke="${col}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>` +
+        `<title>${t("nest.one", { n: nst.n })}${
+          clear ? ` · ${ago === null ? t("nest.cleared") : t("nest.cleared_ago", { d: ago })}` : ` · ${t("nest.never")}`
+        }</title></g>`;
+    }
+  }
+
   // Lo que queda por recoger. Capa aparte, no una quinta categoría: el
   // espacio de colores ya está lleno y un quinto tono no pasaba la validación
   // contra los cuatro de la fábrica. Así que el mundo va en tinta y hueco —
@@ -3417,7 +3531,7 @@ function renderMap(
     heightFilter +
     (growthNote ? `<p class="muted cmp-note">${growthNote}</p>` : "") +
     `<svg viewBox="0 0 ${W} ${H}" class="map2d" id="map-svg">` +
-    `<g id="map-vp">${fogSvg}${slabSvg}${lines}${others}${shapes}${collectSvg}${trackSvg}${growthSvg}${playerSvg}${spotSvg}</g></svg>` +
+    `<g id="map-vp">${fogSvg}${slabSvg}${lines}${others}${shapes}${collectSvg}${nestSvg}${trackSvg}${growthSvg}${playerSvg}${spotSvg}</g></svg>` +
     `<div class="map-legend">${legend}<span class="leg-item"><span style="color:#8a93a3">─</span> cintas</span>` +
     `<span class="leg-item"><span style="color:#aab0bd">·</span> resto</span></div>` +
     zoneList(zones) +
@@ -3445,6 +3559,24 @@ let lastCollect: { kind: string; x: number; y: number; z: number }[] = [];
 let collectKind: string | null = null;
 let lastFog: Uint8Array | null = null;
 let mapFog = true;
+// Nidos vistos (los de terreno sin pisar no se sitúan: regla de la casa).
+let lastNests: { x: number; y: number; z: number; n: number; killed: number; lastDay: number }[] = [];
+let gameDays = 0;
+let daysSinceDeath: number | null = null;
+let mapNests = true;
+
+// Distancia del nido a lo construido más cercano. Lo calculamos nosotros en
+// vez de fiarnos de mCachedIsNearBase, que solo aparece en el archivo cuando
+// no vale lo que vale por defecto: ausente significa "no se sabe", y con eso
+// no se puede avisar de nada.
+function metresFromFactory(x: number, y: number, pts: { x: number; y: number }[]): number {
+  let best = Infinity;
+  for (const p of pts) {
+    const d = (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y);
+    if (d < best) best = d;
+  }
+  return Math.round(Math.sqrt(best) / 100);
+}
 let hiddenCollect = 0; // cuántos quedan en territorio sin pisar
 // Dos encuadres. "fabrica" ajusta a lo construido, que es lo normal. "mundo"
 // abre hasta abarcar lo que queda por recoger, que está repartido por todo el
@@ -3942,6 +4074,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   iconsEl = document.querySelector("#icons") as HTMLElement;
   backupsEl = document.querySelector("#backups") as HTMLElement;
   achievementsEl = document.querySelector("#achievements") as HTMLElement;
+  dangerEl = document.querySelector("#danger") as HTMLElement;
   alertsEl = document.querySelector("#alerts") as HTMLElement;
   milestoneEl = document.querySelector("#milestone") as HTMLElement;
   productionEl = document.querySelector("#production") as HTMLElement;
