@@ -4,14 +4,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Parser, SatisfactorySaveHeader, SaveReader } from "@etothepii/satisfactory-file-parser";
 
-// Carpeta de partidas por defecto. Editable desde la propia app.
-const DEFAULT_FOLDER =
-  "C:\\Users\\usserpc\\AppData\\Local\\FactoryGame\\Saved\\SaveGames\\76561197988051783";
+// Dónde se recuerda la carpeta elegida entre arranques.
+const FOLDER_KEY = "saveFolder";
 
 // Tienen que coincidir con los structs del backend.
 interface SaveHeader {
   session_name: string;
   map_name: string;
+  save_version: number;
   build_version: number;
   play_duration_seconds: number;
   save_date_ms: number;
@@ -325,6 +325,47 @@ const COLLECT_ES: Record<string, string> = {
 };
 
 // El mundo (sesión) al que pertenece un guardado.
+interface DetectedFolder {
+  path: string;
+  save_count: number;
+  newest_ms: number;
+}
+
+// Elige la carpeta de partidas: la que se usó la última vez, y si no hay, la
+// que encuentre el backend mirando donde el juego guarda de serie. Antes esto
+// era una ruta escrita a fuego con un usuario de Windows y un id de Steam
+// dentro, así que la app solo servía en un ordenador del mundo.
+async function pickFolder(): Promise<string> {
+  try {
+    const saved = localStorage.getItem(FOLDER_KEY);
+    if (saved) return saved;
+  } catch {
+    /* sin almacenamiento local, tiramos de detección */
+  }
+  try {
+    const found = await invoke<DetectedFolder[]>("detect_save_folders");
+    if (found.length) {
+      if (found.length > 1) {
+        console.info(
+          `Encontradas ${found.length} carpetas de partidas; uso la de la partida más reciente.`
+        );
+      }
+      return found[0].path;
+    }
+  } catch (e) {
+    console.warn("No se pudieron detectar carpetas de partidas:", e);
+  }
+  return "";
+}
+
+function rememberFolder(folder: string) {
+  try {
+    localStorage.setItem(FOLDER_KEY, folder);
+  } catch {
+    /* da igual: al arrancar se vuelve a detectar */
+  }
+}
+
 // ---- Compatibilidad de la partida ----
 // La cabecera del .sav lleva la version del juego, si la partida usa mods y
 // cuales, y si es creativa. Antes lo leiamos a mano en Rust buscando el texto
@@ -1929,6 +1970,7 @@ async function refresh() {
     populateWorldSelect();
     render(currentWorlds[selectedWorld] || []);
     const numWorlds = Object.keys(currentWorlds).length;
+    rememberFolder(folder);
     statusEl.className = "status ok";
     statusEl.textContent =
       `${numWorlds} mundo(s) · ${saves.length} guardado(s) · actualizado a las ${new Date().toLocaleTimeString()}`;
@@ -2034,7 +2076,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   noteSave = document.querySelector("#note-save") as HTMLButtonElement;
   noteStatus = document.querySelector("#note-status") as HTMLElement;
   noteLabel = document.querySelector("#note-label") as HTMLElement;
-  folderInput.value = DEFAULT_FOLDER;
+  folderInput.value = await pickFolder();
 
   setupAccordions();
 
@@ -2102,6 +2144,17 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
 
   // Arranque automático: escaneamos, abrimos el mundo más reciente y empezamos a vigilar.
+  if (!folderInput.value) {
+    // Sin carpeta no hay nada que hacer, así que la pedimos con la caja ya
+    // abierta en vez de dejar la app en blanco sin explicación.
+    statusEl.className = "status err";
+    statusEl.textContent =
+      "No encuentro la carpeta de partidas de Satisfactory. Indícala arriba y pulsa Vigilar.";
+    const folderAcc = document.querySelector<HTMLDetailsElement>("#acc-folder");
+    if (folderAcc) folderAcc.open = true;
+    return;
+  }
+
   await refresh();
   if (selectedWorld && currentWorlds[selectedWorld]?.length) {
     await inspect(currentWorlds[selectedWorld][0].name);

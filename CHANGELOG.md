@@ -28,8 +28,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - "Import my saves" now parses each save properly instead of only dating it, which rescues the
   metrics of the rotating autosaves before the game overwrites them.
 - Bilingual interface (English / Spanish) with a language switcher in the top bar.
-- Automatic detection of the Satisfactory save folder, with the chosen folder remembered between
-  runs.
+- **Automatic detection of the save folder.** The path used to be hardcoded, complete with a
+  Windows username and a Steam ID, so the app worked on exactly one computer in the world. It now
+  looks where the game actually saves (Windows, and the Steam Play and Epic paths on Linux), lists
+  the account folders that really contain saves, and picks the one with the most recent game. The
+  chosen folder is remembered between runs, and if nothing is found the folder box opens by itself
+  with an explanation instead of leaving the app blank.
 - "About" panel with project, author and donation links.
 - Project documentation: bilingual README, MIT license, security policy and this changelog.
 

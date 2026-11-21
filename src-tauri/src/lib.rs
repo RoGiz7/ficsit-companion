@@ -26,6 +26,7 @@ const DOTNET_TICKS_AT_UNIX_EPOCH: i64 = 621_355_968_000_000_000;
 struct SaveHeader {
     session_name: String,
     map_name: String,
+    save_version: i32,
     build_version: i32,
     play_duration_seconds: i32,
     save_date_ms: i64, // fecha de la partida en ms desde 1970
@@ -97,10 +98,26 @@ fn read_string(buf: &[u8], pos: usize) -> Option<(String, usize)> {
 //   i32 headerVersion, i32 saveVersion, i32 buildVersion,
 //   str saveName, str mapName, str mapOptions, str sessionName,
 //   i32 playDurationSeconds, i64 saveDateTime(ticks .NET)
+// Rangos plausibles de la cabecera. En la carpeta de guardados hay .sav que NO
+// son partidas (ServerManager.sav, TelemetrySettings.sav, que es un GVAS de
+// Unreal), y hasta ahora los intentabamos leer como mundos.
+const MAX_HEADER_VERSION: i32 = 40;
+const MAX_SAVE_VERSION: i32 = 300;
+
 fn parse_header(buf: &[u8]) -> Option<SaveHeader> {
-    let _header_version = read_i32(buf, 0)?;
-    let _save_version = read_i32(buf, 4)?;
+    let header_version = read_i32(buf, 0)?;
+    let save_version = read_i32(buf, 4)?;
     let build_version = read_i32(buf, 8)?;
+
+    // Si estos numeros no son plausibles, el archivo no es una partida.
+    if header_version <= 0
+        || header_version > MAX_HEADER_VERSION
+        || save_version <= 0
+        || save_version > MAX_SAVE_VERSION
+        || build_version <= 0
+    {
+        return None;
+    }
 
     let (_save_name, p) = read_string(buf, 12)?;
     let (map_name, p) = read_string(buf, p)?;
@@ -119,6 +136,7 @@ fn parse_header(buf: &[u8]) -> Option<SaveHeader> {
     Some(SaveHeader {
         session_name,
         map_name,
+        save_version,
         build_version,
         play_duration_seconds,
         save_date_ms,
@@ -156,6 +174,13 @@ fn list_saves(folder: String) -> Result<Vec<SaveEntry>, String> {
             continue;
         }
 
+        // Solo partidas de verdad: la carpeta tambien guarda .sav de ajustes
+        // (ServerManager, TelemetrySettings) que no tienen nada que ver.
+        let header = match read_header_from_path(&path) {
+            Some(h) => h,
+            None => continue,
+        };
+
         let meta = match entry.metadata() {
             Ok(m) => m,
             Err(_) => continue,
@@ -175,7 +200,7 @@ fn list_saves(folder: String) -> Result<Vec<SaveEntry>, String> {
                 .to_string(),
             size_bytes: meta.len(),
             modified_ms,
-            header: read_header_from_path(&path),
+            header: Some(header),
         });
     }
 
@@ -190,6 +215,120 @@ fn read_save_bytes(folder: String, name: String) -> Result<tauri::ipc::Response,
     let path = Path::new(&folder).join(&name);
     let data = std::fs::read(&path).map_err(|e| e.to_string())?;
     Ok(tauri::ipc::Response::new(data))
+}
+
+// ---- Autodeteccion de la carpeta de guardados ----
+// Hasta ahora la ruta estaba escrita a fuego en el frontend, con el usuario de
+// Windows y el id de Steam de su dueno dentro, asi que la app solo funcionaba
+// en un ordenador del mundo.
+
+#[derive(Serialize, Clone)]
+struct DetectedFolder {
+    path: String,
+    save_count: u32,
+    newest_ms: u64,
+}
+
+// Sitios donde el juego guarda las partidas, segun el sistema.
+fn save_roots() -> Vec<PathBuf> {
+    let mut roots: Vec<PathBuf> = Vec::new();
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        roots.push(
+            PathBuf::from(local)
+                .join("FactoryGame")
+                .join("Saved")
+                .join("SaveGames"),
+        );
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        let h = PathBuf::from(home);
+        // Steam Play / Proton y Epic en Linux.
+        roots.push(h.join(".local/share/Steam/steamapps/compatdata/526870/pfx/drive_c/users/steamuser/AppData/Local/FactoryGame/Saved/SaveGames"));
+        roots.push(h.join(".steam/root/steamapps/compatdata/526870/pfx/drive_c/users/steamuser/AppData/Local/FactoryGame/Saved/SaveGames"));
+        roots.push(h.join(".config/Epic/FactoryGame/Saved/SaveGames"));
+    }
+    roots
+}
+
+// Cuantas partidas hay en una carpeta y cuando se guardo la mas reciente.
+fn survey_folder(dir: &Path) -> (u32, u64) {
+    let mut count = 0u32;
+    let mut newest = 0u64;
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for e in entries.flatten() {
+            let p = e.path();
+            let is_sav = p
+                .extension()
+                .and_then(|x| x.to_str())
+                .map(|x| x.eq_ignore_ascii_case("sav"))
+                .unwrap_or(false);
+            if !is_sav || read_header_from_path(&p).is_none() {
+                continue;
+            }
+            count += 1;
+            if let Ok(m) = e.metadata() {
+                if let Some(ms) = m
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                    .map(|d| d.as_millis() as u64)
+                {
+                    if ms > newest {
+                        newest = ms;
+                    }
+                }
+            }
+        }
+    }
+    (count, newest)
+}
+
+// Comando: busca carpetas de guardados. Las partidas viven en subcarpetas con
+// el id de la cuenta (Steam o Epic), asi que miramos esas; puede haber varias
+// si se ha jugado con mas de una cuenta. La mas usada va primero.
+#[tauri::command]
+fn detect_save_folders() -> Vec<DetectedFolder> {
+    let mut out: Vec<DetectedFolder> = Vec::new();
+    for root in save_roots() {
+        if !root.is_dir() {
+            continue;
+        }
+        if let Ok(entries) = std::fs::read_dir(&root) {
+            for e in entries.flatten() {
+                let p = e.path();
+                if !p.is_dir() {
+                    continue;
+                }
+                // "blueprints" guarda planos, no partidas.
+                if p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|n| n.eq_ignore_ascii_case("blueprints"))
+                    .unwrap_or(false)
+                {
+                    continue;
+                }
+                let (count, newest) = survey_folder(&p);
+                if count > 0 {
+                    out.push(DetectedFolder {
+                        path: p.to_string_lossy().to_string(),
+                        save_count: count,
+                        newest_ms: newest,
+                    });
+                }
+            }
+        }
+        // Algunas instalaciones dejan las partidas sueltas en la raiz.
+        let (count, newest) = survey_folder(&root);
+        if count > 0 {
+            out.push(DetectedFolder {
+                path: root.to_string_lossy().to_string(),
+                save_count: count,
+                newest_ms: newest,
+            });
+        }
+    }
+    out.sort_by(|a, b| b.newest_ms.cmp(&a.newest_ms));
+    out
 }
 
 // Comando: devuelve solo el principio del archivo. La interfaz parsea ahi la
@@ -824,7 +963,8 @@ pub fn run() {
             get_plans,
             set_plan,
             read_save_bytes,
-            read_save_head
+            read_save_head,
+            detect_save_folders
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
