@@ -1732,3 +1732,13 @@ table.saves {
    parada porque arreglar una es rellenar y arreglar la otra es investigar. */
 .al-dry .al-dot { background: #c45d94; }
 .al-dry { border-left: 3px solid #c45d94; }
+
+/* El pionero: glifo propio, no una categoría más del mapa. */
+.map-player circle:first-child {
+  animation: spotPulse 2.6s ease-in-out infinite;
+}
+
+.map-fit.on {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}

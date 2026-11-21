@@ -1092,6 +1092,11 @@ struct SnapshotMetrics {
     extent_m: Option<f64>,               // diagonal de la fábrica en metros
     game_version: Option<String>,
     save_name: Option<String>,
+    // Dónde estaba el pionero al guardar. Tres números por lectura: con el
+    // tiempo dibujan por dónde anda uno. No es un podómetro y no pretende
+    // serlo — ver docs/IDEAS.md.
+    player_x: Option<f64>,
+    player_y: Option<f64>,
 }
 
 // Una foto del estado de un mundo en un momento dado.

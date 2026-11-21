@@ -106,6 +106,8 @@ interface SnapshotMetrics {
   extent_m: number | null;
   game_version: string | null;
   save_name: string | null;
+  player_x?: number | null;
+  player_y?: number | null;
 }
 interface Snapshot {
   ts_ms: number;
@@ -1139,6 +1141,7 @@ async function inspect(name: string) {
       lastBelts = a.belts;
       lastSlabs = a.slabs;
       lastZones = a.zones;
+      lastPlayers = a.players;
       mapLevels = a.levels;
       mapFloor = null; // al cambiar de partida, se mira todo otra vez
       mapZone = null;
@@ -1189,6 +1192,17 @@ async function inspect(name: string) {
       renderHistory(hist);
       renderEnergyHistory(hist);
       renderAchievements(hist);
+      // El rastro sale del histórico, así que solo se puede dibujar una vez
+      // leído. Si el mapa ya está pintado, se repinta con él.
+      const track = hist
+        .filter((h) => h.metrics && h.metrics.player_x != null && h.metrics.player_y != null)
+        .map((h) => ({ x: h.metrics!.player_x!, y: h.metrics!.player_y!, ts: h.ts_ms }));
+      if (track.length !== lastTrack.length) {
+        lastTrack = track;
+        if (lastPoints.length) renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
+      } else {
+        lastTrack = track;
+      }
     } catch (e) {
       console.error("Histórico:", e);
     }
@@ -1991,11 +2005,13 @@ function renderAlerts(alerts: Alert[]) {
     .map((a, i) => {
       const where = a.zoneName ? escapeXml(a.zoneName) : t("alert.loose");
       const what = a.level === "dry" ? t("alert.dry") : t("alert.at", { n: a.worst });
+      const m = metresFromPlayer(a.x, a.y);
+      const far = m === null ? "" : ` · ${t("alert.away", { n: m.toLocaleString() })}`;
       return (
         `<button class="al-row al-${a.level}" data-i="${i}" type="button">` +
         `<span class="al-dot"></span>` +
         `<span class="al-main">${iconImg(a.name, 16)}<b>${a.count}× ${escapeXml(a.name)}</b>` +
-        `<span class="al-meta">${where} · ${what}</span></span>` +
+        `<span class="al-meta">${where} · ${what}${far}</span></span>` +
         `<span class="al-go">${t("alert.see")}</span>` +
         `</button>`
       );
@@ -2068,6 +2084,9 @@ async function analyzeWithParser(folder: string, name: string) {
   const belts: { pts: [number, number][]; z: number; z0: number; z1: number }[] = [];
   let dryGen = 0; // MW de catálogo que NO se están generando por falta de combustible
   let dryCount = 0;
+  // Dónde está el pionero. En partidas en compañía hay varios, así que es
+  // una lista y no un punto.
+  const players: { name: string; x: number; y: number; z: number }[] = [];
   const collect: Record<string, number> = {};
   // Lo que no sabemos interpretar. El save se lee entero, pero nuestras tablas
   // de recetas solo conocen el juego base: una maquina de un mod fabrica algo
@@ -2175,6 +2194,15 @@ async function analyzeWithParser(folder: string, name: string) {
             const t = inst.transform && inst.transform.translation;
             if (t) slabs.push({ x: t.x, y: t.y, z: t.z, r: inst.transform.rotation });
           }
+        }
+      }
+
+      if (/Char_Player\.Char_Player_C/.test(o.typePath || "")) {
+        const t = o.transform && o.transform.translation;
+        if (t) {
+          const nm = o.properties && (o.properties as any).mCachedPlayerName;
+          const who = nm && (nm.value !== undefined ? nm.value : nm);
+          players.push({ name: typeof who === "string" && who ? who : "", x: t.x, y: t.y, z: t.z });
         }
       }
 
@@ -2359,6 +2387,7 @@ async function analyzeWithParser(folder: string, name: string) {
     genMW,
     dryGen,
     dryCount,
+    players,
     powerFromDocs,
     storedByClass,
     slabs,
@@ -2436,6 +2465,8 @@ function buildMetrics(
     extent_m: extentMeters(a.points),
     game_version: info.game_version,
     save_name: saveName,
+    player_x: a.players.length ? Math.round(a.players[0].x) : null,
+    player_y: a.players.length ? Math.round(a.players[0].y) : null,
   };
 }
 
@@ -2945,6 +2976,36 @@ function renderMap(
       `</div>`;
   }
 
+  // Rastro: por dónde andaba uno en lecturas anteriores. Puntos sueltos y no
+  // una línea, porque entre dos lecturas puede haber pasado media hora y unir
+  // los puntos insinuaría un camino que nadie ha recorrido así.
+  let trackSvg = "";
+  if (lastTrack.length > 1 && mapTrack) {
+    const n = lastTrack.length;
+    trackSvg =
+      `<g class="map-track">` +
+      lastTrack
+        .map((p, i) => {
+          const op = (0.18 + 0.5 * (i / (n - 1))).toFixed(2); // lo reciente, más vivo
+          return `<circle class="mk" cx="${px(p.x).toFixed(1)}" cy="${py(p.y).toFixed(1)}" r="2.2" fill="#e9eaec" fill-opacity="${op}"/>`;
+        })
+        .join("") +
+      `</g>`;
+  }
+
+  // El pionero, donde estaba al guardar. Glifo propio y no una categoría más:
+  // no es parte de la fábrica, es quien la mira.
+  let playerSvg = "";
+  for (const pl of lastPlayers) {
+    const ax = px(pl.x).toFixed(1);
+    const ay = py(pl.y).toFixed(1);
+    playerSvg +=
+      `<g class="map-player">` +
+      `<circle class="mk" cx="${ax}" cy="${ay}" r="7" fill="none" stroke="#e9eaec" stroke-width="1.2" stroke-opacity="0.55" vector-effect="non-scaling-stroke"/>` +
+      `<circle class="mk" cx="${ax}" cy="${ay}" r="3" fill="#e9eaec" stroke="#0c0e12" stroke-width="1" vector-effect="non-scaling-stroke"/>` +
+      `<title>${escapeXml(pl.name || t("map.you"))}</title></g>`;
+  }
+
   // Chincheta del aviso: un anillo en el sitio exacto al que se ha pedido ir.
   let spotSvg = "";
   if (highlightSpot) {
@@ -2963,11 +3024,14 @@ function renderMap(
     banner +
     `<div class="map-filters">${filters}` +
     `<button id="map-fit" class="map-fit" type="button">${t("map.fit")}</button>` +
+    (lastTrack.length > 1
+      ? `<button id="map-track" class="map-fit${mapTrack ? " on" : ""}" type="button">${t("map.track", { n: lastTrack.length })}</button>`
+      : "") +
     `<span class="muted map-hint">${t("map.hint")}</span></div>` +
     levelChips +
     heightFilter +
     `<svg viewBox="0 0 ${W} ${H}" class="map2d" id="map-svg">` +
-    `<g id="map-vp">${slabSvg}${lines}${others}${shapes}${spotSvg}</g></svg>` +
+    `<g id="map-vp">${slabSvg}${lines}${others}${shapes}${trackSvg}${playerSvg}${spotSvg}</g></svg>` +
     `<div class="map-legend">${legend}<span class="leg-item"><span style="color:#8a93a3">─</span> cintas</span>` +
     `<span class="leg-item"><span style="color:#aab0bd">·</span> resto</span></div>` +
     zoneList(zones) +
@@ -2989,6 +3053,24 @@ let highlightItem: string | null = null;
 // Punto concreto al que ir desde un aviso: no es "resalta esta pieza" sino
 // "llévame a este sitio".
 let highlightSpot: { x: number; y: number; label: string } | null = null;
+let mapTrack = true;
+// Dónde está el pionero en la lectura abierta. Sirve para pintarlo en el mapa
+// y para decir a qué distancia queda lo que se ha parado.
+let lastPlayers: { name: string; x: number; y: number; z: number }[] = [];
+// Posiciones guardadas en lecturas anteriores, para el rastro del mapa.
+let lastTrack: { x: number; y: number; ts: number }[] = [];
+
+// Distancia en metros desde el pionero más cercano. En línea recta: lo que
+// cuesta llegar depende del terreno, y eso no está en el archivo.
+function metresFromPlayer(x: number, y: number): number | null {
+  if (!lastPlayers.length) return null;
+  let best = Infinity;
+  for (const p of lastPlayers) {
+    const d = Math.hypot(p.x - x, p.y - y);
+    if (d < best) best = d;
+  }
+  return Math.round(best / 100);
+}
 
 // Salta al mapa y resalta las máquinas que fabrican `item`.
 function highlightOnMap(item: string) {
@@ -3031,6 +3113,10 @@ function setupMapInteraction() {
   };
   svg.addEventListener("dblclick", reset);
   document.querySelector("#map-fit")?.addEventListener("click", reset);
+  document.querySelector("#map-track")?.addEventListener("click", () => {
+    mapTrack = !mapTrack;
+    renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
+  });
 
   svg.addEventListener(
     "wheel",

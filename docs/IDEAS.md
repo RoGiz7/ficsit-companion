@@ -162,6 +162,32 @@ many megawatts are being left out and why, and the alert panel leads with them â
 generators are dry, everything else that looks stopped is a consequence rather than a separate
 problem.
 
+## The pioneer on the map, and why there is no pedometer
+
+The save carries the player: `Char_Player_C`, with a transform and `mCachedPlayerName`. Worlds
+played with others carry one per player, so it is read as a list.
+
+Two things were built from it, and one was deliberately not.
+
+**Built: where you are, and how far away the problem is.** The pioneer is drawn on the map with a
+glyph of its own â€” not another category, because they are not part of the factory, they are the
+one looking at it. Every alert now says how many metres away it is. That is what turns "a smelter
+has stopped" into a decision: walk, or get the vehicle.
+
+The distance is straight-line. What it costs to get there depends on cliffs, and cliffs are not in
+the save.
+
+**Built: a track, as dots.** Each snapshot stores the position, so over time the readings show
+where the pioneer tends to be. They are drawn as separate dots, never joined into a line: joining
+them would draw a path nobody walked.
+
+**Not built: steps or distance travelled.** This is the one to resist. Autosaves in a real world
+land about thirty minutes apart. Between two of them a player can walk five kilometres and come
+back to the same spot, and the straight line between the samples would record zero. A number that
+can be wrong by that much is not a measurement, and a pedometer that counts every half hour is not
+a pedometer. Any future "distance walked" would have to be labelled as displacement between
+readings, which is a worse thing to read than no number at all.
+
 ## Measuring ourselves against the community tools
 
 Satisfactory Calculator (SCIM) is the reference point and does a superb job. It reads the binary
