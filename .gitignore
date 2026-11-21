@@ -30,3 +30,7 @@ Thumbs.db
 
 # Save files (never commit someone's game data)
 *.sav
+
+# Iconos de movil: tauri icon los regenera y esto es una app de escritorio
+src-tauri/icons/ios
+src-tauri/icons/android
