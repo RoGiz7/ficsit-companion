@@ -31,6 +31,7 @@ import {
   type FaunaEntry,
 } from "./fauna";
 import { glyphSVG } from "./glyphs";
+import { medalIcon } from "./medalicons";
 import { applyStaticI18n, detectLang, getLang, setLang, t, type Lang } from "./i18n";
 import {
   describeDiff,
@@ -498,6 +499,7 @@ function medalRow(ms: MonthScore["medals"][number], showNext: boolean): string {
       : "";
   return (
     `<div class="md-row md-g${ms.grade}" title="${escapeAttr(def.desc[lang])}">` +
+    `<span class="md-ic">${medalIcon(ms.id, 22)}</span>` +
     `<span class="md-name">${escapeXml(def.name[lang])}</span>` +
     `<span class="md-val">${val.toLocaleString()} <span class="muted">${escapeXml(def.unit[lang])}</span></span>` +
     `<span class="md-grade">${escapeXml(grade)}</span>${next}</div>`

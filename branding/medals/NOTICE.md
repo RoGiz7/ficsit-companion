@@ -12,14 +12,18 @@ licence says yes.
 | File | Used for | Author |
 |---|---|---|
 | `factory.svg` | Structural medal | Delapouite |
-| `coins-pile.svg` | Billable output medal | Delapouite |
+| `two-coins.svg` | Billable output medal | Delapouite |
 | `stockpiles.svg` | Supply medal | Delapouite |
 | `speedometer.svg` | Throughput medal | Delapouite |
 | `3d-stairs.svg` | Vertical expansion medal | Delapouite |
-| `gems.svg` | Acquisition medal | Lorc |
-| `monkey-wrench.svg` | Incident medal | Delapouite |
+| `cut-diamond.svg` | Acquisition medal | Lorc |
+| `spanner.svg` | Incident medal | Lorc |
 | `laurels.svg` | Certifications | Lorc |
 | `ribbon-medal.svg` | Grades | Delapouite |
+
+Three icons were picked and then dropped after looking at them at 22px, the size this row draws
+them at: `coins-pile` and `gems` collapsed into a smudge and `monkey-wrench` was a thin stroke with
+no weight. A icon that looks good at 44px and cannot be read at 22px is the wrong icon for this row.
 
 Required credit, as the project itself words it:
 

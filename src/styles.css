@@ -1442,7 +1442,7 @@ table.saves {
 
 .md-row {
   display: grid;
-  grid-template-columns: minmax(130px, 1.2fr) minmax(90px, auto) minmax(80px, auto) 1fr;
+  grid-template-columns: 26px minmax(130px, 1.2fr) minmax(90px, auto) minmax(80px, auto) 1fr;
   align-items: center;
   gap: 10px;
   padding: 5px 0;
@@ -1466,6 +1466,20 @@ table.saves {
 .md-g2 .md-grade { color: #e8772e; }
 .md-g3 .md-grade { color: var(--accent); }
 .md-g0 { opacity: 0.55; }
+
+/* El icono hereda el color del grado: la medalla se lee de un vistazo antes
+   incluso de leer el nombre. Iconos de Delapouite y Lorc, game-icons.net,
+   CC BY 3.0 -- ver branding/medals/NOTICE.md */
+.md-ic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+.md-ico { display: block; }
+.md-g1 .md-ic { color: #c98a3c; }
+.md-g2 .md-ic { color: #e8772e; }
+.md-g3 .md-ic { color: var(--accent); }
 
 .md-next {
   color: var(--accent);
