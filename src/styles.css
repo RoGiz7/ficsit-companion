@@ -2044,3 +2044,15 @@ table.saves {
   color: var(--muted);
   word-break: break-all;
 }
+
+/* Glifo propio: ocupa y se alinea igual que un icono del juego, para que
+   sustituirlo por el real el día que lo haya no mueva ni un píxel. */
+.glyph {
+  vertical-align: -4px;
+  margin-right: 6px;
+  flex: none;
+}
+
+.dv-label .glyph {
+  margin-right: 5px;
+}

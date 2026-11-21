@@ -30,6 +30,7 @@ import {
   speciesNote,
   type FaunaEntry,
 } from "./fauna";
+import { glyphSVG } from "./glyphs";
 import { applyStaticI18n, detectLang, getLang, setLang, t, type Lang } from "./i18n";
 import {
   describeDiff,
@@ -773,12 +774,25 @@ function iconSrcFor(display: string): string | null {
   return path ? convertFileSrc(path) : null;
 }
 
-// Devuelve la etiqueta <img> o cadena vacía. Vacía es una respuesta válida:
-// sin iconos la app se ve igual de bien, solo menos vistosa.
+// El icono de una pieza, por orden de preferencia:
+//
+//   1. El del juego, si el usuario lo ha extraído de su copia.
+//   2. El nuestro, dibujado por nosotros, que es lo que ve todo el mundo.
+//
+// Ese orden es el plan entero: mientras no haya permiso de Coffee Stain la
+// app se ve completa con lo suyo propio, y el día que lo haya (o que alguien
+// extraiga los suyos) los reales ganan sin tocar una línea.
 function iconImg(display: string, size = 18): string {
   const src = iconSrcFor(display);
-  if (!src) return "";
-  return `<img class="ico" src="${escapeAttr(src)}" alt="" width="${size}" height="${size}" loading="lazy">`;
+  if (src) {
+    return `<img class="ico" src="${escapeAttr(src)}" alt="" width="${size}" height="${size}" loading="lazy">`;
+  }
+  // Sin datos del juego no hay ni clase ni nombre que valga: mejor nada.
+  const cls = nameIndex().get(display.toLowerCase());
+  if (!cls) return "";
+  const item = gameData && gameData.items[cls];
+  const isBuilding = !!(gameData && gameData.buildings[cls]);
+  return glyphSVG(cls, { fluid: !!(item && item.fluid), building: isBuilding, size });
 }
 
 function matchedIconCount(): number {

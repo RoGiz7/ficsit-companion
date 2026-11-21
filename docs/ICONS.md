@@ -1,5 +1,20 @@
 # Part icons
 
+## What you see by default: our own
+
+The app draws its own glyphs beside every part, building and stored item, and they are ours —
+nothing of Coffee Stain's. A **shape** for the state of matter (hexagon for solids, droplet for
+liquids and gases, square for buildings) and a **colour** for the material family, sixteen of them,
+all checked to clear 3:1 against the panel. Not 750 drawings: a system of recognition, with the
+name always beside it so the colour never carries the meaning alone.
+
+Nobody owns grey for iron. This needs no setup, no tool and no permission, and it is what everyone
+sees.
+
+The rest of this page is about showing the **game's** icons instead, which is optional.
+
+---
+
 **This is optional and most people should skip it.** Getting the icons out of the game needs a
 separate tool, a walk through the game's packed files and a manual export. That is a real chunk of
 work for a cosmetic gain: the lists read exactly as well with names. The app ships with this

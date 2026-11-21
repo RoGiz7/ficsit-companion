@@ -14,7 +14,8 @@ large one, however safe it looks today.
 
 | Piece | Whose | How exposed | Cost to undo |
 |---|---|---|---|
-| Part icons | Coffee Stain | Tolerated, not licensed | **Trivial** — the app ships none; an empty folder is already the "off" state |
+| Part glyphs (default) | **Ours** | None | — |
+| Part icons (optional) | Coffee Stain | Tolerated, not licensed | **Trivial** — the app ships none; an empty folder is already the "off" state |
 | Game data (`Docs.json`) | Coffee Stain | Published by them for the community | **Trivial** — read from the user's install, never bundled |
 | The name "FICSIT Companion" | Coffee Stain's fiction | Well precedented (see below) | **Low for the display name, high for the identifier** |
 | The map | Ours | None | — |
@@ -81,6 +82,11 @@ be used. The alternatives are honest ones — shipping with a notice is what car
 a reckless move — but two things keep us where we are. Our README makes a specific promise that
 nothing of theirs is distributed, and reversing that is a visible retreat. And a feature built on
 "we will take it away if asked" is a feature you have already agreed to lose.
+
+Since that was written, the gap got filled from our side: the app now draws **its own glyphs** by
+default, so the lists look finished without anything of theirs. The slot for the real icons is
+still there and still wins when it is filled, which means a yes from Coffee Stain would be an
+upgrade rather than a rescue. That is a much better position to ask from.
 
 The third option is the one nobody takes: ask. `docs/IDEAS.md` carries that note. Given that no
 project seems to have asked, an actual answer in writing would be worth more than the icons.
