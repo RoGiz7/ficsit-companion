@@ -1,6 +1,6 @@
 // Frontend (interfaz en TypeScript)
 import { getVersion } from "@tauri-apps/api/app";
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Parser, SatisfactorySaveHeader, SaveReader } from "@etothepii/satisfactory-file-parser";
 import {
@@ -24,6 +24,7 @@ import {
   diffGameData,
   extractGameData,
   GAMEDATA_SCHEMA,
+  iconAssetFor,
   type DocsFolder,
   type GameData,
 } from "./gamedata";
@@ -135,6 +136,7 @@ let explorationEl: HTMLElement;
 let mapEl: HTMLElement;
 let compatEl: HTMLElement;
 let gameDataEl: HTMLElement;
+let iconsEl: HTMLElement;
 let backupsEl: HTMLElement;
 let achievementsEl: HTMLElement;
 let milestoneEl: HTMLElement;
@@ -609,6 +611,128 @@ function renderGameData(status: string, detail: string, busy = false) {
     (detail ? `<p class="muted gd-detail">${escapeXml(detail)}</p>` : "") +
     `<button id="gd-reload" type="button"${busy ? " disabled" : ""}>${t("gd.reload")}</button>`;
   document.querySelector("#gd-reload")?.addEventListener("click", () => initGameData(true));
+}
+
+
+// ---- Iconos de las piezas ----
+//
+// El arte es de Coffee Stain Studios. NO viaja con la app ni con el
+// repositorio: el usuario extrae los iconos de su propia copia del juego, los
+// deja en una carpeta, y aquí solo los mostramos desde su disco. Es el mismo
+// trato que damos a Docs.json. Si Coffee Stain pidiera que no se usaran, esto
+// se quita y la app sigue funcionando: los iconos adornan, no sostienen.
+
+const ICON_FOLDER_KEY = "iconFolder";
+
+// nombre del asset en minúsculas -> ruta en el disco del usuario
+let iconMap: Record<string, string> = {};
+let iconFolder = "";
+let nameIdxCache: { data: GameData | null; map: Map<string, string> } = {
+  data: null,
+  map: new Map(),
+};
+
+// Índice inverso nombre visible -> clase. La app trabaja con nombres
+// traducidos y los iconos están indexados por clase, así que hace falta el
+// puente. Se guardan todos los idiomas: así funciona aunque se cambie de
+// idioma sin recargar.
+function nameIndex(): Map<string, string> {
+  if (nameIdxCache.data === gameData) return nameIdxCache.map;
+  const map = new Map<string, string>();
+  if (gameData) {
+    for (const [cls, it] of Object.entries(gameData.items)) {
+      for (const n of Object.values(it.name)) if (n) map.set(n.toLowerCase(), cls);
+    }
+    for (const [cls, b] of Object.entries(gameData.buildings)) {
+      for (const n of Object.values(b.name)) if (n) map.set(n.toLowerCase(), cls);
+    }
+  }
+  nameIdxCache = { data: gameData, map };
+  return map;
+}
+
+function iconSrcFor(display: string): string | null {
+  if (!display) return null;
+  const cls = nameIndex().get(display.toLowerCase());
+  if (!cls) return null;
+  const asset = iconAssetFor(gameData, cls);
+  if (!asset) return null;
+  const path = iconMap[asset.toLowerCase()];
+  return path ? convertFileSrc(path) : null;
+}
+
+// Devuelve la etiqueta <img> o cadena vacía. Vacía es una respuesta válida:
+// sin iconos la app se ve igual de bien, solo menos vistosa.
+function iconImg(display: string, size = 18): string {
+  const src = iconSrcFor(display);
+  if (!src) return "";
+  return `<img class="ico" src="${escapeAttr(src)}" alt="" width="${size}" height="${size}" loading="lazy">`;
+}
+
+function matchedIconCount(): number {
+  if (!gameData || !gameData.icons) return 0;
+  let n = 0;
+  for (const asset of Object.values(gameData.icons)) {
+    if (iconMap[asset.toLowerCase()]) n++;
+  }
+  return n;
+}
+
+async function initIcons(rescan = false) {
+  if (!iconsEl) return;
+  try {
+    if (!iconFolder) {
+      iconFolder =
+        (() => {
+          try {
+            return localStorage.getItem(ICON_FOLDER_KEY) || "";
+          } catch {
+            return "";
+          }
+        })() || (await invoke<string>("default_icon_folder"));
+    }
+    const res = await invoke<{ count: number; map: Record<string, string> }>("index_icons", {
+      folder: iconFolder,
+    });
+    iconMap = res.map;
+    try {
+      localStorage.setItem(ICON_FOLDER_KEY, iconFolder);
+    } catch {
+      /* sin almacenamiento local seguimos, solo se vuelve a detectar al abrir */
+    }
+  } catch (e) {
+    console.warn("Iconos:", e);
+    iconMap = {};
+  }
+  renderIcons();
+  if (rescan && openSaveName) await inspect(openSaveName);
+}
+
+function renderIcons() {
+  if (!iconsEl) return;
+  const found = Object.keys(iconMap).length;
+  const matched = matchedIconCount();
+  const status = !gameData
+    ? t("ico.needdocs")
+    : found
+      ? t("ico.some", { n: found, m: matched })
+      : t("ico.none");
+
+  iconsEl.innerHTML =
+    `<p class="gd-status">${escapeXml(status)}</p>` +
+    `<p class="muted gd-detail">${escapeXml(t("ico.how"))}</p>` +
+    `<button id="ico-open" type="button">${t("ico.open")}</button> ` +
+    `<button id="ico-scan" type="button">${t("ico.scan")}</button>` +
+    `<p class="muted ico-credit">${escapeXml(t("ico.credit"))}</p>`;
+
+  document.querySelector("#ico-open")?.addEventListener("click", async () => {
+    try {
+      await invoke("open_icons_folder", { folder: iconFolder });
+    } catch (e) {
+      console.warn("Iconos:", e);
+    }
+  });
+  document.querySelector("#ico-scan")?.addEventListener("click", () => initIcons(true));
 }
 
 async function initGameData(force = false) {
@@ -1653,7 +1777,7 @@ function renderProductionView(
     .map(([item, rate]) => {
       const pct = Math.max(4, Math.round((rate / max) * 100));
       return (
-        `<div class="inv-row"><span class="inv-name">${item}</span>` +
+        `<div class="inv-row"><span class="inv-name">${iconImg(item)}${item}</span>` +
         `<span class="inv-bar"><span class="inv-fill" style="width:${pct}%"></span></span>` +
         `<span class="inv-count">${fmt(rate)}/min</span></div>`
       );
@@ -1692,7 +1816,7 @@ function renderStored(stored: Record<string, number> | null) {
     .map(([item, n]) => {
       const pct = Math.max(4, Math.round((n / max) * 100));
       return (
-        `<div class="inv-row"><span class="inv-name">${trItem(item)}</span>` +
+        `<div class="inv-row"><span class="inv-name">${iconImg(trItem(item))}${trItem(item)}</span>` +
         `<span class="inv-bar"><span class="inv-fill" style="width:${pct}%"></span></span>` +
         `<span class="inv-count">${n}</span></div>`
       );
@@ -2254,7 +2378,7 @@ function renderBottlenecks(produced: Record<string, number>, consumed: Record<st
         detail = `${Math.round((r.net / r.cons) * 100)}%`;
       }
       return {
-        label: r.item,
+        label: `${iconImg(r.item)}${r.item}`,
         value: Math.round(r.net * 100) / 100,
         detail:
           `<span class="dv-fix">${detail}</span>` +
@@ -2897,14 +3021,14 @@ function renderCalcResult(item: string, rate: number) {
     .sort((a, b) => b[1] - a[1])
     .map(
       ([b, m]) =>
-        `<div class="calc-line"><span>${b}</span><span class="calc-num"><b>${Math.ceil(m)}</b> <span class="muted">(${fmt(m)})</span></span></div>`
+        `<div class="calc-line"><span>${iconImg(b, 16)}${b}</span><span class="calc-num"><b>${Math.ceil(m)}</b> <span class="muted">(${fmt(m)})</span></span></div>`
     )
     .join("");
 
   const stepRows = steps
     .map(
       (s) =>
-        `<div class="calc-line"><span>${s.item} · ${fmt(s.rate)}/min</span>` +
+        `<div class="calc-line"><span>${iconImg(s.item, 16)}${s.item} · ${fmt(s.rate)}/min</span>` +
         `<span class="calc-num">${fmt(s.machines)} × ${s.building}</span></div>`
     )
     .join("");
@@ -3060,6 +3184,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   progressEl = document.querySelector("#progress") as HTMLElement;
   compatEl = document.querySelector("#compat") as HTMLElement;
   gameDataEl = document.querySelector("#gamedata") as HTMLElement;
+  iconsEl = document.querySelector("#icons") as HTMLElement;
   backupsEl = document.querySelector("#backups") as HTMLElement;
   achievementsEl = document.querySelector("#achievements") as HTMLElement;
   milestoneEl = document.querySelector("#milestone") as HTMLElement;
@@ -3184,7 +3309,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   // Al final y sin bloquear: son 10 MB por idioma y solo se releen cuando el
   // juego se ha actualizado.
-  initGameData();
+  initGameData().finally(() => initIcons());
 
   // Copia del día, si no la hay todavía. Va después de cargarlo todo para que
   // retrate el estado bueno, no uno a medio arrancar.

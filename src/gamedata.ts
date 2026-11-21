@@ -59,9 +59,14 @@ export interface GameData {
   items: Record<string, GameItem>;
   buildings: Record<string, GameBuilding>;
   schematics: Record<string, GameSchematic>;
+  /// Clase -> nombre del asset de su icono, sin ruta ni extensión
+  /// (Desc_IronPlate_C -> IconDesc_IronPlates_256). Es solo el NOMBRE: la
+  /// imagen es de Coffee Stain y no viaja con la app, se lee del disco del
+  /// usuario si él la ha extraído de su propia copia del juego.
+  icons: Record<string, string>;
 }
 
-export const GAMEDATA_SCHEMA = 1;
+export const GAMEDATA_SCHEMA = 2;
 
 // Los idiomas que nos interesan, en orden de preferencia. El primero que
 // exista de cada pareja es el que se usa.
@@ -120,12 +125,21 @@ function absorb(
   items: Record<string, GameItem>,
   buildings: Record<string, GameBuilding>,
   recipes: Record<string, GameRecipe>,
-  schematics: Record<string, GameSchematic>
+  schematics: Record<string, GameSchematic>,
+  icons: Record<string, string>
 ) {
   for (const block of blocks) {
     for (const c of block.Classes || []) {
       const cls: string = c.ClassName || "";
       const display: string = c.mDisplayName || "";
+
+      if (primary && cls && typeof c.mSmallIcon === "string") {
+        // "Texture2D /Game/.../IconDesc_IronPlates_256.IconDesc_IronPlates_256"
+        // Nos quedamos solo con el nombre del asset, que es lo que acaba
+        // siendo el nombre del archivo al extraerlo.
+        const m = /\/([^/.]+)\.[^/.]+$/.exec(c.mSmallIcon.trim());
+        if (m) icons[cls] = m[1];
+      }
 
       if (cls.startsWith("Desc_") || cls.startsWith("BP_EquipmentDescriptor")) {
         if (!items[cls]) items[cls] = { name: {}, fluid: false };
@@ -200,11 +214,12 @@ export async function extractGameData(folder: string, available: string[]): Prom
   const buildings: Record<string, GameBuilding> = {};
   const recipes: Record<string, GameRecipe> = {};
   const schematics: Record<string, GameSchematic> = {};
+  const icons: Record<string, string> = {};
 
   let primary = true;
   for (const code of codes) {
     const bytes = await invoke<ArrayBuffer>("read_docs_lang", { folder, lang: langs[code] });
-    absorb(decode(bytes), code, primary, items, buildings, recipes, schematics);
+    absorb(decode(bytes), code, primary, items, buildings, recipes, schematics, icons);
     primary = false;
   }
   fixFluidAmounts(recipes, items);
@@ -219,7 +234,21 @@ export async function extractGameData(folder: string, available: string[]): Prom
     items,
     buildings,
     schematics,
+    icons,
   };
+}
+
+// El juego guarda el icono en la clase descriptora (Desc_ConstructorMk1_C),
+// no en la construible (Build_ConstructorMk1_C). Probamos las dos, porque la
+// app pregunta por las dos.
+export function iconAssetFor(gd: GameData | null, cls: string): string | null {
+  if (!gd || !gd.icons) return null;
+  if (gd.icons[cls]) return gd.icons[cls];
+  if (cls.startsWith("Build_")) {
+    const desc = `Desc_${cls.slice("Build_".length)}`;
+    if (gd.icons[desc]) return gd.icons[desc];
+  }
+  return null;
 }
 
 // ---- Qué ha cambiado desde la última vez ----

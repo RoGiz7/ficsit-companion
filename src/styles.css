@@ -1608,3 +1608,23 @@ table.saves {
   cursor: pointer;
   font-size: 0.74rem;
 }
+
+/* Iconos de las piezas. Arte de Coffee Stain Studios, leído de la copia del
+   juego del usuario; nunca se distribuye con la app. Si falta, no pasa nada:
+   el hueco no se reserva y la fila se ve igual de bien sin él. */
+.ico {
+  vertical-align: -4px;
+  margin-right: 6px;
+  object-fit: contain;
+  image-rendering: auto;
+}
+
+.dv-label .ico {
+  margin-right: 5px;
+}
+
+.ico-credit {
+  margin-top: 8px;
+  font-size: 0.74rem;
+  line-height: 1.45;
+}

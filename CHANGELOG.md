@@ -7,6 +7,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
+- **Charts with one visual language.** Power over time as two lines with the gap between them
+  shaded by whoever is winning; the evolution chart gained selectable series on a single axis;
+  bottlenecks became a chain balance that also shows the spare margin, which costs machines and
+  megawatts too. The palette was validated, not eyeballed: the brand orange is too light to mark
+  data on a dark surface, and the red/green pair the app used for shortfall and margin fails for
+  deuteranopia — the two are the same colour (ΔE 4.3 against a floor of 8). The diverging pair is
+  now red against blue.
+- **Part icons, read from your own installation.** The app can show the game's icons next to each
+  part and ships none of them: the art is Coffee Stain's, so it is read from a folder you fill from
+  your own copy of the game. `Docs.json` supplies the icon name for all 750 items and buildings and
+  741 of them are unique, so the match is automatic. Empty folder, no icons, everything else
+  unchanged. See `docs/ICONS.md`, which also states the terms plainly: the art is Coffee Stain's,
+  this project is not affiliated with them, and the feature comes out if they ask.
+
+### Fixed
+- The machine suggestion on a bottleneck assumed the part was in the app's hand-written recipe
+  table. With the official game data loaded that stopped being true, and a shortfall on any part
+  outside that table would have broken the whole Production tab. The suggestion is now omitted when
+  the recipe is unknown.
 - **Achievements: FICSIT's performance review.** A new tab grading each calendar month per world on
   the game's own scale — mediocre, adequate, efficient — across seven monthly medals, plus a wall
   of one-off certifications. Nothing is stored: everything is recomputed from the history, so a

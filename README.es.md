@@ -108,9 +108,26 @@ Todo es local. La app no tiene servidor, ni cuenta, ni telemetría: lee los arch
 están en tu disco y guarda sus notas, planes e histórico en tu propia carpeta de usuario. No se
 sube nada a ningún sitio y tus partidas no se modifican nunca.
 
+## 🖼️ Iconos de las piezas
+
+La app puede mostrar los iconos del propio juego junto a cada pieza. **Nunca los distribuye.** El
+arte es de Coffee Stain, así que no hay ni una sola imagen suya en este repositorio ni en el
+instalador: los extraes de tu propia copia del juego, los dejas en una carpeta y la app los lee de
+tu disco. Si dejas la carpeta vacía todo sigue funcionando — los iconos adornan, no sostienen nada.
+
+Las herramientas de la comunidad los muestran habitualmente, y la wiki oficial publica un tutorial
+para extraerlos advirtiendo en él de que el contenido exportado está sujeto a copyright y es de
+Coffee Stain Studios. Esa práctica se apoya en la tolerancia, no en una licencia, y este proyecto
+lo dice en vez de disimularlo. **Si Coffee Stain pide que no usemos sus iconos, la función se
+retira.**
+
+Cómo configurarlo y el razonamiento completo: [docs/ICONS.md](docs/ICONS.md) (en inglés).
+
 ## 🙏 Créditos
 
-- **Coffee Stain Studios** por Satisfactory.
+- **Coffee Stain Studios** por Satisfactory, por los datos del juego que publican en
+  `CommunityResources` y por los iconos de las piezas que la app puede mostrar desde tu propia
+  instalación. Ese arte es suyo; ver [docs/ICONS.md](docs/ICONS.md).
 - [@etothepii/satisfactory-file-parser](https://github.com/etothepii4/satisfactory-file-parser) por
   la lectura del formato de guardado.
 - Hecha con [Tauri](https://tauri.app/), Rust y TypeScript.

@@ -77,8 +77,12 @@ vocabulary. Small backend change, removes a visible inconsistency.
 Once the app is stronger and more stable, write to Coffee Stain and ask what they are willing to
 make available to tools like this one. Their press page is aimed at press and content creators and
 states no terms for fan projects, so it grants nothing: it points to emailing them instead. Worth
-asking about item and building icons, the map image, and whether the FICSIT name can be used in a
-free tool's title.
+asking about the map image and whether the FICSIT name can be used in a free tool's title.
+
+Item and building icons are no longer on that list as a blocker: the app now displays them from
+the user's own extracted copy and ships none of them (`docs/ICONS.md`). The question to Coffee
+Stain becomes a better one — not "may we?", but whether they would rather supply an icon set for
+tools like this than have every tool extract its own.
 
 Until there is an answer in writing, the rule stands: nothing of theirs ships with the app, and
 anything of theirs the app uses is read from the user's own installation.

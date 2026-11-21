@@ -102,9 +102,26 @@ Everything is local. The app has no server, no account and no telemetry: it read
 already on your disk and stores its notes, plans and history in your own user folder. Nothing is
 uploaded anywhere, and your saves are never modified.
 
+## 🖼️ Part icons
+
+The app can show the game's own icons next to each part. **It never ships them.** The art is Coffee
+Stain's, so there is not a single one of their images in this repository or in the installer: you
+extract them from your own copy of the game, drop them in a folder, and the app reads them from
+your disk. Leave the folder empty and everything still works — the icons decorate, they do not hold
+anything up.
+
+Community tools commonly display these icons, and the official wiki publishes a tutorial for
+extracting them while stating that the exported content is copyrighted and belongs to Coffee Stain
+Studios. That practice rests on tolerance, not on a licence, and this project says so rather than
+pretending otherwise. **If Coffee Stain asks us not to use their icons, the feature comes out.**
+
+Setup and the full reasoning: [docs/ICONS.md](docs/ICONS.md).
+
 ## 🙏 Credits
 
-- **Coffee Stain Studios** for Satisfactory.
+- **Coffee Stain Studios** for Satisfactory, for the game data it publishes in
+  `CommunityResources`, and for the part icons the app can display from your own installation. That
+  art is theirs; see [docs/ICONS.md](docs/ICONS.md).
 - [@etothepii/satisfactory-file-parser](https://github.com/etothepii4/satisfactory-file-parser) for
   reading the save format.
 - Built with [Tauri](https://tauri.app/), Rust and TypeScript.

@@ -486,6 +486,111 @@ fn game_data_file(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("gamedata.json"))
 }
 
+// ---- Iconos de las piezas ----
+//
+// El arte es de Coffee Stain y NO viaja con la app: ni en el repositorio ni en
+// el instalador. El usuario extrae los iconos de su propia copia del juego una
+// vez, elige la carpeta, y aquí solo se indexa lo que ya está en su disco. Es
+// el mismo trato que damos a Docs.json y por la misma razón.
+//
+// No decodificamos los .pak: eso sería desempaquetar los assets del juego, que
+// es otra cosa distinta de leer lo que el juego publica para la comunidad.
+
+#[derive(Serialize)]
+struct IconIndex {
+    count: usize,
+    /// nombre del archivo sin extensión, en minúsculas -> ruta absoluta
+    map: HashMap<String, String>,
+}
+
+const ICON_EXT: [&str; 4] = ["png", "webp", "jpg", "jpeg"];
+const ICON_MAX: usize = 20_000;
+
+fn walk_icons(dir: &Path, depth: usize, out: &mut HashMap<String, String>) {
+    if depth > 8 || out.len() >= ICON_MAX {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return; // una carpeta ilegible no es motivo para abortar el resto
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            walk_icons(&path, depth + 1, out);
+            continue;
+        }
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_ascii_lowercase())
+            .unwrap_or_default();
+        if !ICON_EXT.contains(&ext.as_str()) {
+            continue;
+        }
+        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+            // El primero gana: si el usuario tiene el mismo icono en dos
+            // resoluciones, nos quedamos con el que aparezca antes en vez de
+            // ir pisando y acabar con una mezcla impredecible.
+            out.entry(stem.to_ascii_lowercase())
+                .or_insert_with(|| path.to_string_lossy().to_string());
+        }
+        if out.len() >= ICON_MAX {
+            return;
+        }
+    }
+}
+
+/// La carpeta que la app propone: suya, vacía al principio, y el usuario
+/// suelta ahí los iconos que extraiga. Así nadie tiene que pegar rutas.
+fn icons_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("No se encontró la carpeta de datos: {e}"))?
+        .join("icons");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+#[tauri::command]
+fn default_icon_folder(app: AppHandle) -> Result<String, String> {
+    Ok(icons_dir(&app)?.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn open_icons_folder(app: AppHandle, folder: Option<String>) -> Result<String, String> {
+    let path = match folder.filter(|f| !f.trim().is_empty()) {
+        Some(f) => PathBuf::from(f),
+        None => icons_dir(&app)?,
+    };
+    std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+    let p = path.to_string_lossy().to_string();
+    tauri_plugin_opener::open_path(&p, None::<&str>).map_err(|e| e.to_string())?;
+    Ok(p)
+}
+
+#[tauri::command]
+fn index_icons(app: AppHandle, folder: Option<String>) -> Result<IconIndex, String> {
+    let root = match folder.filter(|f| !f.trim().is_empty()) {
+        Some(f) => PathBuf::from(f),
+        None => icons_dir(&app)?,
+    };
+    if !root.is_dir() {
+        return Err("Esa carpeta no existe.".into());
+    }
+    let mut map = HashMap::new();
+    walk_icons(&root, 0, &mut map);
+    // Sin esto el webview no puede pintar las imágenes: hay que abrirle la
+    // puerta a esa carpeta concreta, no a todo el disco.
+    app.asset_protocol_scope()
+        .allow_directory(&root, true)
+        .map_err(|e| e.to_string())?;
+    Ok(IconIndex {
+        count: map.len(),
+        map,
+    })
+}
+
 #[tauri::command]
 fn get_game_data(app: AppHandle) -> Result<Option<serde_json::Value>, String> {
     let path = game_data_file(&app)?;
@@ -1429,6 +1534,9 @@ pub fn run() {
             detect_save_folders,
             detect_docs_folders,
             read_docs_lang,
+            index_icons,
+            default_icon_folder,
+            open_icons_folder,
             get_game_data,
             set_game_data,
             export_backup,

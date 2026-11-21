@@ -61,6 +61,29 @@ export const STRINGS: Record<string, Entry> = {
   "hist.pick_gen": { es: "Generación (MW)", en: "Generation (MW)" },
   "hist.pick_prod": { es: "Piezas/min", en: "Parts/min" },
   "hist.pick_hours": { es: "Horas jugadas", en: "Hours played" },
+  "settings.icons": { es: "Iconos de las piezas", en: "Part icons" },
+  "ico.none": {
+    es: "Sin iconos. La app los enseña si los tiene, pero no los trae: el arte es de Coffee Stain y se queda en su copia del juego, no en nuestro instalador.",
+    en: "No icons. The app shows them if it has them, but does not ship them: the art is Coffee Stain's and stays in your copy of the game, not in our installer.",
+  },
+  "ico.some": {
+    es: "{n} iconos localizados, {m} piezas emparejadas.",
+    en: "{n} icons found, {m} parts matched.",
+  },
+  "ico.how": {
+    es: "Extráigalos de su propia copia del juego con FModel o UE Viewer, suéltelos en la carpeta y vuelva a buscar. Los nombres se emparejan solos.",
+    en: "Extract them from your own copy of the game with FModel or UE Viewer, drop them in the folder and scan again. The names match themselves.",
+  },
+  "ico.open": { es: "Abrir carpeta", en: "Open folder" },
+  "ico.scan": { es: "Volver a buscar", en: "Scan again" },
+  "ico.needdocs": {
+    es: "Primero hacen falta los datos del juego: sin ellos no sabemos qué icono lleva cada pieza.",
+    en: "Game data is required first: without it we do not know which icon belongs to which part.",
+  },
+  "ico.credit": {
+    es: "Los iconos son obra de Coffee Stain Studios. FICSIT Companion no está afiliado a Coffee Stain y retiraría esta función si lo pidieran.",
+    en: "The icons are the work of Coffee Stain Studios. FICSIT Companion is not affiliated with Coffee Stain and would remove this feature if asked.",
+  },
   "map.locate": { es: "Ver en el mapa", en: "Show on map" },
   "bal.title": { es: "Balance de la cadena", en: "Chain balance" },
   "bal.note": {
