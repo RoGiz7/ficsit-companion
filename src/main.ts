@@ -943,6 +943,54 @@ function renderIcons() {
   document.querySelector("#ico-scan")?.addEventListener("click", () => initIcons(true));
 }
 
+// Comprobación de versión nueva.
+//
+// Habla solo con las releases de GitHub del repositorio: no hay servidor
+// nuestro de por medio porque no tenemos ninguno, así que no hay nada que
+// pueda recoger datos de nadie. El instalador va firmado y la app verifica la
+// firma con la clave pública antes de instalar nada; sin esa verificación,
+// cualquiera capaz de ponerse en medio serviría otro ejecutable.
+//
+// Si falla, calla. Un visor de estadísticas que suelta un error de red al
+// abrirse es peor que uno que no se entera de que hay versión nueva.
+async function checkForUpdate() {
+  const bar = document.querySelector("#update-bar") as HTMLElement | null;
+  if (!bar) return;
+  try {
+    const { check } = await import("@tauri-apps/plugin-updater");
+    const up = await check();
+    if (!up) return;
+
+    bar.innerHTML =
+      `<span class="ub-msg">${t("upd.found", { v: up.version })}</span>` +
+      `<button type="button" id="ub-go">${t("upd.install")}</button>` +
+      `<button type="button" class="ub-ghost" id="ub-no">${t("upd.later")}</button>`;
+    bar.classList.remove("hidden");
+
+    (document.querySelector("#ub-no") as HTMLButtonElement | null)?.addEventListener("click", () => {
+      bar.classList.add("hidden");
+    });
+    (document.querySelector("#ub-go") as HTMLButtonElement | null)?.addEventListener("click", async () => {
+      const go = document.querySelector("#ub-go") as HTMLButtonElement | null;
+      if (go) {
+        go.disabled = true;
+        go.textContent = t("upd.working");
+      }
+      try {
+        await up.downloadAndInstall();
+        const { relaunch } = await import("@tauri-apps/plugin-process");
+        await relaunch();
+      } catch (e) {
+        console.error("Actualizador:", e);
+        bar.innerHTML = `<span class="ub-msg">${t("upd.failed")}</span>`;
+      }
+    });
+  } catch (e) {
+    // Sin red, sin releases todavía, o sin clave pública configurada.
+    console.debug("Sin comprobación de versión:", e);
+  }
+}
+
 async function initGameData(force = false) {
   if (!gameDataEl) return;
   try {
@@ -4620,6 +4668,10 @@ window.addEventListener("DOMContentLoaded", async () => {
     await inspect(currentWorlds[selectedWorld][0].name);
   }
   await startWatching();
+
+  // Mirar si hay versión nueva. Silencioso si no la hay y silencioso si falla:
+  // nadie quiere un error de red al arrancar un visor de estadísticas.
+  checkForUpdate();
 
   // Al final y sin bloquear: son 10 MB por idioma y solo se releen cuando el
   // juego se ha actualizado.

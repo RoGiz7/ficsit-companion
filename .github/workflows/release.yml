@@ -1,0 +1,60 @@
+# Publica una versión instalable cuando se empuja una etiqueta vXxX.
+#
+# Nada de esto se ejecuta solo: hace falta empujar una etiqueta a mano, así que
+# el día a día (dev, push a main) no toca nada de aquí.
+#
+# Los dos secretos los pone Zigor en Settings -> Secrets and variables ->
+# Actions del repositorio. La clave PRIVADA no sale nunca de su máquina y de
+# ese cuadro: no se escribe en ningún archivo del repo, no se pega en un chat
+# y no aparece en los registros, que GitHub enmascara.
+#
+#   TAURI_SIGNING_PRIVATE_KEY           el contenido del archivo .key
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  la contraseña que se le puso
+#
+# Ver docs/RELEASE.md para los pasos completos.
+
+name: Publicar versión
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # La compilación de Rust tarda varios minutos en frío. Con caché, bastante
+      # menos en las siguientes.
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "FICSIT Companion ${{ github.ref_name }}"
+          releaseBody: "Instalador para Windows. La app actualiza sola a partir de aquí."
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true

@@ -118,6 +118,13 @@ pretending otherwise. **If Coffee Stain asks us not to use their icons, the feat
 Setup and the full reasoning: [docs/ICONS.md](docs/ICONS.md). What is ours, what is theirs and
 what each would cost to undo: [docs/LEGAL.md](docs/LEGAL.md).
 
+## Releasing
+
+The app updates itself from GitHub releases. Installers are signed and the app
+verifies the signature before installing anything, so the private key never
+leaves the machine of whoever publishes. Steps in
+[docs/RELEASE.md](docs/RELEASE.md).
+
 ## 🙏 Credits
 
 - **Coffee Stain Studios** for Satisfactory, for the game data it publishes in

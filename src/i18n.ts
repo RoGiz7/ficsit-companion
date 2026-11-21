@@ -306,6 +306,17 @@ export const STRINGS: Record<string, Entry> = {
     en: "Without the official data I fall back on my own tables, which lag behind the patches.",
   },
   "gd.cached": { es: "Usando datos guardados del juego.", en: "Using cached game data." },
+  "upd.found": {
+    es: "Hay una versión nueva: {v}.",
+    en: "A new version is available: {v}.",
+  },
+  "upd.install": { es: "Instalar y reiniciar", en: "Install and restart" },
+  "upd.later": { es: "Luego", en: "Later" },
+  "upd.working": { es: "Descargando…", en: "Downloading…" },
+  "upd.failed": {
+    es: "No se pudo instalar. Queda para la próxima vez.",
+    en: "Couldn't install. It'll try again next time.",
+  },
   "gd.failed": {
     es: "No se pudieron leer los datos del juego.",
     en: "The game's data could not be read.",

@@ -50,6 +50,18 @@
     "category": "Utility",
     "licenseFile": "../LICENSE",
     "shortDescription": "Desktop companion for Satisfactory",
-    "longDescription": "Reads your Satisfactory save files and shows your factory inventory, real production with overclock, bottlenecks, stored materials, a 2D map and how everything has grown over time. Local-only and read-only: it never writes to your saves."
+    "longDescription": "Reads your Satisfactory save files and shows your factory inventory, real production with overclock, bottlenecks, stored materials, a 2D map and how everything has grown over time. Local-only and read-only: it never writes to your saves.",
+    "createUpdaterArtifacts": true,
+    "windows": {
+      "installMode": "passive"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/RoGiz7/ficsit-companion/releases/latest/download/latest.json"
+      ],
+      "pubkey": "PEGAR_AQUI_LA_CLAVE_PUBLICA"
+    }
   }
 }

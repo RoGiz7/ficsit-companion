@@ -124,6 +124,13 @@ retira.**
 Cómo configurarlo y el razonamiento completo: [docs/ICONS.md](docs/ICONS.md) (en inglés). Qué es
 nuestro, qué es suyo y qué costaría deshacer cada cosa: [docs/LEGAL.md](docs/LEGAL.md) (en inglés).
 
+## Publicar una versión
+
+La app se actualiza sola desde las releases de GitHub. El instalador va firmado y
+la app verifica la firma antes de instalar nada, así que la clave privada no sale
+nunca de la máquina de quien publica. Los pasos están en
+[docs/RELEASE.md](docs/RELEASE.md).
+
 ## 🙏 Créditos
 
 - **Coffee Stain Studios** por Satisfactory, por los datos del juego que publican en

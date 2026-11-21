@@ -2070,3 +2070,32 @@ table.saves {
 .dv-label .glyph {
   margin-right: 5px;
 }
+
+/* Aviso de versión nueva. Solo aparece si de verdad hay una: una barra que
+   está siempre ocupando sitio para decir "todo bien" es una barra que se
+   aprende a ignorar. */
+.update-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 9px 13px;
+  border-radius: 8px;
+  background: rgba(255, 158, 61, 0.12);
+  border: 1px solid rgba(255, 158, 61, 0.3);
+  font-size: 0.86rem;
+}
+.update-bar .ub-msg { flex: 1; min-width: 180px; }
+.update-bar button {
+  font: inherit;
+  padding: 4px 11px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+.update-bar button:hover { background: rgba(255, 158, 61, 0.15); }
+.update-bar button.ub-ghost { border-color: rgba(139, 147, 163, 0.5); color: var(--muted); }
+.update-bar button:disabled { opacity: 0.55; cursor: default; }

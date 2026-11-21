@@ -1622,6 +1622,19 @@ fn set_plan(app: AppHandle, world: String, goals: HashMap<String, u32>) -> Resul
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        // El actualizador. Habla con las releases de GitHub del repositorio y
+        // con nada más: no hay servidor nuestro de por medio porque no tenemos
+        // ninguno, así que no hay nada que pueda recoger datos de nadie.
+        //
+        // Solo en escritorio: en móvil no existe el plugin y el build fallaría.
+        // `Manager` ya está importado arriba, de ahí que aquí no se repita.
+        .setup(|app| {
+            #[cfg(desktop)]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
+            let _ = app;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             list_saves,
             start_watching,
