@@ -552,6 +552,29 @@ fn icons_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// Abre una ficha de la wiki oficial en el navegador del usuario.
+///
+/// Recibe SOLO el fragmento de título, nunca una URL completa: así la app no
+/// puede acabar abriendo cualquier cosa si algún día ese texto viniera de un
+/// archivo. Y la página la abre el navegador del usuario, no nosotros: la app
+/// sigue sin pedir nada a ninguna red, que es lo que prometen los README.
+#[tauri::command]
+fn open_wiki(page: String) -> Result<String, String> {
+    if page.is_empty() || page.len() > 120 {
+        return Err("Pagina no valida.".into());
+    }
+    // Solo letras, numeros y los pocos signos que usan los titulos de la wiki.
+    if !page
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '(' | ')' | '%' | '.'))
+    {
+        return Err("Pagina no valida.".into());
+    }
+    let url = format!("https://satisfactory.wiki.gg/wiki/{page}");
+    tauri_plugin_opener::open_url(&url, None::<&str>).map_err(|e| e.to_string())?;
+    Ok(url)
+}
+
 #[tauri::command]
 fn default_icon_folder(app: AppHandle) -> Result<String, String> {
     Ok(icons_dir(&app)?.to_string_lossy().to_string())
@@ -1566,6 +1589,7 @@ pub fn run() {
             detect_docs_folders,
             read_docs_lang,
             index_icons,
+            open_wiki,
             default_icon_folder,
             open_icons_folder,
             get_game_data,

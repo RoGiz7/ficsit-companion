@@ -1929,3 +1929,21 @@ table.saves {
   color: #6f7585;
   font-family: ui-monospace, monospace;
 }
+
+/* Enlace a la wiki: discreto, abajo a la derecha de cada ficha. Abre el
+   navegador del usuario; la app no descarga nada. */
+.fa-wiki {
+  margin-top: 6px;
+  padding: 2px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.fa-wiki:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}

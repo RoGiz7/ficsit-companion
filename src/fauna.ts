@@ -151,3 +151,36 @@ export function familyOfClass(cls: string): string | null {
 export function allFamilies(): string[] {
   return Object.keys(FAMILY);
 }
+
+// ---- Ficha en la wiki ----
+//
+// La app no descarga nada: abre la página en el navegador del usuario y se
+// aparta. Las imágenes de la wiki no se traen ni se enlazan, por dos razones
+// que van juntas — son arte de Coffee Stain, y traerlas rompería el "aquí no
+// se pide nada a ninguna red" que los README prometen.
+//
+// Solo se enlazan títulos verificados. Para lo demás se usa el buscador de la
+// wiki, que nunca lleva a una página que no existe. Mandar a alguien a un
+// enlace roto es peor que no poner enlace.
+const WIKI_PAGE: Record<string, string> = {
+  Char_SpaceRabbit_C: "Lizard_Doggo",
+  Char_SpaceGiraffe_C: "Creatures",
+  Char_NonFlyingBird_C: "Creatures",
+  Char_CrabHatcher_C: "Creatures",
+  Char_BigCrabHatcher_C: "Creatures",
+};
+
+const WIKI_FAMILY: Record<string, string> = {
+  hatcher: "Creatures",
+  hog: "Cliff_Hog",
+  spitter: "Creatures",
+  stinger: "Creatures",
+};
+
+export function wikiPageFor(cls: string): string {
+  return WIKI_PAGE[cls] || "Creatures";
+}
+
+export function wikiPageForFamily(fam: string): string {
+  return WIKI_FAMILY[fam] || "Creatures";
+}

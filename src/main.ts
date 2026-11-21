@@ -24,6 +24,8 @@ import {
   familyOfClass,
   PARTS_TO_FAMILY,
   speciesHostile,
+  wikiPageFor,
+  wikiPageForFamily,
   speciesName,
   speciesNote,
   type FaunaEntry,
@@ -2049,6 +2051,7 @@ function renderBestiary(snaps: Snapshot[], now: FaunaEntry[], huntedNow: string[
         (seenCls.length
           ? `<div class="fa-cls">${seenCls.map((c) => escapeXml(c)).join(" · ")}</div>`
           : `<div class="fa-note">${escapeXml(t("fauna.only_remains"))}</div>`) +
+        `<button class="fa-wiki" data-wiki="${escapeAttr(wikiPageForFamily(fam))}" type="button">${t("fauna.wiki")}</button>` +
         `</div>`
       );
     })
@@ -2078,7 +2081,9 @@ function renderBestiary(snaps: Snapshot[], now: FaunaEntry[], huntedNow: string[
           d: new Date(ts).toLocaleDateString(lang),
         })}</div>` +
         (note ? `<div class="fa-note">${escapeXml(note)}</div>` : "") +
-        `<div class="fa-cls">${escapeXml(cls)}</div></div>`
+        `<div class="fa-cls">${escapeXml(cls)}</div>` +
+        `<button class="fa-wiki" data-wiki="${escapeAttr(wikiPageFor(cls))}" type="button">${t("fauna.wiki")}</button>` +
+        `</div>`
       );
     })
     .join("");
@@ -2089,6 +2094,16 @@ function renderBestiary(snaps: Snapshot[], now: FaunaEntry[], huntedNow: string[
     `<p class="muted">${t("fauna.note")}</p>` +
     famRows +
     otherRows;
+
+  bestiaryEl.querySelectorAll<HTMLButtonElement>(".fa-wiki").forEach((b) => {
+    b.addEventListener("click", async () => {
+      try {
+        await invoke("open_wiki", { page: b.dataset.wiki || "Creatures" });
+      } catch (e) {
+        console.warn("Wiki:", e);
+      }
+    });
+  });
 }
 
 const NEST_NEAR_M = 150;
