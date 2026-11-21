@@ -1833,3 +1833,27 @@ table.saves {
   margin: 4px 0 6px;
   font-size: 0.78rem;
 }
+
+/* Celda pulsable: mismo aspecto que una celda normal, porque lo es, pero
+   responde. Se usa en Exploración para saltar al mapa con un tipo aislado. */
+.cell-btn {
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.cell-btn:hover {
+  border-color: var(--accent-dim);
+}
+
+.cell-btn.active {
+  border-color: var(--accent);
+  background: rgba(255, 158, 61, 0.08);
+}
+
+.cell-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}

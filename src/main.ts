@@ -1162,6 +1162,7 @@ async function inspect(name: string) {
       lastSlabs = a.slabs;
       lastZones = a.zones;
       lastPlayers = a.players;
+      lastCollect = a.collectPts;
       mapLevels = a.levels;
       mapFloor = null; // al cambiar de partida, se mira todo otra vez
       mapZone = null;
@@ -2108,6 +2109,7 @@ async function analyzeWithParser(folder: string, name: string) {
   // Dónde está el pionero. En partidas en compañía hay varios, así que es
   // una lista y no un punto.
   const players: { name: string; x: number; y: number; z: number }[] = [];
+  const collectPts: { kind: string; x: number; y: number; z: number }[] = [];
   const collect: Record<string, number> = {};
   // Lo que no sabemos interpretar. El save se lee entero, pero nuestras tablas
   // de recetas solo conocen el juego base: una maquina de un mod fabrica algo
@@ -2127,7 +2129,13 @@ async function analyzeWithParser(folder: string, name: string) {
     for (const o of objs) {
       // Coleccionables sin recoger (siguen presentes en el mundo).
       const cleaf = ((o.typePath || "").split("/").pop() || "").split(".").pop() || "";
-      if (COLLECTABLES[cleaf]) collect[cleaf] = (collect[cleaf] || 0) + 1;
+      if (COLLECTABLES[cleaf]) {
+        collect[cleaf] = (collect[cleaf] || 0) + 1;
+        // Y DÓNDE. Antes se contaban y se tiraba la posición, que es justo lo
+        // que un pionero quiere saber en sus primeras veinte horas.
+        const ct = o.transform && o.transform.translation;
+        if (ct) collectPts.push({ kind: cleaf, x: ct.x, y: ct.y, z: ct.z });
+      }
 
       // Plano 2D: cintas/tuberías como líneas (su trazado), resto como puntos.
       if (o.transform && o.transform.translation && o.typePath && o.typePath.includes("/Buildable/")) {
@@ -2409,6 +2417,7 @@ async function analyzeWithParser(folder: string, name: string) {
     dryGen,
     dryCount,
     players,
+    collectPts,
     powerFromDocs,
     storedByClass,
     slabs,
@@ -2672,14 +2681,54 @@ function renderExploration(collect: Record<string, number>) {
   }
   // Orden fijo y legible.
   const order = ["BP_Crystal_C", "BP_Crystal_mk2_C", "BP_Crystal_mk3_C", "BP_WAT1_C", "BP_WAT2_C", "BP_DropPod_C"];
+  // Cada tipo es un botón: lleva al mapa con ese tipo aislado. Un recuento
+  // sin sitio no sirve de nada cuando lo que quieres es ir a por ellos.
   const cells = order
     .filter((k) => collect[k])
-    .map((k) => cell(trCollect(k), String(collect[k])))
+    .map((k) => {
+      const near = nearestCollect(k);
+      const sub = near === null ? "" : `<span class="cell-sub">${t("expl.nearest", { n: near.toLocaleString() })}</span>`;
+      const on = collectKind === k ? " active" : "";
+      return (
+        `<button class="cell cell-btn${on}" data-kind="${k}" type="button">` +
+        `<span class="cell-label">${escapeXml(trCollect(k))}</span>` +
+        `<span class="cell-value">${collect[k]}</span>${sub}</button>`
+      );
+    })
     .join("");
   explorationEl.innerHTML =
     `<h3 class="inv-title">${t("expl.title")}</h3>` +
     `<div class="detail-grid">${cells}</div>` +
-    `<p class="muted">${t("expl.note")}</p>`;
+    `<p class="muted">${lastCollect.length ? t("expl.note_map") : t("expl.note")}</p>`;
+
+  explorationEl.querySelectorAll<HTMLButtonElement>(".cell-btn").forEach((b) => {
+    b.addEventListener("click", () => {
+      const k = b.dataset.kind || "";
+      // Pulsar el mismo tipo otra vez lo quita: no hay que buscar un botón de
+      // "quitar filtro" que no existe.
+      collectKind = collectKind === k ? null : k;
+      // Están repartidos por el planeta, así que el encuadre de fábrica no
+      // sirve para ir a por ellos.
+      mapScope = collectKind ? "mundo" : "fabrica";
+      showTab("planeta");
+      renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
+      renderExploration(collect);
+      mapEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
+
+// Distancia al más cercano de ese tipo, en metros. Es la pregunta de verdad:
+// no cuántos quedan, sino si merece la pena ir ahora.
+function nearestCollect(kind: string): number | null {
+  if (!lastPlayers.length) return null;
+  let best = Infinity;
+  for (const c of lastCollect) {
+    if (c.kind !== kind) continue;
+    const d = metresFromPlayer(c.x, c.y);
+    if (d !== null && d < best) best = d;
+  }
+  return isFinite(best) ? best : null;
 }
 
 // Rota un vector local por un cuaternión (para llevar el trazado de la cinta al mundo).
@@ -2953,13 +3002,23 @@ function renderMap(
   };
   const allX = points.map((p) => p.x);
   const allY = points.map((p) => p.y);
-  if (allX.length >= 20) {
+  if (allX.length >= 20 && mapScope === "fabrica") {
     const mx = (pct(allX, 0.99) - pct(allX, 0.01)) * 0.08 + 500;
     const my = (pct(allY, 0.99) - pct(allY, 0.01)) * 0.08 + 500;
     minX = Math.max(minX, pct(allX, 0.01) - mx);
     maxX = Math.min(maxX, pct(allX, 0.99) + mx);
     minY = Math.max(minY, pct(allY, 0.01) - my);
     maxY = Math.min(maxY, pct(allY, 0.99) + my);
+  }
+
+  // En vista de mundo la caja se abre hasta abarcar lo que queda ahí fuera.
+  // Sin esto, pulsar una cápsula te lleva a un mapa donde la cápsula no sale.
+  if (mapScope === "mundo") {
+    for (const c of lastCollect) {
+      if (collectKind && c.kind !== collectKind) continue;
+      acc(c.x, c.y);
+    }
+    for (const pl of lastPlayers) acc(pl.x, pl.y);
   }
 
   const W = 720, H = 620, pad = 14;
@@ -3060,6 +3119,7 @@ function renderMap(
     ["belt", t("layer.belt")],
     ["other", t("layer.other")],
   ];
+  if (lastCollect.length) filterDefs.push(["collect", t("layer.collect")]);
   const filters = filterDefs
     .map(
       ([k, lbl]) =>
@@ -3153,6 +3213,35 @@ function renderMap(
     });
   }
 
+  // Lo que queda por recoger. Capa aparte, no una quinta categoría: el
+  // espacio de colores ya está lleno y un quinto tono no pasaba la validación
+  // contra los cuatro de la fábrica. Así que el mundo va en tinta y hueco —
+  // misma familia que el pionero y su rastro — y el color se queda para lo
+  // que has construido. La forma distingue el tipo.
+  let collectSvg = "";
+  for (const c of lastCollect) {
+    if (collectKind && c.kind !== collectKind) continue;
+    const cx = px(c.x).toFixed(1);
+    const cy = py(c.y).toFixed(1);
+    const col = c.kind === "BP_DropPod_C" ? "#ffd9a6" : "#cfd6e4";
+    let glyph: string;
+    if (c.kind === "BP_DropPod_C") {
+      // Cápsula: cuadrado. Es el premio gordo, así que destaca en cálido.
+      glyph = `<rect class="mk" x="${(+cx - 2.6).toFixed(1)}" y="${(+cy - 2.6).toFixed(1)}" width="5.2" height="5.2" fill="none" stroke="${col}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`;
+    } else if (c.kind === "BP_WAT1_C" || c.kind === "BP_WAT2_C") {
+      // Lo alienígena: rombo.
+      glyph = `<polygon class="mk" points="${cx},${(+cy - 3).toFixed(1)} ${(+cx + 3).toFixed(1)},${cy} ${cx},${(+cy + 3).toFixed(1)} ${(+cx - 3).toFixed(1)},${cy}" fill="none" stroke="${col}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`;
+    } else {
+      // Babas: círculo.
+      glyph = `<circle class="mk" cx="${cx}" cy="${cy}" r="2.4" fill="none" stroke="${col}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`;
+    }
+    const m = metresFromPlayer(c.x, c.y);
+    collectSvg +=
+      `<g data-cat="collect" data-z="${Math.round(c.z)}" data-floor="-1">` +
+      glyph +
+      `<title>${escapeXml(trCollect(c.kind))}${m === null ? "" : ` · ${t("alert.away", { n: m.toLocaleString() })}`}</title></g>`;
+  }
+
   // Rastro: por dónde andaba uno en lecturas anteriores. Puntos sueltos y no
   // una línea, porque entre dos lecturas puede haber pasado media hora y unir
   // los puntos insinuaría un camino que nadie ha recorrido así.
@@ -3207,6 +3296,9 @@ function renderMap(
     banner +
     `<div class="map-filters">${filters}` +
     `<button id="map-fit" class="map-fit" type="button">${t("map.fit")}</button>` +
+    (lastCollect.length
+      ? `<button id="map-scope" class="map-fit${mapScope === "mundo" ? " on" : ""}" type="button">${t(mapScope === "mundo" ? "map.scope_world" : "map.scope_factory")}</button>`
+      : "") +
     (lastTrack.length > 1
       ? `<button id="map-track" class="map-fit${mapTrack ? " on" : ""}" type="button">${t("map.track", { n: lastTrack.length })}</button>`
       : "") +
@@ -3216,7 +3308,7 @@ function renderMap(
     heightFilter +
     (growthNote ? `<p class="muted cmp-note">${growthNote}</p>` : "") +
     `<svg viewBox="0 0 ${W} ${H}" class="map2d" id="map-svg">` +
-    `<g id="map-vp">${slabSvg}${lines}${others}${shapes}${trackSvg}${growthSvg}${playerSvg}${spotSvg}</g></svg>` +
+    `<g id="map-vp">${slabSvg}${lines}${others}${shapes}${collectSvg}${trackSvg}${growthSvg}${playerSvg}${spotSvg}</g></svg>` +
     `<div class="map-legend">${legend}<span class="leg-item"><span style="color:#8a93a3">─</span> cintas</span>` +
     `<span class="leg-item"><span style="color:#aab0bd">·</span> resto</span></div>` +
     zoneList(zones) +
@@ -3239,6 +3331,13 @@ let highlightItem: string | null = null;
 // "llévame a este sitio".
 let highlightSpot: { x: number; y: number; label: string } | null = null;
 let mapTrack = true;
+// Qué queda ahí fuera, con su sitio. null = todos los tipos.
+let lastCollect: { kind: string; x: number; y: number; z: number }[] = [];
+let collectKind: string | null = null;
+// Dos encuadres. "fabrica" ajusta a lo construido, que es lo normal. "mundo"
+// abre hasta abarcar lo que queda por recoger, que está repartido por todo el
+// planeta y a escala de fábrica cae fuera del lienzo.
+let mapScope: "fabrica" | "mundo" = "fabrica";
 // Lectura con la que comparar el mapa. null = no comparar.
 let compareTs: number | null = null;
 let lastSnaps: Snapshot[] = [];
@@ -3307,6 +3406,10 @@ function setupMapInteraction() {
       compareTs = v ? parseInt(v, 10) : null;
       renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
     });
+  });
+  document.querySelector("#map-scope")?.addEventListener("click", () => {
+    mapScope = mapScope === "mundo" ? "fabrica" : "mundo";
+    renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
   });
   document.querySelector("#map-track")?.addEventListener("click", () => {
     mapTrack = !mapTrack;
