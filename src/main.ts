@@ -332,11 +332,11 @@ let openSaveName = ""; // guardado abierto, para poder repasarlo al cambiar de i
 // ---- Traducción de términos del juego (inglés → español) ----
 // Si un nombre no está en la tabla, se muestra tal cual (respaldo en inglés).
 const BUILDING_ES: Record<string, string> = {
-  "Constructor Mk1": "Constructora Mk1",
+  "Constructor Mk1": "Constructor Mk1",
   "Smelter Mk1": "Fundición Mk1",
   "Assembler Mk1": "Ensambladora Mk1",
   "Foundry Mk1": "Fundición avanzada Mk1",
-  Manufacturer: "Fabricante",
+  Manufacturer: "Productor",
   Refinery: "Refinería",
   "Miner Mk1": "Minero Mk1",
   "Miner Mk2": "Minero Mk2",
@@ -414,7 +414,7 @@ const ITEM_ES: Record<string, string> = {
   Limestone: "Caliza",
   "Iron Ore": "Mineral de hierro",
   "Copper Ore": "Mineral de cobre",
-  "Caterium Ore": "Mineral de caterium",
+  "Caterium Ore": "Mineral de caterio",
   "Caterium Ingot": "Lingote de caterio",
   Quickwire: "Turboalambre",
   "Crude Oil": "Petróleo crudo",
@@ -1491,7 +1491,7 @@ function renderNextMilestone(
               : "";
           return (
             `<div class="ms-row${missing ? "" : " ms-done"}">` +
-            `<span class="ms-name">${escapeXml(name)}</span>` +
+            `<span class="ms-name">${iconGlyph(c.item, name, 16)}${escapeXml(name)}</span>` +
             `<span class="inv-bar"><span class="goal-fill" style="width:${pct}%"></span></span>` +
             `<span class="ms-count">${have.toLocaleString()} / ${c.amount.toLocaleString()}${eta}</span>` +
             `</div>`
@@ -1680,7 +1680,7 @@ function renderInventory(items: InvItem[]) {
       const pct = Math.max(4, Math.round((it.count / max) * 100));
       return (
         `<div class="inv-row">` +
-        `<span class="inv-name">${iconImg(invName(it))}${invName(it)}</span>` +
+        `<span class="inv-name">${iconGlyph(it.cls || "", invName(it))}${invName(it)}</span>` +
         `<span class="inv-bar"><span class="inv-fill" style="width:${pct}%"></span></span>` +
         `<span class="inv-count">${it.count}</span>` +
         `</div>`
@@ -4212,29 +4212,29 @@ const MINER_MK1_NORMAL = 60; // /min en un nodo de pureza normal
 const RECIPES: Record<string, Recipe> = {
   "Lingote de hierro": { building: "Fundición", out: 30, tier: 0, inputs: [{ item: "Mineral de hierro", rate: 30 }] },
   "Lingote de cobre": { building: "Fundición", out: 30, tier: 0, inputs: [{ item: "Mineral de cobre", rate: 30 }] },
-  "Plancha de hierro": { building: "Constructora", out: 20, tier: 0, inputs: [{ item: "Lingote de hierro", rate: 30 }] },
-  "Barra de hierro": { building: "Constructora", out: 15, tier: 0, inputs: [{ item: "Lingote de hierro", rate: 15 }] },
-  Tornillos: { building: "Constructora", out: 40, tier: 0, inputs: [{ item: "Barra de hierro", rate: 10 }] },
-  "Alambre": { building: "Constructora", out: 30, tier: 0, inputs: [{ item: "Lingote de cobre", rate: 15 }] },
-  Cable: { building: "Constructora", out: 30, tier: 0, inputs: [{ item: "Alambre", rate: 60 }] },
-  Hormigón: { building: "Constructora", out: 15, tier: 0, inputs: [{ item: "Caliza", rate: 45 }] },
-  "Lámina de cobre": { building: "Constructora", out: 10, tier: 2, inputs: [{ item: "Lingote de cobre", rate: 20 }] },
+  "Plancha de hierro": { building: "Constructor", out: 20, tier: 0, inputs: [{ item: "Lingote de hierro", rate: 30 }] },
+  "Barra de hierro": { building: "Constructor", out: 15, tier: 0, inputs: [{ item: "Lingote de hierro", rate: 15 }] },
+  Tornillos: { building: "Constructor", out: 40, tier: 0, inputs: [{ item: "Barra de hierro", rate: 10 }] },
+  "Alambre": { building: "Constructor", out: 30, tier: 0, inputs: [{ item: "Lingote de cobre", rate: 15 }] },
+  Cable: { building: "Constructor", out: 30, tier: 0, inputs: [{ item: "Alambre", rate: 60 }] },
+  Hormigón: { building: "Constructor", out: 15, tier: 0, inputs: [{ item: "Caliza", rate: 45 }] },
+  "Lámina de cobre": { building: "Constructor", out: 10, tier: 2, inputs: [{ item: "Lingote de cobre", rate: 20 }] },
   "Plancha de hierro reforzada": { building: "Ensambladora", out: 5, tier: 2, inputs: [{ item: "Plancha de hierro", rate: 30 }, { item: "Tornillos", rate: 60 }] },
   Rotor: { building: "Ensambladora", out: 4, tier: 2, inputs: [{ item: "Barra de hierro", rate: 20 }, { item: "Tornillos", rate: 100 }] },
   "Armazón modular": { building: "Ensambladora", out: 2, tier: 2, inputs: [{ item: "Plancha de hierro reforzada", rate: 3 }, { item: "Barra de hierro", rate: 12 }] },
-  "Lingote de acero": { building: "Fundición (Foundry)", out: 45, tier: 3, inputs: [{ item: "Mineral de hierro", rate: 45 }, { item: "Carbón", rate: 45 }] },
-  "Viga de acero": { building: "Constructora", out: 15, tier: 3, inputs: [{ item: "Lingote de acero", rate: 60 }] },
-  "Tubería de acero": { building: "Constructora", out: 20, tier: 3, inputs: [{ item: "Lingote de acero", rate: 30 }] },
+  "Lingote de acero": { building: "Fundición", out: 45, tier: 3, inputs: [{ item: "Mineral de hierro", rate: 45 }, { item: "Carbón", rate: 45 }] },
+  "Viga de acero": { building: "Constructor", out: 15, tier: 3, inputs: [{ item: "Lingote de acero", rate: 60 }] },
+  "Tubería de acero": { building: "Constructor", out: 20, tier: 3, inputs: [{ item: "Lingote de acero", rate: 30 }] },
   "Viga industrial reforzada": { building: "Ensambladora", out: 6, tier: 4, inputs: [{ item: "Viga de acero", rate: 24 }, { item: "Hormigón", rate: 30 }] },
-  "Armazón modular pesado": { building: "Fabricante", out: 2, tier: 4, inputs: [{ item: "Armazón modular", rate: 10 }, { item: "Tubería de acero", rate: 30 }, { item: "Viga industrial reforzada", rate: 10 }, { item: "Tornillos", rate: 200 }] },
-  "Lingote de caterio": { building: "Fundición", out: 15, tier: 5, inputs: [{ item: "Mineral de caterium", rate: 45 }] },
-  Turboalambre: { building: "Constructora", out: 60, tier: 5, inputs: [{ item: "Lingote de caterio", rate: 12 }] },
+  "Armazón modular pesado": { building: "Productor", out: 2, tier: 4, inputs: [{ item: "Armazón modular", rate: 10 }, { item: "Tubería de acero", rate: 30 }, { item: "Viga industrial reforzada", rate: 10 }, { item: "Tornillos", rate: 200 }] },
+  "Lingote de caterio": { building: "Fundición", out: 15, tier: 5, inputs: [{ item: "Mineral de caterio", rate: 45 }] },
+  Turboalambre: { building: "Constructor", out: 60, tier: 5, inputs: [{ item: "Lingote de caterio", rate: 12 }] },
   Plástico: { building: "Refinería", out: 20, tier: 5, inputs: [{ item: "Petróleo crudo", rate: 30 }] },
   Caucho: { building: "Refinería", out: 20, tier: 5, inputs: [{ item: "Petróleo crudo", rate: 30 }] },
   "Circuito impreso": { building: "Ensambladora", out: 7.5, tier: 5, inputs: [{ item: "Lámina de cobre", rate: 15 }, { item: "Plástico", rate: 30 }] },
   Estátor: { building: "Ensambladora", out: 5, tier: 5, inputs: [{ item: "Tubería de acero", rate: 15 }, { item: "Alambre", rate: 40 }] },
   Motor: { building: "Ensambladora", out: 5, tier: 5, inputs: [{ item: "Rotor", rate: 10 }, { item: "Estátor", rate: 10 }] },
-  Ordenador: { building: "Fabricante", out: 2.5, tier: 6, inputs: [{ item: "Circuito impreso", rate: 25 }, { item: "Cable", rate: 22.5 }, { item: "Plástico", rate: 45 }] },
+  Ordenador: { building: "Productor", out: 2.5, tier: 6, inputs: [{ item: "Circuito impreso", rate: 25 }, { item: "Cable", rate: 22.5 }, { item: "Plástico", rate: 45 }] },
 };
 
 // Calcula la demanda total por item (sumando todas las ramas de la cadena).
@@ -4319,7 +4319,7 @@ function renderCalcResult(item: string, rate: number) {
     .map(
       (s) =>
         `<div class="calc-line"><span>${iconImg(s.item, 16)}${s.item} · ${fmt(s.rate)}/min</span>` +
-        `<span class="calc-num">${fmt(s.machines)} × ${s.building}</span></div>`
+        `<span class="calc-num">${fmt(s.machines)} × ${iconImg(s.building, 14)}${s.building}</span></div>`
     )
     .join("");
 
@@ -4327,7 +4327,7 @@ function renderCalcResult(item: string, rate: number) {
     .sort((a, b) => b[1] - a[1])
     .map(([r, rt]) => {
       const miners = Math.ceil(rt / MINER_MK1_NORMAL);
-      return `<div class="calc-line"><span>${r}</span><span class="calc-num">${fmt(rt)}/min <span class="muted">(≈${miners} minero${miners === 1 ? "" : "s"} Mk1)</span></span></div>`;
+      return `<div class="calc-line"><span>${iconImg(r, 16)}${r}</span><span class="calc-num">${fmt(rt)}/min <span class="muted">(≈${miners} minero${miners === 1 ? "" : "s"} Mk1)</span></span></div>`;
     })
     .join("");
 
