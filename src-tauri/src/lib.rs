@@ -1108,6 +1108,10 @@ struct SnapshotMetrics {
     // nombres dependen del idioma, así que dos lecturas se emparejan por
     // posición y por nada más.
     zones: Option<Vec<ZoneSnap>>,
+    // Especies que estaban cargadas al guardar. Solo los nombres de clase: el
+    // bestiario se arma uniendo lo de todas las lecturas, así que una especie
+    // que uno vio una vez no se pierde aunque hoy no ande cerca.
+    fauna: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

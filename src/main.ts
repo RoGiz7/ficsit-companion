@@ -18,6 +18,12 @@ import {
   VIZ,
   type Series,
 } from "./charts";
+import {
+  speciesHostile,
+  speciesName,
+  speciesNote,
+  type FaunaEntry,
+} from "./fauna";
 import { applyStaticI18n, detectLang, getLang, setLang, t, type Lang } from "./i18n";
 import {
   describeDiff,
@@ -119,6 +125,7 @@ interface SnapshotMetrics {
   player_x?: number | null;
   player_y?: number | null;
   zones?: { x: number; y: number; n: number }[] | null;
+  fauna?: string[] | null;
 }
 interface Snapshot {
   ts_ms: number;
@@ -153,6 +160,7 @@ let iconsEl: HTMLElement;
 let backupsEl: HTMLElement;
 let achievementsEl: HTMLElement;
 let dangerEl: HTMLElement;
+let bestiaryEl: HTMLElement;
 let alertsEl: HTMLElement;
 let milestoneEl: HTMLElement;
 let gameData: GameData | null = null;
@@ -1177,6 +1185,7 @@ async function inspect(name: string) {
       renderMap(a.points, a.belts, a.slabs, a.zones);
       renderAlerts(computeAlerts(a.points, a.zones));
       renderDanger(a.points);
+      lastFauna = a.fauna;
 
       // Centro de mando: signos vitales + "Retoma aquí".
       const deficits = computeDeficits(a.perItem, a.consumed);
@@ -1222,6 +1231,7 @@ async function inspect(name: string) {
       renderHistory(hist);
       renderEnergyHistory(hist);
       renderAchievements(hist);
+      renderBestiary(hist, lastFauna);
       // El rastro sale del histórico, así que solo se puede dibujar una vez
       // leído. Si el mapa ya está pintado, se repinta con él.
       lastSnaps = hist;
@@ -1919,6 +1929,59 @@ function prettyItem(pathName: string): string {
 // construido. La cercanía la medimos nosotros contra los edificios; el juego
 // cachea una marca propia pero solo la escribe cuando no vale el valor por
 // defecto, así que su ausencia no significa "lejos".
+
+// ---- Bestiario ----
+//
+// Se arma uniendo lo que había cargado en CADA lectura, no solo en la última:
+// una especie que uno se cruzó hace tres semanas sigue en la ficha aunque hoy
+// no ande cerca. Esa es la mecánica — se llena jugando.
+function renderBestiary(snaps: Snapshot[], now: FaunaEntry[]) {
+  if (!bestiaryEl) return;
+  const first = new Map<string, number>();
+  for (const sn of snaps) {
+    const fl = sn.metrics && sn.metrics.fauna;
+    if (!fl) continue;
+    for (const c of fl) if (!first.has(c)) first.set(c, sn.ts_ms);
+  }
+  // La lectura de ahora también cuenta, aunque todavía no se haya guardado.
+  for (const f of now) if (!first.has(f.cls)) first.set(f.cls, Date.now());
+
+  if (!first.size) {
+    bestiaryEl.innerHTML = "";
+    return;
+  }
+  const nowMap = new Map(now.map((f) => [f.cls, f]));
+  const lang = getLang();
+  const rows = [...first.entries()]
+    .sort((a, b) => a[1] - b[1])
+    .map(([cls, ts]) => {
+      const cur = nowMap.get(cls);
+      const host = speciesHostile(cls);
+      const tag =
+        host === null
+          ? `<span class="fa-tag">${t("fauna.unknown")}</span>`
+          : host
+            ? `<span class="fa-tag fa-host">${t("fauna.hostile")}</span>`
+            : `<span class="fa-tag fa-calm">${t("fauna.passive")}</span>`;
+      const note = speciesNote(cls, lang);
+      const here = cur
+        ? t("fauna.here", { n: cur.count }) + (cur.destroyed ? ` · ${t("fauna.destroyed", { n: cur.destroyed })}` : "")
+        : t("fauna.not_now");
+      return (
+        `<div class="fa-row"><div class="fa-head"><b>${escapeXml(speciesName(cls, lang))}</b>${tag}</div>` +
+        `<div class="fa-meta">${here} · ${t("fauna.first", { d: new Date(ts).toLocaleDateString(lang) })}</div>` +
+        (note ? `<div class="fa-note">${escapeXml(note)}</div>` : "") +
+        `<div class="fa-cls">${escapeXml(cls)}</div></div>`
+      );
+    })
+    .join("");
+
+  bestiaryEl.innerHTML =
+    `<h3 class="inv-title">${t("fauna.title", { n: first.size })}</h3>` +
+    `<p class="muted">${t("fauna.note")}</p>` +
+    rows;
+}
+
 const NEST_NEAR_M = 150;
 
 function renderDanger(points: { x: number; y: number }[]) {
@@ -2254,6 +2317,8 @@ async function analyzeWithParser(folder: string, name: string) {
   const nests: { x: number; y: number; z: number; n: number; killed: number; lastDay: number }[] = [];
   let gameDays = 0;
   let daysSinceDeath: number | null = null;
+  // Bichos que estaban cargados al guardar: los que uno tenía cerca.
+  const faunaMap = new Map<string, { count: number; destroyed: number }>();
   const collect: Record<string, number> = {};
   // Lo que no sabemos interpretar. El save se lee entero, pero nuestras tablas
   // de recetas solo conocen el juego base: una maquina de un mod fabrica algo
@@ -2378,6 +2443,15 @@ async function analyzeWithParser(folder: string, name: string) {
         if (d) gameDays = Math.round(d.value !== undefined ? d.value : d);
         const sd = pr.mNumberOfDaysSinceLastDeath;
         if (sd) daysSinceDeath = Math.round(sd.value !== undefined ? sd.value : sd);
+      }
+
+      if (/\/Char_[A-Za-z]+\./.test(o.typePath || "") && !/Char_Player/.test(o.typePath || "")) {
+        const leaf = ((o.typePath || "").split("/").pop() || "").split(".").pop() || "";
+        const e = faunaMap.get(leaf) || { count: 0, destroyed: 0 };
+        e.count++;
+        const dod = (o.properties as any) && (o.properties as any).mDayOfDeath;
+        if (dod !== undefined) e.destroyed++;
+        faunaMap.set(leaf, e);
       }
 
       if (/CreatureSpawner/i.test(o.typePath || "")) {
@@ -2592,6 +2666,7 @@ async function analyzeWithParser(folder: string, name: string) {
     collectPts,
     fog,
     nests,
+    fauna: [...faunaMap.entries()].map(([cls, e]) => ({ cls, count: e.count, destroyed: e.destroyed })) as FaunaEntry[],
     gameDays,
     daysSinceDeath,
     powerFromDocs,
@@ -2680,6 +2755,7 @@ function buildMetrics(
       .filter((z) => z.count >= 2)
       .slice(0, 40)
       .map((z) => ({ x: Math.round(z.x), y: Math.round(z.y), n: z.count })),
+    fauna: a.fauna.map((f) => f.cls),
   };
 }
 
@@ -3564,6 +3640,7 @@ let lastNests: { x: number; y: number; z: number; n: number; killed: number; las
 let gameDays = 0;
 let daysSinceDeath: number | null = null;
 let mapNests = true;
+let lastFauna: FaunaEntry[] = [];
 
 // Distancia del nido a lo construido más cercano. Lo calculamos nosotros en
 // vez de fiarnos de mCachedIsNearBase, que solo aparece en el archivo cuando
@@ -4075,6 +4152,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   backupsEl = document.querySelector("#backups") as HTMLElement;
   achievementsEl = document.querySelector("#achievements") as HTMLElement;
   dangerEl = document.querySelector("#danger") as HTMLElement;
+  bestiaryEl = document.querySelector("#bestiary") as HTMLElement;
   alertsEl = document.querySelector("#alerts") as HTMLElement;
   milestoneEl = document.querySelector("#milestone") as HTMLElement;
   productionEl = document.querySelector("#production") as HTMLElement;

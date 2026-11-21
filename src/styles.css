@@ -1875,3 +1875,57 @@ table.saves {
   border-right: 5px solid transparent;
   border-top: 8px solid #d98a8a;
 }
+
+/* Bestiario: una ficha por especie. Sobria, que no es un álbum de cromos
+   aunque lo parezca — lo que tiene de gracia es que se llena solo. */
+.bestiary {
+  margin-top: 12px;
+}
+
+.fa-row {
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.fa-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.fa-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.fa-host { color: #e8807c; border-color: #6b3a38; }
+.fa-calm { color: #74b2ea; border-color: #2f5a7a; }
+
+.fa-meta {
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.fa-note {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.fa-cls {
+  margin-top: 4px;
+  font-size: 0.68rem;
+  color: #6f7585;
+  font-family: ui-monospace, monospace;
+}
