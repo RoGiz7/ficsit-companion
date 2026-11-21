@@ -820,19 +820,48 @@ async function initIcons(rescan = false) {
   if (rescan && openSaveName) await inspect(openSaveName);
 }
 
+// Un nombre de los que la app espera, sacado de los datos del juego del
+// propio usuario. Un ejemplo real vale más que una explicación: si lo que ha
+// exportado no se parece a esto, lo ve de un vistazo.
+function exampleIconName(): string {
+  if (!gameData || !gameData.icons) return "";
+  // Algo reconocible si está; si no, el primero que haya.
+  for (const want of ["Desc_IronPlate_C", "Desc_IronIngot_C", "Desc_OreIron_C"]) {
+    if (gameData.icons[want]) return gameData.icons[want];
+  }
+  const first = Object.values(gameData.icons)[0];
+  return first || "";
+}
+
 function renderIcons() {
   if (!iconsEl) return;
   const found = Object.keys(iconMap).length;
   const matched = matchedIconCount();
+  const example = exampleIconName();
   const status = !gameData
     ? t("ico.needdocs")
     : found
       ? t("ico.some", { n: found, m: matched })
       : t("ico.none");
 
+  // El caso que más desconcierta: la carpeta llena y nada emparejado. Pasa
+  // cuando la exportación da otros nombres, y sin decirlo uno se queda
+  // mirando un cero sin saber qué ha hecho mal.
+  const mismatch =
+    found > 0 && matched === 0
+      ? `<p class="gd-status ico-warn">${escapeXml(
+          t("ico.mismatch", { got: Object.keys(iconMap)[0] || "?", want: example || "?" })
+        )}</p>`
+      : "";
+
   iconsEl.innerHTML =
     `<p class="gd-status">${escapeXml(status)}</p>` +
+    mismatch +
     `<p class="muted gd-detail">${escapeXml(t("ico.how"))}</p>` +
+    (example
+      ? `<p class="muted gd-detail">${escapeXml(t("ico.expects"))} <code>${escapeXml(example)}.png</code></p>`
+      : "") +
+    (iconFolder ? `<p class="muted ico-path"><code>${escapeXml(iconFolder)}</code></p>` : "") +
     `<button id="ico-open" type="button">${t("ico.open")}</button> ` +
     `<button id="ico-scan" type="button">${t("ico.scan")}</button>` +
     `<p class="muted ico-credit">${escapeXml(t("ico.credit"))}</p>`;

@@ -75,6 +75,11 @@ export const STRINGS: Record<string, Entry> = {
     es: "Extráigalos de su propia copia del juego con FModel o UE Viewer, suéltelos en la carpeta y vuelva a buscar. Los nombres se emparejan solos.",
     en: "Extract them from your own copy of the game with FModel or UE Viewer, drop them in the folder and scan again. The names match themselves.",
   },
+  "ico.expects": { es: "Espera archivos con nombres de esta forma:", en: "It expects files named like this:" },
+  "ico.mismatch": {
+    es: "Hay archivos pero ninguno encaja. Encontré «{got}» y esperaba algo del estilo de «{want}». Exporte conservando el nombre original del asset, sin renombrar ni numerar.",
+    en: "There are files but none match. I found “{got}” and expected something like “{want}”. Export keeping the asset's original name, without renaming or numbering.",
+  },
   "ico.open": { es: "Abrir carpeta", en: "Open folder" },
   "ico.scan": { es: "Volver a buscar", en: "Scan again" },
   "ico.needdocs": {

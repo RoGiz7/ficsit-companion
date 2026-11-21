@@ -2033,3 +2033,14 @@ table.saves {
 .tab-panel > div[id] {
   scroll-margin-top: 108px;
 }
+
+.ico-warn {
+  color: #e8a05c;
+}
+
+.ico-path code,
+.gd-detail code {
+  font-size: 0.74rem;
+  color: var(--muted);
+  word-break: break-all;
+}

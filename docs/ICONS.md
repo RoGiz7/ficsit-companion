@@ -56,14 +56,31 @@ Building icons live on the descriptor class (`Desc_ConstructorMk1_C`), not on th
 
 ## Setting it up
 
-1. Open **Settings → Part icons** in the app and press **Open folder**.
+1. Open **Settings → Part icons** in the app. It shows the folder it reads, and an example of the
+   filename it expects, taken from your own game data — something like `IconDesc_IronPlates_256`.
+   Press **Open folder** to get there.
 2. Extract the UI icons from your own installation with FModel or UE Viewer. The official wiki's
-   "Extracting UI icons" tutorial covers the steps.
-3. Drop the images into that folder. Subfolders are fine — the scan is recursive. `.png`, `.webp`,
-   `.jpg` and `.jpeg` are read.
-4. Press **Scan again**. The app reports how many images it found and how many parts it matched.
+   "Extracting UI icons" tutorial covers the tool itself.
+3. Drop the images into that folder. Subfolders are fine — the scan is recursive, and `.png`,
+   `.webp`, `.jpg` and `.jpeg` are all read.
+4. Press **Scan again**.
 
-Keeping the extracted files is up to you; the app only reads them.
+### The one thing that has to be right
+
+**The filename, without its extension, has to be the asset's own name.** That is the whole
+matching rule: `IconDesc_IronPlates_256.png` matches, `iron_plate.png` does not, and neither does
+`IconDesc_IronPlates_256 (1).png`. So export keeping the original names and do not let a tool
+rename or number them.
+
+Nothing else matters. Folder structure, order, casing and image format are all free.
+
+If the folder has files and nothing matches, the app says so explicitly, shows one name it found
+beside one it wanted, and leaves you to compare. That is the failure worth catching early: a full
+folder and a zero looks like a bug in the app when it is almost always a naming option in the
+exporter.
+
+Keeping the extracted files is up to you; the app only reads them, and deleting the folder puts
+things back exactly as they were.
 
 ## Where this sits among the rest
 
