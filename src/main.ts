@@ -679,19 +679,26 @@ function gdBuildingName(cls: string): string | null {
 }
 
 // Una receta lista para usar: nombres ya traducidos y ritmos por minuto.
-function gdRecipe(
-  leaf: string
-): { item: string; rate: number; inputs: { item: string; rate: number }[] } | null {
+function gdRecipe(leaf: string): {
+  item: string;
+  cls: string;
+  rate: number;
+  inputs: { item: string; cls: string; rate: number }[];
+} | null {
   const r = gameData && gameData.recipes[`${leaf}_C`];
   if (!r) return null;
   const outName = gdItemName(r.out);
   if (!outName) return null;
-  const inputs: { item: string; rate: number }[] = [];
+  const inputs: { item: string; cls: string; rate: number }[] = [];
   for (const i of r.inputs) {
     const n = gdItemName(i.item);
-    if (n) inputs.push({ item: n, rate: i.rate });
+    if (n) inputs.push({ item: n, cls: i.item, rate: i.rate });
   }
-  return { item: outName, rate: r.rate, inputs };
+  // La clase viaja con el nombre. El nombre es para leer; la clase es para
+  // todo lo demás: icono, familia, tier. Devolver solo el nombre obligaba a
+  // volver de un texto traducido a la clase, y ese viaje de vuelta solo
+  // funciona si los datos del juego ya están cargados.
+  return { item: outName, cls: r.out, rate: r.rate, inputs };
 }
 
 // Piezas que se pueden fabricar, por nombre visible. Sirve para no confundir
@@ -1330,9 +1337,10 @@ async function inspect(name: string) {
         a.perItem,
         a.machineCount,
         a.overclocked,
-        t("prod.fromParser")
+        t("prod.fromParser"),
+        a.clsOf
       );
-      renderBottlenecks(a.perItem, a.consumed);
+      renderBottlenecks(a.perItem, a.consumed, a.clsOf);
       renderStored(a.storedByClass);
       renderExploration(a.collect);
       lastPoints = a.points;
@@ -2027,7 +2035,8 @@ function renderProductionView(
   perItem: Record<string, number>,
   machineCount: number,
   overclocked: number,
-  note: string
+  note: string,
+  clsOf: Record<string, string> = {}
 ) {
   const items = Object.entries(perItem).sort((a, b) => b[1] - a[1]);
   const max = items.length ? items[0][1] : 1;
@@ -2035,7 +2044,7 @@ function renderProductionView(
     .map(([item, rate]) => {
       const pct = Math.max(4, Math.round((rate / max) * 100));
       return (
-        `<div class="inv-row"><span class="inv-name">${iconImg(item)}${item}</span>` +
+        `<div class="inv-row"><span class="inv-name">${iconGlyph(clsOf[item] || "", item)}${escapeXml(item)}</span>` +
         `<span class="inv-bar"><span class="inv-fill" style="width:${pct}%"></span></span>` +
         `<span class="inv-count">${fmt(rate)}/min</span></div>`
       );
@@ -2577,6 +2586,9 @@ async function analyzeWithParser(folder: string, name: string) {
 
   const perItem: Record<string, number> = {};
   const consumed: Record<string, number> = {};
+  // Nombre visible -> clase del juego. El puente va en la dirección buena:
+  // se apunta cuando se conoce, en vez de adivinarlo luego desde el texto.
+  const clsOf: Record<string, string> = {};
   const stored: Record<string, number> = {};
   // El mismo almacén indexado por clase (Desc_IronPlate_C). Hace falta para
   // cruzarlo con el coste de los hitos, que viene en clases, no en nombres.
@@ -2802,6 +2814,7 @@ async function analyzeWithParser(folder: string, name: string) {
         const out = official || fallback;
         if (out) {
           perItem[out.item] = (perItem[out.item] || 0) + out.rate * oc;
+          if (official) clsOf[out.item] = official.cls;
           // Ingredientes de ESA receta. Con los datos oficiales siempre los
           // hay; con las tablas a mano, los de la receta si los lleva y, si no,
           // la receta única que la calculadora guarda para esa pieza.
@@ -2812,6 +2825,8 @@ async function analyzeWithParser(folder: string, name: string) {
           if (inputs) {
             for (const inp of inputs) {
               consumed[inp.item] = (consumed[inp.item] || 0) + inp.rate * oc;
+              const icls = (inp as { cls?: string }).cls;
+              if (icls) clsOf[inp.item] = icls;
             }
           }
         } else {
@@ -2970,6 +2985,7 @@ async function analyzeWithParser(folder: string, name: string) {
   return {
     perItem,
     consumed,
+    clsOf,
     machineCount,
     overclocked,
     stored,
@@ -3192,7 +3208,11 @@ function computeBalance(produced: Record<string, number>, consumed: Record<strin
   return rows;
 }
 
-function renderBottlenecks(produced: Record<string, number>, consumed: Record<string, number>) {
+function renderBottlenecks(
+  produced: Record<string, number>,
+  consumed: Record<string, number>,
+  clsOf: Record<string, string> = {}
+) {
   const rows = computeBalance(produced, consumed);
   const bad = rows.filter((r) => r.net < -0.01);
 
@@ -3229,7 +3249,7 @@ function renderBottlenecks(produced: Record<string, number>, consumed: Record<st
         detail = `${Math.round((r.net / r.cons) * 100)}%`;
       }
       return {
-        label: `${iconImg(r.item)}${r.item}`,
+        label: `${iconGlyph(clsOf[r.item] || "", r.item)}${escapeXml(r.item)}`,
         value: Math.round(r.net * 100) / 100,
         detail:
           `<span class="dv-fix">${detail}</span>` +
@@ -4603,7 +4623,19 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   // Al final y sin bloquear: son 10 MB por idioma y solo se releen cuando el
   // juego se ha actualizado.
-  initGameData().finally(() => initIcons());
+  //
+  // Y cuando terminan, se vuelve a mirar la partida. Hasta ahora no se hacía y
+  // esa era la carrera: al arrancar se pintaba TODO con gameData todavía a
+  // null, así que producción y balance salían de las tablas escritas a mano y
+  // sin clase. Los materiales almacenados sí tenían iconos porque se dibujan
+  // desde la clase y no necesitan los datos del juego para nada. De ahí que
+  // pareciera un fallo de unas secciones y no de todas: era cuestión de cuándo.
+  initGameData()
+    .finally(() => initIcons())
+    .finally(() => {
+      const w = selectedWorld && currentWorlds[selectedWorld];
+      if (w && w.length) inspect(w[0].name).catch((e) => console.error("Repintado:", e));
+    });
 
   // Copia del día, si no la hay todavía. Va después de cargarlo todo para que
   // retrate el estado bueno, no uno a medio arrancar.
