@@ -335,6 +335,60 @@ const COLLECT_ES: Record<string, string> = {
 };
 
 // El mundo (sesión) al que pertenece un guardado.
+// ---- Acceso a los datos del juego, con respaldo ----
+// Todo lo que sigue prefiere la documentación oficial y, si no está (porque el
+// juego no se encuentra instalado), cae en las tablas escritas a mano. Las
+// tablas pasan así de ser la fuente de verdad a ser el plan B.
+
+const UI_LANG = "es"; // de momento fijo; el selector de idioma vendrá luego
+
+function gdItemName(cls: string): string | null {
+  const it = gameData && gameData.items[cls];
+  return (it && (it.name[UI_LANG] || it.name.en)) || null;
+}
+
+function gdBuildingName(cls: string): string | null {
+  const b = gameData && gameData.buildings[cls];
+  return (b && (b.name[UI_LANG] || b.name.en)) || null;
+}
+
+// Una receta lista para usar: nombres ya traducidos y ritmos por minuto.
+function gdRecipe(
+  leaf: string
+): { item: string; rate: number; inputs: { item: string; rate: number }[] } | null {
+  const r = gameData && gameData.recipes[`${leaf}_C`];
+  if (!r) return null;
+  const outName = gdItemName(r.out);
+  if (!outName) return null;
+  const inputs: { item: string; rate: number }[] = [];
+  for (const i of r.inputs) {
+    const n = gdItemName(i.item);
+    if (n) inputs.push({ item: n, rate: i.rate });
+  }
+  return { item: outName, rate: r.rate, inputs };
+}
+
+// Piezas que se pueden fabricar, por nombre visible. Sirve para no confundir
+// una materia prima con un déficit: el mineral de hierro no se "produce".
+let craftableCache: { data: GameData | null; set: Set<string> } = { data: null, set: new Set() };
+function craftableItems(): Set<string> {
+  if (craftableCache.data === gameData) return craftableCache.set;
+  const set = new Set<string>();
+  if (gameData) {
+    for (const r of Object.values(gameData.recipes)) {
+      const n = gdItemName(r.out);
+      if (n) set.add(n);
+    }
+  }
+  craftableCache = { data: gameData, set };
+  return set;
+}
+
+function isCraftable(item: string): boolean {
+  const set = craftableItems();
+  return set.size ? set.has(item) : !!RECIPES[item];
+}
+
 // ---- Datos oficiales del juego ----
 // Se leen de la instalacion del usuario (su copia), nunca se distribuyen con
 // la app. Solo se releen cuando el juego se actualiza, porque son 10 MB por
@@ -736,6 +790,12 @@ async function inspect(name: string) {
     // Producción y almacenado con el PARSER COMPLETO; si falla, heurística de respaldo.
     try {
       const a = await analyzeWithParser(folder, name);
+      if (a.powerFromDocs) {
+        // Energía exacta, edificio a edificio, de la documentación oficial.
+        // La estimación por tabla a mano se queda como respaldo.
+        currentPowerMW = a.powerMW;
+        currentGenMW = a.genMW;
+      }
       renderProductionView(
         a.perItem,
         a.machineCount,
@@ -956,7 +1016,11 @@ function renderVitals(
     cell("Tamaño de la fábrica", size) +
     cell("Piezas almacenadas", storedTotal.toLocaleString()) +
     `</div>` +
-    `<p class="muted">Energía estimada por máquinas a 100% (consumo) y generadores (generación). La salud combina cuellos de botella y margen eléctrico.</p>`;
+    `<p class="muted">${
+      gameData
+        ? "Energía según la documentación oficial del juego, edificio a edificio (máquinas a 100%)."
+        : "Energía estimada con tablas propias: sin los datos del juego, es una aproximación."
+    } La salud combina cuellos de botella y margen eléctrico.</p>`;
 }
 
 // "Retoma aquí": qué cambió desde la última vez, tu nota y qué hacer ahora.
@@ -1295,8 +1359,26 @@ async function analyzeWithParser(folder: string, name: string) {
   const perItem: Record<string, number> = {};
   const consumed: Record<string, number> = {};
   const stored: Record<string, number> = {};
-  const points: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string }[] = [];
-  const belts: { pts: [number, number][]; z: number }[] = []; // cinta = polilínea [x,y] + altura media
+  const points: {
+    x: number;
+    y: number;
+    z: number;
+    cat: string;
+    name: string;
+    detail: string;
+    item: string;
+    cls: string;
+  }[] = [];
+  // Energía leída de la documentación oficial, edificio a edificio. Hasta ahora
+  // salía de una tabla a mano indexada por nombre traducido.
+  let powerMW = 0;
+  let genMW = 0;
+  let powerFromDocs = false;
+  // Una cinta es una polilínea [x,y] más su rango de altura. El rango importa:
+  // una cinta que sube de la planta baja a la primera no pertenece a ninguna de
+  // las dos, pertenece a las dos, y al aislar un piso tiene que seguir viéndose
+  // porque es justo lo que explica cómo se conectan.
+  const belts: { pts: [number, number][]; z: number; z0: number; z1: number }[] = [];
   const collect: Record<string, number> = {};
   // Lo que no sabemos interpretar. El save se lee entero, pero nuestras tablas
   // de recetas solo conocen el juego base: una maquina de un mod fabrica algo
@@ -1322,14 +1404,21 @@ async function analyzeWithParser(folder: string, name: string) {
         if (spline && spline.length) {
           const poly: [number, number][] = [];
           let zsum = 0;
+          let zmin = Infinity;
+          let zmax = -Infinity;
           for (const sp of spline) {
             const loc = sp.properties && sp.properties.Location && sp.properties.Location.value;
             if (!loc) continue;
             const w = qrot(r, loc);
             poly.push([t.x + w.x, t.y + w.y]);
-            zsum += t.z + w.z;
+            const z = t.z + w.z;
+            zsum += z;
+            if (z < zmin) zmin = z;
+            if (z > zmax) zmax = z;
           }
-          if (poly.length >= 2) belts.push({ pts: poly, z: zsum / poly.length });
+          if (poly.length >= 2) {
+            belts.push({ pts: poly, z: zsum / poly.length, z0: zmin, z1: zmax });
+          }
         } else {
           const leaf = (o.typePath.split("/").pop() || "").split(".")[0];
           // ¿Qué fabrica? (solo máquinas con receta) para el tooltip y el resaltado.
@@ -1338,20 +1427,28 @@ async function analyzeWithParser(folder: string, name: string) {
           const rec2 = o.properties && o.properties.mCurrentRecipe;
           if (rec2 && rec2.value && rec2.value.pathName) {
             const rl = (rec2.value.pathName.split("/").pop() || "").split(".")[0];
-            const out = RECIPE_OUTPUT[rl];
+            const out = gdRecipe(rl) || RECIPE_OUTPUT[rl];
             if (out) {
               detail = ` · fabrica ${out.item}`;
               prodItem = out.item;
             }
+          }
+          const cls = `${leaf}_C`;
+          const gb = gameData && gameData.buildings[cls];
+          if (gb) {
+            powerMW += gb.power;
+            genMW += gb.generation;
+            powerFromDocs = true;
           }
           points.push({
             x: t.x,
             y: t.y,
             z: t.z,
             cat: categoryOf(o.typePath),
-            name: trBuilding(prettyBuild(leaf)),
+            name: gdBuildingName(cls) || trBuilding(prettyBuild(leaf)),
             detail,
             item: prodItem,
+            cls,
           });
         }
       }
@@ -1365,14 +1462,19 @@ async function analyzeWithParser(folder: string, name: string) {
         const oc = (props.mCurrentPotential && props.mCurrentPotential.value) || 1;
         if (oc !== 1) overclocked++;
         machineCount++;
-        const out = RECIPE_OUTPUT[leaf];
+        // Documentación oficial primero; si no está, la tabla a mano.
+        const official = gdRecipe(leaf);
+        const fallback = RECIPE_OUTPUT[leaf];
+        const out = official || fallback;
         if (out) {
           perItem[out.item] = (perItem[out.item] || 0) + out.rate * oc;
-          // Consumo: ingredientes de esa receta (si la conocemos en la calculadora).
-          // Ingredientes de ESA receta si los conocemos; si no, la receta
-          // única que la calculadora guarda para esa pieza.
+          // Ingredientes de ESA receta. Con los datos oficiales siempre los
+          // hay; con las tablas a mano, los de la receta si los lleva y, si no,
+          // la receta única que la calculadora guarda para esa pieza.
           const crec = RECIPES[out.item];
-          const inputs = out.inputs || (crec ? crec.inputs : null);
+          const inputs = official
+            ? official.inputs
+            : fallback!.inputs || (crec ? crec.inputs : null);
           if (inputs) {
             for (const inp of inputs) {
               consumed[inp.item] = (consumed[inp.item] || 0) + inp.rate * oc;
@@ -1448,6 +1550,9 @@ async function analyzeWithParser(folder: string, name: string) {
     levels: floorLevels,
     unknownRecipes,
     unknownBySource,
+    powerMW,
+    genMW,
+    powerFromDocs,
   };
 }
 
@@ -1528,7 +1633,9 @@ function buildMetrics(
 function computeDeficits(produced: Record<string, number>, consumed: Record<string, number>) {
   const deficits: { item: string; prod: number; cons: number; deficit: number }[] = [];
   for (const item of Object.keys(consumed)) {
-    if (!RECIPES[item]) continue; // solo piezas fabricables (evita ruido de materias primas)
+    // Solo piezas fabricables: una materia prima que se consume no es un
+    // déficit, es una mina. Con los datos oficiales esto cubre las 872 recetas.
+    if (!isCraftable(item)) continue;
     const net = (produced[item] || 0) - consumed[item];
     if (net < -0.01) deficits.push({ item, prod: produced[item] || 0, cons: consumed[item], deficit: -net });
   }
@@ -1648,7 +1755,7 @@ function mapShape(cat: string, cx: number, cy: number, r: number, title: string)
 // Dibuja un plano cenital: cintas como líneas, máquinas como puntos con nombre (al pasar el ratón).
 function renderMap(
   points: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string }[],
-  belts: { pts: [number, number][]; z: number }[]
+  belts: { pts: [number, number][]; z: number; z0: number; z1: number }[]
 ) {
   if (!points.length && !belts.length) {
     mapEl.innerHTML = `<p class="muted">No hay posiciones para dibujar (¿parser no disponible?).</p>`;
@@ -1688,7 +1795,9 @@ function renderMap(
   let lines = "";
   for (const b of belts) {
     const pts = b.pts.map(([x, y]) => `${px(x).toFixed(1)},${py(y).toFixed(1)}`).join(" ");
-    lines += `<g data-cat="belt" data-z="${Math.round(b.z)}"><polyline points="${pts}" fill="none" stroke="#8a93a3" stroke-width="1" stroke-opacity="${beltOp}"/></g>`;
+    lines +=
+      `<g data-cat="belt" data-z="${Math.round(b.z)}" data-z0="${Math.round(b.z0)}" data-z1="${Math.round(b.z1)}">` +
+      `<polyline points="${pts}" fill="none" stroke="#8a93a3" stroke-width="1" stroke-opacity="${beltOp}"/></g>`;
   }
   // Edificios: puntito gris para "otros", forma+color por categoría para el resto.
   let others = "";
@@ -1762,25 +1871,31 @@ function renderMap(
     `</div>`;
 
   // Chips de niveles construidos (suelos): saltan a la banda de ese piso.
+  // La banda va del punto medio con el nivel de abajo al punto medio con el de
+  // arriba; los extremos absorben todo lo que quede fuera.
+  mapGround = mapLevels.length ? mapLevels[0] : minZ;
   let levelChips = "";
   if (mapLevels.length >= 1) {
-    const base = mapLevels[0];
     const chips = mapLevels
       .map((lz, i) => {
-        // Banda del piso: del punto medio con el nivel inferior al punto medio
-        // con el superior (los extremos absorben todo lo que quede por debajo/encima).
         const prev = mapLevels[i - 1];
         const next = mapLevels[i + 1];
         const lo = prev === undefined ? Math.floor(minZ) - 1 : (prev + lz) / 2;
         const hi = next === undefined ? Math.ceil(maxZ) + 1 : (lz + next) / 2;
-        const relM = Math.round((lz - base) / 100);
+        // Cuántas máquinas hay realmente en ese piso: un nivel con dos cosas
+        // no merece la misma atención que uno con cincuenta.
+        const n = points.filter((p) => p.cat !== "other" && p.z >= lo && p.z <= hi).length;
+        const relM = Math.round((lz - mapGround) / 100);
         const lbl = i === 0 ? "Suelo" : `+${relM} m`;
-        return `<button class="lvl-chip" data-lo="${Math.round(lo)}" data-hi="${Math.round(hi)}">${lbl}</button>`;
+        return (
+          `<button class="lvl-chip" data-lo="${Math.round(lo)}" data-hi="${Math.round(hi)}">` +
+          `${lbl} <span class="lvl-n">${n}</span></button>`
+        );
       })
       .join("");
     levelChips =
       `<div class="map-levels"><span class="muted">Niveles construidos (${mapLevels.length}):</span> ` +
-      `<button class="lvl-chip" data-lo="all">Todos</button>${chips}</div>`;
+      `<button class="lvl-chip active" data-lo="all">Todos</button>${chips}</div>`;
   }
 
   mapEl.innerHTML =
@@ -1793,14 +1908,18 @@ function renderMap(
     `<g id="map-vp">${lines}${others}${shapes}</g></svg>` +
     `<div class="map-legend">${legend}<span class="leg-item"><span style="color:#8a93a3">─</span> cintas</span>` +
     `<span class="leg-item"><span style="color:#aab0bd">·</span> resto</span></div>` +
-    `<p class="muted">Vista cenital, norte arriba. Pasa el ratón por una pieza para ver qué es y qué fabrica. Usa "Altura" para aislar pisos.</p>`;
+    `<p class="muted">Vista cenital, norte arriba. Pasa el ratón por una pieza para ver qué es y qué ` +
+    `fabrica. Al aislar un piso, el resto no desaparece: se queda en sombra para que no pierdas la ` +
+    `referencia, y las cintas que suben entre plantas siguen visibles porque son justo lo que ` +
+    `explica cómo se conecta todo.</p>`;
 
   setupMapInteraction();
 }
 
 // Estado del mapa para resaltar cuellos de botella.
 let lastPoints: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string }[] = [];
-let lastBelts: { pts: [number, number][]; z: number }[] = [];
+let lastBelts: { pts: [number, number][]; z: number; z0: number; z1: number }[] = [];
+let mapGround = 0; // altura del nivel más bajo, para mostrar metros relativos
 let mapLevels: number[] = []; // alturas de los niveles construidos del mundo abierto
 let highlightItem: string | null = null;
 
@@ -1913,7 +2032,13 @@ function applyMapFilters() {
     lo = Math.min(a, b);
     hi = Math.max(a, b);
     const lbl = document.querySelector("#z-label");
-    if (lbl) lbl.textContent = `${Math.round(lo)} – ${Math.round(hi)}`;
+    // En metros sobre el nivel más bajo construido: las coordenadas crudas del
+    // juego (-3811) no le dicen nada a nadie.
+    if (lbl) {
+      const a0 = Math.round((lo - mapGround) / 100);
+      const a1 = Math.round((hi - mapGround) / 100);
+      lbl.textContent = `${a0} – ${a1} m sobre el suelo`;
+    }
   }
   const catOn: Record<string, boolean> = {};
   document.querySelectorAll<HTMLInputElement>(".map-filter input").forEach((cb) => {
@@ -1921,9 +2046,21 @@ function applyMapFilters() {
   });
   vp.querySelectorAll<SVGElement>("g[data-cat]").forEach((g) => {
     const cat = g.getAttribute("data-cat") || "";
-    const z = parseFloat(g.getAttribute("data-z") || "0");
-    const visible = catOn[cat] !== false && z >= lo - 0.5 && z <= hi + 0.5;
-    g.style.display = visible ? "" : "none";
+    // Una capa apagada se oculta de verdad; eso lo ha pedido el usuario.
+    const catVisible = catOn[cat] !== false;
+    g.style.display = catVisible ? "" : "none";
+    if (!catVisible) return;
+    // Fuera de la banda de altura NO se oculta, se deja en sombra: aislar un
+    // piso y quedarte con la pantalla medio vacía hace perder la referencia de
+    // dónde está ese piso dentro de la fábrica.
+    // Un punto tiene una altura; una cinta tiene un rango y basta con que lo
+    // toque para seguir contando, porque es la que une las plantas.
+    const za = g.getAttribute("data-z0");
+    const zb = g.getAttribute("data-z1");
+    const zc = g.getAttribute("data-z") || "0";
+    const z0 = parseFloat(za ?? zc);
+    const z1 = parseFloat(zb ?? zc);
+    g.classList.toggle("offband", !(z1 >= lo - 0.5 && z0 <= hi + 0.5));
   });
 }
 
