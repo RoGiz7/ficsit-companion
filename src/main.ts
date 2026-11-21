@@ -118,6 +118,7 @@ let explorationEl: HTMLElement;
 let mapEl: HTMLElement;
 let compatEl: HTMLElement;
 let gameDataEl: HTMLElement;
+let milestoneEl: HTMLElement;
 let gameData: GameData | null = null;
 let noteText: HTMLTextAreaElement;
 let noteSave: HTMLButtonElement;
@@ -814,6 +815,7 @@ async function inspect(name: string) {
       const deficits = computeDeficits(a.perItem, a.consumed);
       renderVitals(currentPowerMW, currentGenMW, deficits.length, a.points, a.stored);
       renderCompat(savesMeta[name], a.machineCount, a.unknownRecipes, a.unknownBySource);
+      renderNextMilestone(info.progression, a.storedByClass, a.perItem);
       snapMetrics = buildMetrics(a, info, deficits, currentPowerMW, currentGenMW, name);
       try {
         const snaps = await invoke<Snapshot[]>("get_history", { session: key });
@@ -838,6 +840,9 @@ async function inspect(name: string) {
       renderMap([], []);
       renderVitals(currentPowerMW, currentGenMW, 0, [], {});
       renderCompat(savesMeta[name], 0, 0, {});
+      // Sin parser no sabemos qué hay en los almacenes, y decir "te faltan
+      // 4 de 4" cuando en realidad no hemos mirado sería mentir.
+      if (milestoneEl) milestoneEl.innerHTML = "";
       renderResume(currentNoteKey, [], notesCache[currentNoteKey] || "", 0, info.progression);
     }
 
@@ -853,6 +858,91 @@ async function inspect(name: string) {
     detailStatus.textContent = String(e);
     detailStatus.className = "detail-status err";
   }
+}
+
+// ---- Siguiente hito: qué cuesta y qué te falta ----
+// Esta es la pregunta por la que existe la app. El juego publica el coste
+// exacto de cada hito y la partida dice lo que hay en los almacenes y el
+// depósito, así que lo único que hacía falta era restar.
+//
+// Un aviso honesto sobre la precisión: los hitos completados se deducen de las
+// rutas de esquema que aparecen en el guardado, y ahí puede aparecer alguna
+// que solo esté referenciada. Por eso la pantalla dice "detectados".
+function renderNextMilestone(
+  prog: ProgressInfo,
+  storedByClass: Record<string, number>,
+  perItem: Record<string, number>
+) {
+  if (!milestoneEl) return;
+  if (!gameData) {
+    milestoneEl.innerHTML = "";
+    return;
+  }
+
+  // Hitos del HUB, ordenados por tier y número ("3-2" va después de "3-1").
+  const order = (token: string) => {
+    const [a, b] = token.split("-").map((x) => parseInt(x, 10) || 0);
+    return a * 100 + b;
+  };
+  const done = new Set(prog.milestones);
+  const pending = Object.entries(gameData.schematics)
+    .filter(([, sc]) => sc.type === "EST_Milestone" && sc.cost.length)
+    .map(([cls, sc]) => ({ cls, sc, token: cls.replace(/^Schematic_/, "").replace(/_C$/, "") }))
+    .filter((m) => /^\d+-\d+$/.test(m.token) && !done.has(m.token))
+    .filter((m) => m.sc.tier <= prog.current_tier + 1)
+    .sort((a, b) => order(a.token) - order(b.token));
+
+  if (!pending.length) {
+    milestoneEl.innerHTML =
+      `<h3 class="inv-title">Siguiente hito</h3>` +
+      `<p class="muted">No quedan hitos pendientes en tu tier actual ni en el siguiente.</p>`;
+    return;
+  }
+
+  const cards = pending
+    .slice(0, 3)
+    .map((m) => {
+      let missingTotal = 0;
+      const rows = m.sc.cost
+        .map((c) => {
+          const name = gdItemName(c.item) || c.item;
+          const have = Math.min(storedByClass[c.item] || 0, c.amount);
+          const missing = Math.max(0, c.amount - have);
+          if (missing > 0) missingTotal++;
+          const pct = Math.round((have / c.amount) * 100);
+          // Si eso se está fabricando, cuánto queda a ritmo actual.
+          const rate = perItem[name] || 0;
+          const eta =
+            missing > 0 && rate > 0
+              ? ` <span class="ms-eta">· ${fmt(missing / rate)} min</span>`
+              : "";
+          return (
+            `<div class="ms-row${missing ? "" : " ms-done"}">` +
+            `<span class="ms-name">${escapeXml(name)}</span>` +
+            `<span class="inv-bar"><span class="goal-fill" style="width:${pct}%"></span></span>` +
+            `<span class="ms-count">${have.toLocaleString()} / ${c.amount.toLocaleString()}${eta}</span>` +
+            `</div>`
+          );
+        })
+        .join("");
+      const title = m.sc.name[UI_LANG] || m.sc.name.en || m.token;
+      const state = missingTotal
+        ? `<span class="ms-missing">faltan ${missingTotal} de ${m.sc.cost.length}</span>`
+        : `<span class="ms-ready">✓ lo tienes todo</span>`;
+      return (
+        `<div class="ms-card"><h4 class="ms-title">Tier ${m.sc.tier} · ${escapeXml(title)} ${state}</h4>` +
+        rows +
+        `</div>`
+      );
+    })
+    .join("");
+
+  milestoneEl.innerHTML =
+    `<h3 class="inv-title">Siguiente hito · ${pending.length} pendiente(s)</h3>` +
+    cards +
+    `<p class="muted">Coste oficial del juego frente a lo que tienes en almacenes, máquinas y ` +
+    `depósito. Los minutos son a tu ritmo de producción actual. Los hitos ya hechos se deducen de ` +
+    `la partida, así que alguno podría colarse.</p>`;
 }
 
 // Dibuja una gráfica SVG simple de construcciones totales a lo largo del tiempo.
@@ -1359,6 +1449,9 @@ async function analyzeWithParser(folder: string, name: string) {
   const perItem: Record<string, number> = {};
   const consumed: Record<string, number> = {};
   const stored: Record<string, number> = {};
+  // El mismo almacén indexado por clase (Desc_IronPlate_C). Hace falta para
+  // cruzarlo con el coste de los hitos, que viene en clases, no en nombres.
+  const storedByClass: Record<string, number> = {};
   const points: {
     x: number;
     y: number;
@@ -1504,6 +1597,8 @@ async function analyzeWithParser(folder: string, name: string) {
           if (path && num) {
             const it = prettyItem(path);
             stored[it] = (stored[it] || 0) + num;
+            const cls = (path.split("/").pop() || "").split(".").pop() || "";
+            if (cls) storedByClass[cls] = (storedByClass[cls] || 0) + num;
           }
         }
       }
@@ -1553,6 +1648,7 @@ async function analyzeWithParser(folder: string, name: string) {
     powerMW,
     genMW,
     powerFromDocs,
+    storedByClass,
   };
 }
 
@@ -2337,6 +2433,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   progressEl = document.querySelector("#progress") as HTMLElement;
   compatEl = document.querySelector("#compat") as HTMLElement;
   gameDataEl = document.querySelector("#gamedata") as HTMLElement;
+  milestoneEl = document.querySelector("#milestone") as HTMLElement;
   productionEl = document.querySelector("#production") as HTMLElement;
   balanceEl = document.querySelector("#balance") as HTMLElement;
   storedEl = document.querySelector("#stored") as HTMLElement;

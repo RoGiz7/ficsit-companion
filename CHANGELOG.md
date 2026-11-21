@@ -7,6 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
+- **Next milestone, and what you are missing for it.** The game publishes the exact cost of every
+  HUB milestone and the save knows what is sitting in your containers, machines and Dimensional
+  Depot, so the app now subtracts one from the other: the next pending milestones, item by item,
+  with a progress bar and — for anything you are already producing — how many minutes of current
+  output would close the gap. Completed milestones are inferred from the schematic paths present
+  in the save, which is approximate, and the panel says so.
 - **The game's own documentation as the source of truth.** Satisfactory ships every recipe, item,
   building and milestone — translated into every language it supports — in
   `CommunityResources/Docs`. The app now finds that folder in your own installation (Steam library

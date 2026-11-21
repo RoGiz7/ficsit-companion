@@ -1149,3 +1149,53 @@ table.saves {
   padding-top: 14px;
   border-top: 1px solid var(--line);
 }
+
+/* ---- Siguiente hito ---- */
+.ms-card + .ms-card {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.ms-title {
+  margin: 0 0 10px;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.ms-missing {
+  margin-left: 6px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: #f4c531;
+}
+
+.ms-ready {
+  margin-left: 6px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: #5fd38d;
+}
+
+.ms-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.1fr) 2fr minmax(120px, auto);
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 0.86rem;
+}
+
+.ms-row.ms-done .ms-name,
+.ms-row.ms-done .ms-count {
+  color: var(--muted);
+}
+
+.ms-count {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ms-eta {
+  color: var(--accent);
+}

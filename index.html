@@ -67,6 +67,12 @@
         <!-- Lo de abajo va plegado: la pestaña tiene que entrar en una pantalla
              y que sea el usuario quien decida qué desplegar. El título de cada
              sección lo escribe su propio render; se copia al summary. -->
+        <!-- Abierto por defecto: es la respuesta a "¿y ahora qué?", que es
+             para lo que existe esta app. -->
+        <details class="acc" id="acc-milestone" data-sync open>
+          <summary><span class="acc-title">Siguiente hito</span></summary>
+          <div id="milestone" class="milestone"></div>
+        </details>
         <details class="acc" id="acc-progress" data-sync>
           <summary><span class="acc-title">Progreso de la partida</span></summary>
           <div id="progress" class="progress"></div>
