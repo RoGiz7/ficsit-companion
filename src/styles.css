@@ -1096,3 +1096,19 @@ table.saves {
 .compat-card.info .compat-title {
   color: #3aa0ff;
 }
+
+/* ---- Datos del juego ---- */
+.gamedata {
+  font-size: 0.88rem;
+}
+
+.gd-status {
+  margin: 0 0 4px;
+  font-weight: 500;
+}
+
+.gd-detail {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  word-break: break-word;
+}

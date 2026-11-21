@@ -3,6 +3,14 @@ import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Parser, SatisfactorySaveHeader, SaveReader } from "@etothepii/satisfactory-file-parser";
+import {
+  describeDiff,
+  diffGameData,
+  extractGameData,
+  GAMEDATA_SCHEMA,
+  type DocsFolder,
+  type GameData,
+} from "./gamedata";
 
 // Dónde se recuerda la carpeta elegida entre arranques.
 const FOLDER_KEY = "saveFolder";
@@ -109,6 +117,8 @@ let storedEl: HTMLElement;
 let explorationEl: HTMLElement;
 let mapEl: HTMLElement;
 let compatEl: HTMLElement;
+let gameDataEl: HTMLElement;
+let gameData: GameData | null = null;
 let noteText: HTMLTextAreaElement;
 let noteSave: HTMLButtonElement;
 let noteStatus: HTMLElement;
@@ -325,6 +335,78 @@ const COLLECT_ES: Record<string, string> = {
 };
 
 // El mundo (sesión) al que pertenece un guardado.
+// ---- Datos oficiales del juego ----
+// Se leen de la instalacion del usuario (su copia), nunca se distribuyen con
+// la app. Solo se releen cuando el juego se actualiza, porque son 10 MB por
+// idioma; el resto del tiempo vale el destilado cacheado.
+
+function renderGameData(status: string, detail: string, busy = false) {
+  if (!gameDataEl) return;
+  gameDataEl.innerHTML =
+    `<p class="gd-status">${escapeXml(status)}</p>` +
+    (detail ? `<p class="muted gd-detail">${escapeXml(detail)}</p>` : "") +
+    `<button id="gd-reload" type="button"${busy ? " disabled" : ""}>Releer datos del juego</button>`;
+  document.querySelector("#gd-reload")?.addEventListener("click", () => initGameData(true));
+}
+
+async function initGameData(force = false) {
+  if (!gameDataEl) return;
+  try {
+    const cached = await invoke<GameData | null>("get_game_data");
+    const folders = await invoke<DocsFolder[]>("detect_docs_folders");
+
+    if (!folders.length) {
+      gameData = cached && cached.schema === GAMEDATA_SCHEMA ? cached : null;
+      renderGameData(
+        gameData ? "Usando datos guardados del juego." : "No encuentro la instalación del juego.",
+        gameData
+          ? `${Object.keys(gameData.recipes).length} recetas · leídos el ${new Date(gameData.extractedAt).toLocaleDateString()}`
+          : "Sin los datos oficiales uso mis propias tablas, que van por detrás de los parches."
+      );
+      return;
+    }
+
+    const docs = folders[0];
+    const upToDate =
+      cached &&
+      cached.schema === GAMEDATA_SCHEMA &&
+      cached.docsNewestMs === docs.newest_ms &&
+      cached.docsPath === docs.path;
+
+    if (upToDate && !force) {
+      gameData = cached;
+      renderGameData(
+        "Datos del juego al día.",
+        `${Object.keys(cached!.recipes).length} recetas · ${Object.keys(cached!.schematics).length} hitos · ${cached!.langs.join(", ")}`
+      );
+      return;
+    }
+
+    renderGameData("Leyendo la documentación del juego…", `${docs.path}`, true);
+    const fresh = await extractGameData(docs.path, docs.languages);
+    fresh.docsNewestMs = docs.newest_ms;
+
+    const diff = diffGameData(cached && cached.schema === GAMEDATA_SCHEMA ? cached : null, fresh);
+    await invoke("set_game_data", { data: fresh });
+    gameData = fresh;
+
+    const changed =
+      diff && (diff.addedRecipes.length || diff.changedRates.length || diff.removedRecipes.length);
+    renderGameData(
+      changed ? "El juego ha cambiado desde la última lectura." : "Datos del juego actualizados.",
+      describeDiff(diff, fresh, "es")
+    );
+    // Si algo cambió, que no pase desapercibido aunque la sección esté plegada.
+    if (changed) {
+      const acc = document.querySelector<HTMLDetailsElement>("#acc-gamedata");
+      if (acc) acc.open = true;
+    }
+  } catch (e) {
+    console.error("Datos del juego:", e);
+    renderGameData("No se pudieron leer los datos del juego.", String(e));
+  }
+}
+
 interface DetectedFolder {
   path: string;
   save_count: number;
@@ -2117,6 +2199,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   calcEl = document.querySelector("#calc") as HTMLElement;
   progressEl = document.querySelector("#progress") as HTMLElement;
   compatEl = document.querySelector("#compat") as HTMLElement;
+  gameDataEl = document.querySelector("#gamedata") as HTMLElement;
   productionEl = document.querySelector("#production") as HTMLElement;
   balanceEl = document.querySelector("#balance") as HTMLElement;
   storedEl = document.querySelector("#stored") as HTMLElement;
@@ -2210,4 +2293,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     await inspect(currentWorlds[selectedWorld][0].name);
   }
   await startWatching();
+
+  // Al final y sin bloquear: son 10 MB por idioma y solo se releen cuando el
+  // juego se ha actualizado.
+  initGameData();
 });

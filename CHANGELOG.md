@@ -7,6 +7,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
+- **The game's own documentation as the source of truth.** Satisfactory ships every recipe, item,
+  building and milestone — translated into every language it supports — in
+  `CommunityResources/Docs`. The app now finds that folder in your own installation (Steam library
+  folders and the usual Epic paths), reads the Spanish and English files, distils out what it needs
+  and caches the result. It is re-read only when the game updates, and when that happens it reports
+  what changed: recipes added, rates altered, buildings added. Those files are never bundled with
+  the app — they are Coffee Stain's, and they are read from your own copy.
+  Everything is keyed by class name rather than by a translated string, which is what makes a part
+  the same part in both languages. Milestones and MAM research are extracted too — tier, exact
+  cost, build time and what each unlocks — ready for the features that will use them.
 - **Save compatibility check.** Each save's header is now read with the parser library instead of
   hand-rolled byte offsets, which takes about half a millisecond per save. The saves list shows
   whether a save needs mods (and which ones, with versions), whether it was written in an older

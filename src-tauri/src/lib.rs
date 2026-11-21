@@ -331,6 +331,178 @@ fn detect_save_folders() -> Vec<DetectedFolder> {
     out
 }
 
+// ---- Documentacion oficial del juego (CommunityResources/Docs) ----
+// El juego publica todas sus recetas, edificios y nombres, traducidos, en un
+// JSON por idioma. Es la fuente de verdad: mientras mantengamos las tablas a
+// mano, siempre iremos por detras de los parches.
+//
+// No metemos esos archivos en el repo: son de Coffee Stain. Se leen de la
+// instalacion del propio usuario, que es su copia legitima.
+
+#[derive(Serialize, Clone)]
+struct DocsFolder {
+    path: String,
+    languages: Vec<String>,
+    newest_ms: u64, // para saber si el juego se ha actualizado desde la ultima lectura
+}
+
+// Bibliotecas de Steam declaradas en libraryfolders.vdf.
+fn steam_libraries() -> Vec<PathBuf> {
+    let mut libs: Vec<PathBuf> = Vec::new();
+    let mut roots: Vec<PathBuf> = Vec::new();
+    for var in ["ProgramFiles(x86)", "ProgramFiles"] {
+        if let Ok(v) = std::env::var(var) {
+            roots.push(PathBuf::from(v).join("Steam"));
+        }
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        roots.push(PathBuf::from(&home).join(".steam/steam"));
+        roots.push(PathBuf::from(&home).join(".local/share/Steam"));
+    }
+    for root in roots {
+        let vdf = root.join("steamapps").join("libraryfolders.vdf");
+        let Ok(text) = std::fs::read_to_string(&vdf) else {
+            continue;
+        };
+        libs.push(root.clone());
+        // Lineas del tipo:   "path"    "D:\SteamLibrary"
+        for line in text.lines() {
+            let t = line.trim();
+            if !t.starts_with("\"path\"") {
+                continue;
+            }
+            if let Some(p) = t.split('"').nth(3) {
+                libs.push(PathBuf::from(p.replace("\\\\", "\\")));
+            }
+        }
+    }
+    libs
+}
+
+// Comando: busca las carpetas Docs del juego y que idiomas traen.
+#[tauri::command]
+fn detect_docs_folders() -> Vec<DocsFolder> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    for lib in steam_libraries() {
+        candidates.push(
+            lib.join("steamapps")
+                .join("common")
+                .join("Satisfactory")
+                .join("CommunityResources")
+                .join("Docs"),
+        );
+    }
+    // Epic instala por defecto aqui.
+    for var in ["ProgramFiles", "ProgramFiles(x86)"] {
+        if let Ok(v) = std::env::var(var) {
+            for name in ["Satisfactory", "SatisfactoryEarlyAccess", "SatisfactoryExperimental"] {
+                candidates.push(
+                    PathBuf::from(&v)
+                        .join("Epic Games")
+                        .join(name)
+                        .join("CommunityResources")
+                        .join("Docs"),
+                );
+            }
+        }
+    }
+
+    let mut out: Vec<DocsFolder> = Vec::new();
+    let mut seen: Vec<String> = Vec::new();
+    for dir in candidates {
+        if !dir.is_dir() {
+            continue;
+        }
+        let key = dir.to_string_lossy().to_string();
+        if seen.contains(&key) {
+            continue;
+        }
+        let mut languages: Vec<String> = Vec::new();
+        let mut newest_ms: u64 = 0;
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for e in entries.flatten() {
+                let p = e.path();
+                let is_json = p
+                    .extension()
+                    .and_then(|x| x.to_str())
+                    .map(|x| x.eq_ignore_ascii_case("json"))
+                    .unwrap_or(false);
+                if !is_json {
+                    continue;
+                }
+                if let Some(stem) = p.file_stem().and_then(|x| x.to_str()) {
+                    languages.push(stem.to_string());
+                }
+                if let Ok(m) = e.metadata() {
+                    if let Some(ms) = m
+                        .modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                        .map(|d| d.as_millis() as u64)
+                    {
+                        if ms > newest_ms {
+                            newest_ms = ms;
+                        }
+                    }
+                }
+            }
+        }
+        if !languages.is_empty() {
+            languages.sort();
+            seen.push(key.clone());
+            out.push(DocsFolder {
+                path: key,
+                languages,
+                newest_ms,
+            });
+        }
+    }
+    out
+}
+
+// Comando: los bytes crudos de un idioma concreto. Van en UTF-16, asi que la
+// decodificacion la hace la interfaz.
+#[tauri::command]
+fn read_docs_lang(folder: String, lang: String) -> Result<tauri::ipc::Response, String> {
+    // Nada de rutas con trampa: el idioma es solo un nombre de archivo.
+    if lang.contains('/') || lang.contains('\\') || lang.contains("..") {
+        return Err("Idioma no valido.".into());
+    }
+    let path = Path::new(&folder).join(format!("{lang}.json"));
+    let data = std::fs::read(&path).map_err(|e| e.to_string())?;
+    Ok(tauri::ipc::Response::new(data))
+}
+
+// ---- Cache de los datos del juego ya destilados ----
+// Los JSON del juego son 10 MB por idioma. Se leen una vez, se extrae lo que
+// usamos y se guarda compacto aqui.
+
+fn game_data_file(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("No se encontró la carpeta de datos: {e}"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("gamedata.json"))
+}
+
+#[tauri::command]
+fn get_game_data(app: AppHandle) -> Result<Option<serde_json::Value>, String> {
+    let path = game_data_file(&app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    Ok(serde_json::from_slice(&bytes).ok())
+}
+
+#[tauri::command]
+fn set_game_data(app: AppHandle, data: serde_json::Value) -> Result<(), String> {
+    let path = game_data_file(&app)?;
+    let json = serde_json::to_vec(&data).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())
+}
+
 // Comando: devuelve solo el principio del archivo. La interfaz parsea ahi la
 // cabecera con la libreria completa (version del juego, mods, modo creativo).
 // Leer 2 MB enteros solo para saber si una partida lleva mods seria un
@@ -964,7 +1136,11 @@ pub fn run() {
             set_plan,
             read_save_bytes,
             read_save_head,
-            detect_save_folders
+            detect_save_folders,
+            detect_docs_folders,
+            read_docs_lang,
+            get_game_data,
+            set_game_data
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
