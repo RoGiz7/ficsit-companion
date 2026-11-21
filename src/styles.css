@@ -1290,3 +1290,40 @@ table.saves {
   background: rgba(255, 158, 61, 0.15);
   color: var(--accent);
 }
+
+/* ---- Copias de seguridad ---- */
+.backups {
+  font-size: 0.88rem;
+}
+
+.bk-list {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.bk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.bk-main {
+  display: grid;
+}
+
+.bk-meta {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.bk-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}

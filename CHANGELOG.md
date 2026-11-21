@@ -7,6 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
+- **Backups.** History, notes and plans are copied automatically once a day, the last ten are kept,
+  and a copy can be made on demand. **Restoring merges rather than replaces**: history is
+  cumulative, so combining two copies always yields at least as much as either alone, and a button
+  that could wipe months in one click should not exist. Game data is deliberately excluded — it
+  rebuilds itself from the game. See `docs/BACKUP.md`, which also carries the rule for deciding
+  whether anything added later belongs in the backup, and at what level.
 - **Next milestone, and what you are missing for it.** The game publishes the exact cost of every
   HUB milestone and the save knows what is sitting in your containers, machines and Dimensional
   Depot, so the app now subtracts one from the other: the next pending milestones, item by item,

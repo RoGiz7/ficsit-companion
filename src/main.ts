@@ -119,6 +119,7 @@ let explorationEl: HTMLElement;
 let mapEl: HTMLElement;
 let compatEl: HTMLElement;
 let gameDataEl: HTMLElement;
+let backupsEl: HTMLElement;
 let milestoneEl: HTMLElement;
 let gameData: GameData | null = null;
 let noteText: HTMLTextAreaElement;
@@ -338,6 +339,96 @@ const COLLECT_ES: Record<string, string> = {
 };
 
 // El mundo (sesión) al que pertenece un guardado.
+// ---- Copias de seguridad ----
+// Lo único irreemplazable que guarda la app es el histórico: el juego rota y
+// sobrescribe los autoguardados, así que una foto que no se tomó no existe en
+// ningún sitio. Por eso restaurar FUSIONA en vez de reemplazar.
+interface BackupInfo {
+  name: string;
+  bytes: number;
+  created_ms: number;
+  worlds: number;
+  snapshots: number;
+  notes: number;
+}
+interface ImportReport {
+  snapshots_added: number;
+  snapshots_enriched: number;
+  notes_added: number;
+  plans_added: number;
+  skipped: number;
+}
+
+async function renderBackups(msg = "") {
+  if (!backupsEl) return;
+  let list: BackupInfo[] = [];
+  try {
+    list = await invoke<BackupInfo[]>("list_backups");
+  } catch (e) {
+    console.error("Copias:", e);
+  }
+  const rows = list.length
+    ? list
+        .map((b) => {
+          const kind = b.name.startsWith("auto-") ? t("bk.auto") : t("bk.manual");
+          const when = b.created_ms ? new Date(b.created_ms).toLocaleString() : b.name;
+          return (
+            `<div class="bk-row"><span class="bk-main"><b>${when}</b> <span class="muted">${kind}</span>` +
+            `<span class="bk-meta">${t("bk.item", {
+              worlds: b.worlds,
+              snaps: b.snapshots,
+              notes: b.notes,
+              kb: Math.round(b.bytes / 1024),
+            })}</span></span>` +
+            `<button class="bk-restore" data-name="${escapeAttr(b.name)}" type="button">${t("bk.restore")}</button></div>`
+          );
+        })
+        .join("")
+    : `<p class="muted">${t("bk.none")}</p>`;
+
+  backupsEl.innerHTML =
+    (msg ? `<p class="gd-status">${escapeXml(msg)}</p>` : "") +
+    `<div class="bk-list">${rows}</div>` +
+    `<div class="bk-actions">` +
+    `<button id="bk-create" type="button">${t("bk.create")}</button>` +
+    `<button id="bk-open" type="button">${t("bk.open")}</button>` +
+    `</div>` +
+    `<p class="muted">${t("bk.note")}</p>`;
+
+  document.querySelector("#bk-create")?.addEventListener("click", async () => {
+    try {
+      await invoke("export_backup");
+      await renderBackups(t("bk.done"));
+    } catch (e) {
+      await renderBackups(`${t("bk.failed")} ${e}`);
+    }
+  });
+  document.querySelector("#bk-open")?.addEventListener("click", () => {
+    invoke("open_backups_folder").catch((e) => console.error(e));
+  });
+  backupsEl.querySelectorAll<HTMLButtonElement>(".bk-restore").forEach((b) => {
+    b.addEventListener("click", async () => {
+      try {
+        const r = await invoke<ImportReport>("import_backup", { name: b.dataset.name });
+        notesCache = await invoke<Record<string, string>>("get_notes");
+        plansCache = await invoke<Record<string, Record<string, number>>>("get_plans");
+        await renderBackups(
+          t("bk.restored", {
+            added: r.snapshots_added,
+            enriched: r.snapshots_enriched,
+            notes: r.notes_added,
+            plans: r.plans_added,
+            skipped: r.skipped,
+          })
+        );
+        if (openSaveName) await inspect(openSaveName);
+      } catch (e) {
+        await renderBackups(`${t("bk.failed")} ${e}`);
+      }
+    });
+  });
+}
+
 // ---- Acceso a los datos del juego, con respaldo ----
 // Todo lo que sigue prefiere la documentación oficial y, si no está (porque el
 // juego no se encuentra instalado), cae en las tablas escritas a mano. Las
@@ -2747,6 +2838,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   progressEl = document.querySelector("#progress") as HTMLElement;
   compatEl = document.querySelector("#compat") as HTMLElement;
   gameDataEl = document.querySelector("#gamedata") as HTMLElement;
+  backupsEl = document.querySelector("#backups") as HTMLElement;
   milestoneEl = document.querySelector("#milestone") as HTMLElement;
   productionEl = document.querySelector("#production") as HTMLElement;
   balanceEl = document.querySelector("#balance") as HTMLElement;
@@ -2870,4 +2962,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   // Al final y sin bloquear: son 10 MB por idioma y solo se releen cuando el
   // juego se ha actualizado.
   initGameData();
+
+  // Copia del día, si no la hay todavía. Va después de cargarlo todo para que
+  // retrate el estado bueno, no uno a medio arrancar.
+  invoke("auto_backup").catch((e) => console.error("Copia automática:", e));
+  renderBackups();
 });

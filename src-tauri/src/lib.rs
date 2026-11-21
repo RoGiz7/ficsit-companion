@@ -1085,6 +1085,296 @@ fn get_history(app: AppHandle, session: String) -> Result<Vec<Snapshot>, String>
     Ok(map.get(&session).cloned().unwrap_or_default())
 }
 
+// ---- Copias de seguridad ----
+// Lo que guarda la app no vale todo lo mismo. El historico NO SE PUEDE
+// RECONSTRUIR: el juego rota y sobrescribe los autoguardados, asi que una foto
+// que no se tomo en su dia no existe en ningun sitio. Las notas las escribio
+// una persona. Los planes se rehacen en un minuto. Y gamedata.json se
+// regenera solo leyendo el juego, asi que no entra: ocuparia de mas sin
+// aportar nada.
+//
+// REGLA para el futuro: cada vez que se añada algo que se guarde en disco hay
+// que decidir si entra en la copia y con que prioridad, y anotarlo en
+// docs/BACKUP.md. Lo que no se decide explicitamente acaba fuera por olvido,
+// y de eso uno se entera el dia que lo necesita.
+
+const BACKUP_SCHEMA: u32 = 1;
+const KEEP_AUTO_BACKUPS: usize = 10;
+
+#[derive(Serialize, Deserialize, Clone)]
+struct BackupFile {
+    schema: u32,
+    app_version: String,
+    created_ms: u64,
+    #[serde(default)]
+    history: HashMap<String, Vec<Snapshot>>,
+    #[serde(default)]
+    notes: HashMap<String, String>,
+    #[serde(default)]
+    plans: HashMap<String, HashMap<String, u32>>,
+}
+
+#[derive(Serialize, Clone)]
+struct BackupInfo {
+    name: String,
+    bytes: u64,
+    created_ms: u64,
+    worlds: u32,
+    snapshots: u32,
+    notes: u32,
+}
+
+#[derive(Serialize, Clone)]
+struct ImportReport {
+    snapshots_added: u32,
+    snapshots_enriched: u32,
+    notes_added: u32,
+    plans_added: u32,
+    skipped: u32,
+}
+
+// Lectores y escritores de notas y planes. Los comandos ya hacian esto en
+// linea; la copia de seguridad necesita lo mismo desde fuera.
+fn load_notes(app: &AppHandle) -> Result<HashMap<String, String>, String> {
+    let path = notes_file(app)?;
+    if !path.exists() {
+        return Ok(HashMap::new());
+    }
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    Ok(serde_json::from_slice(&bytes).unwrap_or_default())
+}
+
+fn save_notes(app: &AppHandle, map: &HashMap<String, String>) -> Result<(), String> {
+    let path = notes_file(app)?;
+    let json = serde_json::to_vec_pretty(map).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())
+}
+
+fn load_plans(app: &AppHandle) -> Result<HashMap<String, HashMap<String, u32>>, String> {
+    let path = plans_file(app)?;
+    if !path.exists() {
+        return Ok(HashMap::new());
+    }
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    Ok(serde_json::from_slice(&bytes).unwrap_or_default())
+}
+
+fn save_plans(
+    app: &AppHandle,
+    map: &HashMap<String, HashMap<String, u32>>,
+) -> Result<(), String> {
+    let path = plans_file(app)?;
+    let json = serde_json::to_vec_pretty(map).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())
+}
+
+fn backups_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("No se encontró la carpeta de datos: {e}"))?
+        .join("backups");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+fn collect_backup(app: &AppHandle) -> Result<BackupFile, String> {
+    Ok(BackupFile {
+        schema: BACKUP_SCHEMA,
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+        created_ms: now_ms(),
+        history: load_history(app)?,
+        notes: load_notes(app)?,
+        plans: load_plans(app)?,
+    })
+}
+
+fn write_backup(app: &AppHandle, name: &str) -> Result<String, String> {
+    let data = collect_backup(app)?;
+    let path = backups_dir(app)?.join(name);
+    let json = serde_json::to_vec_pretty(&data).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+// Comando: copia manual, con la fecha en el nombre.
+#[tauri::command]
+fn export_backup(app: AppHandle) -> Result<String, String> {
+    let stamp = now_ms() / 1000;
+    write_backup(&app, &format!("manual-{stamp}.json"))
+}
+
+// Copia automatica: como mucho una al dia, y se conservan las ultimas diez.
+// Protege de un fallo de la app, no de que muera el disco: para eso hay que
+// sacar el archivo de la maquina.
+#[tauri::command]
+fn auto_backup(app: AppHandle) -> Result<Option<String>, String> {
+    let dir = backups_dir(&app)?;
+    let day = now_ms() / 86_400_000;
+    let name = format!("auto-{day}.json");
+    if dir.join(&name).exists() {
+        return Ok(None);
+    }
+    // Si no hay nada que guardar, no se crea una copia vacia.
+    let data = collect_backup(&app)?;
+    if data.history.is_empty() && data.notes.is_empty() && data.plans.is_empty() {
+        return Ok(None);
+    }
+    let path = write_backup(&app, &name)?;
+
+    // Rotacion: fuera las automaticas mas viejas.
+    let mut autos: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n.starts_with("auto-"))
+                .unwrap_or(false)
+        })
+        .collect();
+    autos.sort();
+    while autos.len() > KEEP_AUTO_BACKUPS {
+        let old = autos.remove(0);
+        let _ = std::fs::remove_file(old);
+    }
+    Ok(Some(path))
+}
+
+// Comando: que copias hay, con un resumen de lo que llevan dentro para poder
+// elegir con conocimiento en vez de por la fecha del archivo.
+#[tauri::command]
+fn list_backups(app: AppHandle) -> Result<Vec<BackupInfo>, String> {
+    let dir = backups_dir(&app)?;
+    let mut out: Vec<BackupInfo> = Vec::new();
+    for e in std::fs::read_dir(&dir).map_err(|e| e.to_string())?.flatten() {
+        let path = e.path();
+        if path.extension().and_then(|x| x.to_str()) != Some("json") {
+            continue;
+        }
+        let bytes = e.metadata().map(|m| m.len()).unwrap_or(0);
+        let parsed: Option<BackupFile> = std::fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok());
+        let (worlds, snapshots, notes, created) = match &parsed {
+            Some(b) => (
+                b.history.len() as u32,
+                b.history.values().map(|v| v.len() as u32).sum(),
+                b.notes.len() as u32,
+                b.created_ms,
+            ),
+            None => (0, 0, 0, 0),
+        };
+        out.push(BackupInfo {
+            name: path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("?")
+                .to_string(),
+            bytes,
+            created_ms: created,
+            worlds,
+            snapshots,
+            notes,
+        });
+    }
+    out.sort_by(|a, b| b.created_ms.cmp(&a.created_ms));
+    Ok(out)
+}
+
+// Comando: restaurar FUSIONANDO, nunca reemplazando.
+//
+// El historico es acumulativo por naturaleza, asi que juntar dos copias por
+// mundo y fecha siempre da mas que cualquiera de las dos. Un boton que pueda
+// borrar meses de un clic no deberia existir. Las notas y los planes solo
+// rellenan huecos: lo que ya existe en la maquina gana, porque es lo ultimo
+// que escribio su dueño.
+#[tauri::command]
+fn import_backup(app: AppHandle, name: String) -> Result<ImportReport, String> {
+    if name.contains('/') || name.contains('\\') || name.contains("..") {
+        return Err("Nombre de copia no válido.".into());
+    }
+    let path = backups_dir(&app)?.join(&name);
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let backup: BackupFile = serde_json::from_slice(&bytes)
+        .map_err(|e| format!("La copia no se puede leer: {e}"))?;
+
+    let mut rep = ImportReport {
+        snapshots_added: 0,
+        snapshots_enriched: 0,
+        notes_added: 0,
+        plans_added: 0,
+        skipped: 0,
+    };
+
+    let mut history = load_history(&app)?;
+    for (world, snaps) in backup.history {
+        let list = history.entry(world).or_default();
+        for snap in snaps {
+            match list.iter().position(|s| s.ts_ms == snap.ts_ms) {
+                Some(i) => {
+                    // Ya la teniamos. Si la de la copia trae metricas y la
+                    // nuestra no, nos quedamos con la rica.
+                    if list[i].metrics.is_none() && snap.metrics.is_some() {
+                        list[i].metrics = snap.metrics;
+                        rep.snapshots_enriched += 1;
+                    } else {
+                        rep.skipped += 1;
+                    }
+                }
+                None => {
+                    list.push(snap);
+                    rep.snapshots_added += 1;
+                }
+            }
+        }
+        list.sort_by(|a, b| a.ts_ms.cmp(&b.ts_ms));
+    }
+    save_history(&app, &history)?;
+
+    let mut notes = load_notes(&app)?;
+    for (k, v) in backup.notes {
+        if !notes.contains_key(&k) {
+            notes.insert(k, v);
+            rep.notes_added += 1;
+        } else {
+            rep.skipped += 1;
+        }
+    }
+    save_notes(&app, &notes)?;
+
+    let mut plans = load_plans(&app)?;
+    for (k, v) in backup.plans {
+        if !plans.contains_key(&k) {
+            plans.insert(k, v);
+            rep.plans_added += 1;
+        } else {
+            rep.skipped += 1;
+        }
+    }
+    save_plans(&app, &plans)?;
+
+    Ok(rep)
+}
+
+// Comando: abrir la carpeta de copias en el explorador, para poder llevarselas
+// a otro sitio o traer una de fuera.
+#[tauri::command]
+fn open_backups_folder(app: AppHandle) -> Result<String, String> {
+    let dir = backups_dir(&app)?;
+    let path = dir.to_string_lossy().to_string();
+    tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|e| e.to_string())?;
+    Ok(path)
+}
+
 // ---- Planificador: objetivos de construcción por mundo ----
 // plans.json: { mundo: { "Constructor Mk1": 30, ... } }
 
@@ -1140,7 +1430,12 @@ pub fn run() {
             detect_docs_folders,
             read_docs_lang,
             get_game_data,
-            set_game_data
+            set_game_data,
+            export_backup,
+            auto_backup,
+            list_backups,
+            import_backup,
+            open_backups_folder
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

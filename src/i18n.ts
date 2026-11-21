@@ -299,6 +299,32 @@ export const STRINGS: Record<string, Entry> = {
     en: "Fallback estimate: the full parser is not available.",
   },
 
+  // ---- Copias de seguridad ----
+  "bk.title": { es: "Copias de seguridad", en: "Backups" },
+  "bk.create": { es: "Crear copia ahora", en: "Back up now" },
+  "bk.open": { es: "Abrir carpeta", en: "Open folder" },
+  "bk.restore": { es: "Restaurar", en: "Restore" },
+  "bk.none": {
+    es: "Todavía no hay copias. Se crea una sola al día, en cuanto haya algo que guardar.",
+    en: "No backups yet. One a day is made, as soon as there is anything worth keeping.",
+  },
+  "bk.item": {
+    es: "{worlds} mundo(s) · {snaps} fotos · {notes} nota(s) · {kb} KB",
+    en: "{worlds} world(s) · {snaps} snapshots · {notes} note(s) · {kb} KB",
+  },
+  "bk.auto": { es: "automática", en: "automatic" },
+  "bk.manual": { es: "manual", en: "manual" },
+  "bk.done": { es: "Copia creada.", en: "Backup created." },
+  "bk.restored": {
+    es: "Restaurado: {added} fotos nuevas, {enriched} completadas, {notes} notas, {plans} planes. {skipped} ya los tenías.",
+    en: "Restored: {added} new snapshots, {enriched} filled in, {notes} notes, {plans} plans. {skipped} were already here.",
+  },
+  "bk.note": {
+    es: "Se guardan el histórico, las notas y los planes. Los datos del juego no: se regeneran solos. Restaurar FUSIONA, nunca reemplaza, así que no puede borrarte meses de histórico de un clic. Ojo: una copia en esta misma máquina te protege de un fallo de la app, no de que muera el disco — para eso, saca el archivo de aquí.",
+    en: "History, notes and plans are kept. Game data is not: it rebuilds itself. Restoring MERGES, never replaces, so it cannot wipe months of history in one click. Mind this though: a copy on this same machine protects you from the app misbehaving, not from the disk dying — for that, take the file somewhere else.",
+  },
+  "bk.failed": { es: "No se pudo completar.", en: "That did not work." },
+
   // ---- Carpeta ----
   "folder.notFound": {
     es: "No encuentro la carpeta de partidas de Satisfactory. Indícala arriba y pulsa Vigilar.",
