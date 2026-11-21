@@ -1192,6 +1192,7 @@ async function inspect(name: string) {
       renderDanger(a.points);
       lastFauna = a.fauna;
       lastHunted = a.hunted;
+      lastStats = a.stats;
 
       // Centro de mando: signos vitales + "Retoma aquí".
       const deficits = computeDeficits(a.perItem, a.consumed);
@@ -1941,6 +1942,58 @@ function prettyItem(pathName: string): string {
 // Se arma uniendo lo que había cargado en CADA lectura, no solo en la última:
 // una especie que uno se cruzó hace tres semanas sigue en la ficha aunque hoy
 // no ande cerca. Esa es la mecánica — se llena jugando.
+
+// ---- Las estadísticas que el juego ya lleva ----
+//
+// FGStatisticsSubsystem guarda cinco contadores que la app no estaba leyendo,
+// y uno de ellos responde a la pregunta que traía de cabeza al bestiario:
+// mCreaturesKilledCount es un mapa de clase de criatura a número de bajas, y
+// NO agrupa por familia — distingue Char_Hog_C de Char_AlphaHog_C y
+// Char_SpitterDesertSmall_C de Char_SpitterDesertAlpha_C. O sea que si cae un
+// élite, queda registrado con su nombre y su cuenta, sin tener que guardar la
+// partida con el bicho delante ni rastrear restos en el inventario.
+//
+// Los otros cuatro son consumibles gastados, objetos recogidos, objetos
+// fabricados a mano y construcciones levantadas. Los tres últimos vienen
+// anidados por jugador, así que se suman.
+const leafOf = (p: any): string =>
+  ((String((p && p.pathName) || p || "").split("/").pop()) || "").split(".").pop() || "";
+
+function flatMap(prop: any): Record<string, number> {
+  const out: Record<string, number> = {};
+  const vals = prop && prop.values;
+  if (!Array.isArray(vals)) return out;
+  for (const [k, val] of vals) {
+    const key = leafOf(k);
+    if (typeof val === "number") {
+      out[key] = (out[key] || 0) + val;
+    } else if (val && val.properties) {
+      // Anidado por jugador: se suma, que lo que interesa es el mundo.
+      for (const inner of Object.values<any>(val.properties)) {
+        const iv = inner && inner.values;
+        if (Array.isArray(iv)) for (const [, n] of iv) if (typeof n === "number") out[key] = (out[key] || 0) + n;
+      }
+    }
+  }
+  return out;
+}
+
+export interface WorldStats {
+  kills: Record<string, number>;
+  consumed: Record<string, number>;
+  picked: Record<string, number>;
+  built: Record<string, number>;
+}
+
+function readStats(props: any): WorldStats {
+  return {
+    kills: flatMap(props.mCreaturesKilledCount),
+    consumed: flatMap(props.mConsumablesConsumedCount),
+    picked: flatMap(props.mItemsPickedUp),
+    built: flatMap(props.mActorsBuiltCount),
+  };
+}
+
 function renderBestiary(snaps: Snapshot[], now: FaunaEntry[], huntedNow: string[]) {
   if (!bestiaryEl) return;
   // Primera vez que se vio cada especie, y primera vez que se cazó cada
@@ -1955,6 +2008,10 @@ function renderBestiary(snaps: Snapshot[], now: FaunaEntry[], huntedNow: string[
     for (const f of m.hunted || []) if (!firstHunt.has(f)) firstHunt.set(f, sn.ts_ms);
   }
   for (const f of now) if (!firstSeen.has(f.cls)) firstSeen.set(f.cls, Date.now());
+  // Las bajas registradas por el propio juego: especie exacta, variantes
+  // incluidas. Si una especie solo aparece aquí, también entra en la ficha —
+  // haberla matado es una presentación en toda regla.
+  for (const cls of Object.keys(lastStats.kills)) if (!firstSeen.has(cls)) firstSeen.set(cls, Date.now());
   for (const h of huntedNow) if (!firstHunt.has(h)) firstHunt.set(h, Date.now());
 
   if (!firstSeen.size && !firstHunt.size) {
@@ -1973,9 +2030,11 @@ function renderBestiary(snaps: Snapshot[], now: FaunaEntry[], huntedNow: string[
       const huntTs = firstHunt.get(fam);
       if (!seenCls.length && huntTs === undefined) return "";
       const liveN = seenCls.reduce((t2, c) => t2 + (nowMap.get(c)?.count || 0), 0);
+      const kills = seenCls.reduce((t2, c) => t2 + (lastStats.kills[c] || 0), 0);
       const marks: string[] = [];
       if (seenCls.length) marks.push(t("fauna.ev_seen"));
-      if (huntTs !== undefined) marks.push(t("fauna.ev_hunted"));
+      if (kills) marks.push(t("fauna.ev_kills", { n: kills }));
+      else if (huntTs !== undefined) marks.push(t("fauna.ev_hunted"));
       const when = Math.min(
         ...[...seenCls.map((c) => firstSeen.get(c)!), ...(huntTs === undefined ? [] : [huntTs])]
       );
@@ -2010,8 +2069,11 @@ function renderBestiary(snaps: Snapshot[], now: FaunaEntry[], huntedNow: string[
             ? `<span class="fa-tag fa-host">${t("fauna.hostile")}</span>`
             : `<span class="fa-tag fa-calm">${t("fauna.passive")}</span>`;
       const note = speciesNote(cls, lang);
+      const kills = lastStats.kills[cls] || 0;
       return (
-        `<div class="fa-row"><div class="fa-head"><b>${escapeXml(speciesName(cls, lang))}</b>${tag}</div>` +
+        `<div class="fa-row"><div class="fa-head"><b>${escapeXml(speciesName(cls, lang))}</b>${tag}` +
+        (kills ? `<span class="fa-tag">${t("fauna.ev_kills", { n: kills })}</span>` : "") +
+        `</div>` +
         `<div class="fa-meta">${cur ? t("fauna.here", { n: cur.count }) : t("fauna.not_now")} · ${t("fauna.first", {
           d: new Date(ts).toLocaleDateString(lang),
         })}</div>` +
@@ -2369,6 +2431,7 @@ async function analyzeWithParser(folder: string, name: string) {
   // Familias de las que hay restos en algún inventario: prueba de que las has
   // cazado, aunque el bicho ya no exista en el mundo.
   const hunted = new Set<string>();
+  let stats: WorldStats = { kills: {}, consumed: {}, picked: {}, built: {} };
   const collect: Record<string, number> = {};
   // Lo que no sabemos interpretar. El save se lee entero, pero nuestras tablas
   // de recetas solo conocen el juego base: una maquina de un mod fabrica algo
@@ -2486,6 +2549,8 @@ async function analyzeWithParser(folder: string, name: string) {
       }
 
       if (!fog && /FGMapManager/.test(o.typePath || "")) fog = extractFog(o.properties);
+
+      if (/FGStatisticsSubsystem/.test(o.typePath || "")) stats = readStats(o.properties || {});
 
       if (/BP_TimeOfDaySubsystem/.test(o.typePath || "")) {
         const pr: any = o.properties || {};
@@ -2732,6 +2797,7 @@ async function analyzeWithParser(folder: string, name: string) {
     fog,
     nests,
     hunted: [...hunted],
+    stats,
     fauna: [...faunaMap.entries()].map(([cls, e]) => ({ cls, count: e.count, destroyed: e.destroyed })) as FaunaEntry[],
     gameDays,
     daysSinceDeath,
@@ -3709,6 +3775,7 @@ let daysSinceDeath: number | null = null;
 let mapNests = true;
 let lastFauna: FaunaEntry[] = [];
 let lastHunted: string[] = [];
+let lastStats: WorldStats = { kills: {}, consumed: {}, picked: {}, built: {} };
 
 // Distancia del nido a lo construido más cercano. Lo calculamos nosotros en
 // vez de fiarnos de mCachedIsNearBase, que solo aparece en el archivo cuando

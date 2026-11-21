@@ -145,6 +145,34 @@ This rule should be applied to anything added later that knows more than the pla
 nodes above all, since the save locates 1,147 of them whether or not the pioneer has ever been
 there.
 
+## FGStatisticsSubsystem: counters the app was not reading
+
+The save carries a statistics subsystem with five counters, and the app ignored all of them while
+calling itself a statistics app.
+
+**`mCreaturesKilledCount`** is a map from creature class to kills, and it does **not** group by
+family: a real save shows `Char_Hog_C` 99, `Char_SpitterDesertSmall_C` 68,
+`Char_SpitterDesertAlpha_C` 11, `Char_AlphaHog_C` 9. Variants are separate entries. That settles a
+question the bestiary could not answer any other way — an elite is recorded, by name and count,
+without needing the player to save with the creature on screen or to still hold its remains.
+
+The other four: `mConsumablesConsumedCount` (berries, medkits — a medkit count is a danger signal),
+`mItemsPickedUp`, `mItemsManuallyCraftedCount` and `mActorsBuiltCount`. The last three nest their
+values per player inside a struct, so they have to be summed; the first two are plain class→int.
+
+Still unread and worth doing: a FICSIT statistics panel from the other four. `mActorsBuiltCount`
+alone has 115 entries in one save, which is a complete build history by building type.
+
+## What the save does NOT carry about dying
+
+Checked, because it was asked. There is **no death count and no cause of death**. There are no
+death crates in any of the three saves examined. The only death-related value in the whole file is
+`mNumberOfDaysSinceLastDeath` on the time subsystem — days since, nothing else. Health exists on
+creatures and on the player, but as a current value, not a log.
+
+So "you died 7 times, 3 of them to hogs" is not available and should not be promised. Days without
+an accident is, and that is already on the vitals panel.
+
 ## Hostile fauna: what the save knows, and why there is no to-do list
 
 Every creature nest in the save carries, per creature, `WasKilled`, `NumTimesKilled` and
