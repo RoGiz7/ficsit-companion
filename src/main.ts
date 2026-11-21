@@ -782,6 +782,19 @@ function iconSrcFor(display: string): string | null {
 // Ese orden es el plan entero: mientras no haya permiso de Coffee Stain la
 // app se ve completa con lo suyo propio, y el día que lo haya (o que alguien
 // extraiga los suyos) los reales ganan sin tocar una línea.
+// Variante para quien YA tiene la clase: se salta la búsqueda por nombre, que
+// es el eslabón frágil (depende de que el nombre mostrado coincida con el de
+// la documentación, y un nombre embellecido a mano nunca coincide).
+function iconGlyph(cls: string, display: string, size = 18): string {
+  const src = iconSrcFor(display);
+  if (src) {
+    return `<img class="ico" src="${escapeAttr(src)}" alt="" width="${size}" height="${size}" loading="lazy">`;
+  }
+  const item = gameData && gameData.items[cls];
+  const isBuilding = !!(gameData && gameData.buildings[cls]);
+  return glyphSVG(cls, { fluid: !!(item && item.fluid), building: isBuilding, size });
+}
+
 function iconImg(display: string, size = 18): string {
   const src = iconSrcFor(display);
   if (src) {
@@ -1287,7 +1300,7 @@ async function inspect(name: string) {
         t("prod.fromParser")
       );
       renderBottlenecks(a.perItem, a.consumed);
-      renderStored(a.stored);
+      renderStored(a.storedByClass);
       renderExploration(a.collect);
       lastPoints = a.points;
       lastBelts = a.belts;
@@ -2010,12 +2023,18 @@ function renderProductionView(
 }
 
 // Dibuja los materiales almacenados (sumados de todos los inventarios del mundo).
-function renderStored(stored: Record<string, number> | null) {
-  if (!stored) {
+// Recibe lo almacenado POR CLASE, no por nombre. Antes llegaba indexado por
+// un nombre embellecido a mano ("Iron Plate", "Cement") que luego pasaba por
+// la tabla de traducción vieja: los que estaban en la tabla salían bien y el
+// resto se quedaban en inglés y sin glifo, porque no hay forma de volver de
+// un nombre inventado a la clase del juego. Con la clase se resuelve todo
+// desde la documentación oficial, igual que el resto de la app.
+function renderStored(storedByClass: Record<string, number> | null) {
+  if (!storedByClass) {
     storedEl.innerHTML = "";
     return;
   }
-  const items = Object.entries(stored)
+  const items = Object.entries(storedByClass)
     .filter(([, n]) => n > 0)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 30);
@@ -2025,10 +2044,15 @@ function renderStored(stored: Record<string, number> | null) {
   }
   const max = items[0][1];
   const rows = items
-    .map(([item, n]) => {
+    .map(([cls, n]) => {
       const pct = Math.max(4, Math.round((n / max) * 100));
+      // Documentación oficial primero; si no está, el nombre embellecido de
+      // siempre, que al menos se lee.
+      // prettyItem espera una ruta; con una clase suelta hay que quitarle el
+      // sufijo _C o el nombre sale como "Iron Plate C".
+      const name = gdItemName(cls) || trItem(prettyItem(cls.replace(/_C$/, "")));
       return (
-        `<div class="inv-row"><span class="inv-name">${iconImg(trItem(item))}${trItem(item)}</span>` +
+        `<div class="inv-row"><span class="inv-name">${iconGlyph(cls, name)}${escapeXml(name)}</span>` +
         `<span class="inv-bar"><span class="inv-fill" style="width:${pct}%"></span></span>` +
         `<span class="inv-count">${n}</span></div>`
       );
