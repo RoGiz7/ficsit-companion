@@ -347,17 +347,26 @@ const ITEM_ES: Record<string, string> = {
   "Packaged Water": "Agua envasada",
   Water: "Agua",
 };
-const trBuilding = (n: string) => BUILDING_ES[n] || n;
-const trItem = (n: string) => ITEM_ES[n] || n;
+// Las tablas de respaldo traducen del inglés al español, así que solo se
+// aplican cuando la app está en español. Antes se aplicaban siempre: alguien
+// con la app en inglés y sin el juego instalado veía "Fundición Mk1", y el
+// README promete una app bilingüe. El nombre original ya viene en inglés.
+const trBuilding = (n: string) => (getLang() === "es" ? BUILDING_ES[n] || n : n);
+const trItem = (n: string) => (getLang() === "es" ? ITEM_ES[n] || n : n);
 
 // Coleccionables sin recoger (siguen en el mundo) → nombre legible.
-const COLLECT_ES: Record<string, string> = {
-  BP_Crystal_C: "Babas de energía (azul)",
-  BP_Crystal_mk2_C: "Babas de energía (amarilla)",
-  BP_Crystal_mk3_C: "Babas de energía (púrpura)",
-  BP_WAT1_C: "Somersloops",
-  BP_WAT2_C: "Esferas Mercer",
-  BP_DropPod_C: "Cápsulas (discos duros)",
+const COLLECTABLES: Record<string, { es: string; en: string }> = {
+  BP_Crystal_C: { es: "Babas de energía (azul)", en: "Power Slugs (blue)" },
+  BP_Crystal_mk2_C: { es: "Babas de energía (amarilla)", en: "Power Slugs (yellow)" },
+  BP_Crystal_mk3_C: { es: "Babas de energía (púrpura)", en: "Power Slugs (purple)" },
+  BP_WAT1_C: { es: "Somersloops", en: "Somersloops" },
+  BP_WAT2_C: { es: "Esferas Mercer", en: "Mercer Spheres" },
+  BP_DropPod_C: { es: "Cápsulas (discos duros)", en: "Drop pods (hard drives)" },
+};
+
+const trCollect = (k: string) => {
+  const c = COLLECTABLES[k];
+  return c ? c[getLang() === "es" ? "es" : "en"] : k;
 };
 
 // El mundo (sesión) al que pertenece un guardado.
@@ -2106,7 +2115,7 @@ async function analyzeWithParser(folder: string, name: string) {
     for (const o of objs) {
       // Coleccionables sin recoger (siguen presentes en el mundo).
       const cleaf = ((o.typePath || "").split("/").pop() || "").split(".").pop() || "";
-      if (COLLECT_ES[cleaf]) collect[cleaf] = (collect[cleaf] || 0) + 1;
+      if (COLLECTABLES[cleaf]) collect[cleaf] = (collect[cleaf] || 0) + 1;
 
       // Plano 2D: cintas/tuberías como líneas (su trazado), resto como puntos.
       if (o.transform && o.transform.translation && o.typePath && o.typePath.includes("/Buildable/")) {
@@ -2646,7 +2655,7 @@ function renderExploration(collect: Record<string, number>) {
   const order = ["BP_Crystal_C", "BP_Crystal_mk2_C", "BP_Crystal_mk3_C", "BP_WAT1_C", "BP_WAT2_C", "BP_DropPod_C"];
   const cells = order
     .filter((k) => collect[k])
-    .map((k) => cell(COLLECT_ES[k], String(collect[k])))
+    .map((k) => cell(trCollect(k), String(collect[k])))
     .join("");
   explorationEl.innerHTML =
     `<h3 class="inv-title">${t("expl.title")}</h3>` +
