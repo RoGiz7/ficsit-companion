@@ -62,18 +62,18 @@ export const STRINGS: Record<string, Entry> = {
   "hist.pick_gen": { es: "Generación (MW)", en: "Generation (MW)" },
   "hist.pick_prod": { es: "Piezas/min", en: "Parts/min" },
   "hist.pick_hours": { es: "Horas jugadas", en: "Hours played" },
-  "settings.icons": { es: "Iconos de las piezas", en: "Part icons" },
+  "settings.icons": { es: "Iconos de las piezas (opcional)", en: "Part icons (optional)" },
   "ico.none": {
-    es: "Sin iconos. La app los enseña si los tiene, pero no los trae: el arte es de Coffee Stain y se queda en su copia del juego, no en nuestro instalador.",
-    en: "No icons. The app shows them if it has them, but does not ship them: the art is Coffee Stain's and stays in your copy of the game, not in our installer.",
+    es: "La app funciona perfectamente sin esto. Los iconos son adorno: las listas se leen igual con los nombres. Esto es para quien YA tenga los iconos del juego extraídos y quiera verlos aquí.",
+    en: "The app works perfectly well without this. The icons are decoration: the lists read the same with names. This is for someone who ALREADY has the game's icons extracted and wants to see them here.",
   },
   "ico.some": {
     es: "{n} iconos localizados, {m} piezas emparejadas.",
     en: "{n} icons found, {m} parts matched.",
   },
   "ico.how": {
-    es: "Extráigalos de su propia copia del juego con FModel o UE Viewer, suéltelos en la carpeta y vuelva a buscar. Los nombres se emparejan solos.",
-    en: "Extract them from your own copy of the game with FModel or UE Viewer, drop them in the folder and scan again. The names match themselves.",
+    es: "Sacarlos requiere un programa aparte (FModel o UE Viewer), abrir con él los archivos del juego y exportar las texturas de interfaz. Es un rato de trabajo por una mejora estética, así que no hay ninguna prisa — ni ninguna necesidad. Si ya los tiene, suéltelos en la carpeta y pulse Volver a buscar.",
+    en: "Getting them out needs a separate program (FModel or UE Viewer), opening the game's files with it and exporting the interface textures. It is a chunk of work for a cosmetic gain, so there is no hurry — and no need. If you already have them, drop them in the folder and press Scan again.",
   },
   "ico.expects": { es: "Espera archivos con nombres de esta forma:", en: "It expects files named like this:" },
   "ico.mismatch": {

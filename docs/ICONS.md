@@ -1,5 +1,12 @@
 # Part icons
 
+**This is optional and most people should skip it.** Getting the icons out of the game needs a
+separate tool, a walk through the game's packed files and a manual export. That is a real chunk of
+work for a cosmetic gain: the lists read exactly as well with names. The app ships with this
+feature switched off by having an empty folder, and that is a perfectly good place to leave it.
+
+What follows is for whoever wants it anyway, or already has the icons extracted for something else.
+
 The app can show Satisfactory's own icons next to each part, building and stored item. It looks
 much better. It also needs saying plainly what that art is and under what terms it appears, because
 the honest answer is not the comfortable one.
