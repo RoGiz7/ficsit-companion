@@ -27,7 +27,15 @@ interface Family {
 // antes que lo general (acero antes que hierro, porque Steel no es Iron pero
 // IronIngot sí debe caer en hierro).
 const FAMILIES: Family[] = [
-  { key: "alien", re: /Alien|Somersloop|Mercer|SAM|DNA/i, color: "#b06fc0" },
+  // Las electrobabosas y las esquirlas caían en el gris por defecto, que es
+  // lo que se lleva lo que no reconocemos. Son biología alienígena en la
+  // ficción del juego y la babosa morada es literalmente morada, así que van
+  // aquí en vez de estrenar un color decimoséptimo.
+  //
+  // Los anclajes son a propósito: Desc_Crystal_C es la babosa azul, pero
+  // Desc_CrystalOscillator_C es cuarzo y no debe caer aquí. Un /Crystal/ suelto
+  // se comería el oscilador, que es el error que ya cometimos una vez.
+  { key: "alien", re: /Alien|Somersloop|Mercer|SAM|DNA|CrystalShard|^Desc_Crystal(_mk\d)?_C$/i, color: "#b06fc0" },
   { key: "uranio", re: /Uranium|Plutonium|Nuclear|Ficsonium/i, color: "#5fb87a" },
   // "Crystal" estaba aquí y se comía el cuarzo, que iba después. Los
   // osciladores de cristal son de cuarzo de todas formas.
@@ -48,7 +56,7 @@ const FAMILIES: Family[] = [
   { key: "petroleo", re: /Oil|Plastic|Rubber|Fuel|Polymer|Resin|Turbofuel|Diluted/i, color: "#8f7fc0" },
   { key: "nitrogeno", re: /Nitrogen|Nitric/i, color: "#6fa8d0" },
   { key: "agua", re: /Water|Ice/i, color: "#4f9fd8" },
-  { key: "organico", re: /Biomass|Leaves|Wood|Mycelia|Protein|Berry|Nut|Flower|Fabric|Medicinal/i, color: "#7fb060" },
+  { key: "organico", re: /Biomass|Leaves|Wood|Mycelia|Shroom|Protein|Berry|Nut|Flower|Fabric|Medicinal/i, color: "#7fb060" },
 ];
 
 const DEFAULT_COLOR = "#8b93a3";
@@ -60,7 +68,53 @@ export function familyColor(cls: string): string {
 
 /// Un glifo en SVG, listo para meter en el HTML. `fluid` decide la forma:
 /// sólido hexágono, líquido gota, gas círculo hueco. Edificios, cuadrado.
-export function glyphSVG(cls: string, opts: { fluid?: boolean; building?: boolean; size?: number } = {}): string {
+// Forma por banda de tier. Nueve tiers son nueve poligonos y a 18 px, que es
+// el tamano al que se dibujan, un heptagono y un octogono son el mismo borron
+// — comprobado renderizando las tres familias de formas candidatas. Lo que si
+// se lee a ese tamano son cuatro siluetas francamente distintas, asi que los
+// nueve tiers se agrupan en cuatro bandas.
+//
+// El circulo pequeno es "no consta": no se inventa un nivel que el juego no
+// permite deducir. En una partida real no aparecia ni una vez, pero existe.
+export function tierBand(tier: number | undefined): 0 | 1 | 2 | 3 | -1 {
+  if (tier === undefined || tier === null || !Number.isFinite(tier)) return -1;
+  if (tier <= 1) return 0;
+  if (tier <= 4) return 1;
+  if (tier <= 7) return 2;
+  return 3;
+}
+
+/** Nombre de la banda, para leyendas y títulos. */
+export const BAND_NAME: Record<string, { es: string; en: string }> = {
+  "0": { es: "inicio", en: "early" },
+  "1": { es: "media", en: "mid" },
+  "2": { es: "tardía", en: "late" },
+  "3": { es: "final", en: "endgame" },
+  "-1": { es: "sin dato", en: "unknown" },
+};
+
+function bandShape(band: number, c: string): string {
+  const paint = `fill="${c}" fill-opacity="0.22" stroke="${c}" stroke-width="1.6" stroke-linejoin="round"`;
+  switch (band) {
+    case 0:
+      return `<circle cx="12" cy="12" r="8.2" ${paint}/>`;
+    case 1:
+      return `<rect x="4.2" y="4.2" width="15.6" height="15.6" rx="2.2" ${paint}/>`;
+    case 2:
+      // El hexágono de siempre: lo que era la forma única ahora es una banda.
+      return `<path d="M12 3.2l7.1 4.1v8.2L12 19.6l-7.1-4.1V7.3z" ${paint}/>`;
+    case 3:
+      return `<path d="M12.00 3.00L14.53 8.52L20.56 9.22L16.09 13.33L17.29 19.28L12.00 16.30L6.71 19.28L7.91 13.33L3.44 9.22L9.47 8.52Z" ${paint}/>`;
+    default:
+      // Punto pequeño: menos forma porque hay menos información.
+      return `<circle cx="12" cy="12" r="3.6" ${paint}/>`;
+  }
+}
+
+export function glyphSVG(
+  cls: string,
+  opts: { fluid?: boolean; building?: boolean; size?: number; tier?: number } = {}
+): string {
   const s = opts.size ?? 18;
   const c = familyColor(cls);
   const body = opts.building
@@ -68,9 +122,11 @@ export function glyphSVG(cls: string, opts: { fluid?: boolean; building?: boolea
     : opts.fluid
       ? // Gota: lo líquido y lo gaseoso comparten forma; el color los separa.
         `<path d="M12 3.5c3.4 4.2 5.5 7 5.5 9.6a5.5 5.5 0 0 1-11 0C6.5 10.5 8.6 7.7 12 3.5z" fill="${c}" fill-opacity="0.22" stroke="${c}" stroke-width="1.6" stroke-linejoin="round"/>`
-      : // Hexágono: lo sólido. Es la forma de una pieza vista de canto y no
-        // se parece a nada de nadie.
-        `<path d="M12 3.2l7.1 4.1v8.2L12 19.6l-7.1-4.1V7.3z" fill="${c}" fill-opacity="0.22" stroke="${c}" stroke-width="1.6" stroke-linejoin="round"/>`;
+      : // Sólido: la forma dice en qué punto de la partida aparece la pieza.
+        // Lo líquido se queda con la gota aunque tenga tier: saber que algo va
+        // por tubería y no por cinta es más accionable que saber su nivel, y
+        // la gota no se confunde con ninguna de las cuatro bandas.
+        bandShape(tierBand(opts.tier), c);
   return (
     `<svg class="glyph" width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">` +
     body +

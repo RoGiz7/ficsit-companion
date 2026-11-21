@@ -35,6 +35,7 @@ import { medalIcon } from "./medalicons";
 import { applyStaticI18n, detectLang, getLang, setLang, t, type Lang } from "./i18n";
 import {
   describeDiff,
+  deriveItemTiers,
   diffGameData,
   extractGameData,
   GAMEDATA_SCHEMA,
@@ -709,6 +710,15 @@ function craftableItems(): Set<string> {
   return set;
 }
 
+// Tier de cada pieza, deducido una sola vez por juego cargado. Se recalcula
+// solo si cambian los datos del juego, igual que craftableItems.
+let tierCache: { data: GameData | null; map: Record<string, number> } = { data: null, map: {} };
+function itemTiers(): Record<string, number> {
+  if (tierCache.data === gameData) return tierCache.map;
+  tierCache = { data: gameData, map: deriveItemTiers(gameData) };
+  return tierCache.map;
+}
+
 function isCraftable(item: string): boolean {
   const set = craftableItems();
   return set.size ? set.has(item) : !!RECIPES[item];
@@ -794,7 +804,12 @@ function iconGlyph(cls: string, display: string, size = 18): string {
   }
   const item = gameData && gameData.items[cls];
   const isBuilding = !!(gameData && gameData.buildings[cls]);
-  return glyphSVG(cls, { fluid: !!(item && item.fluid), building: isBuilding, size });
+  return glyphSVG(cls, {
+    fluid: !!(item && item.fluid),
+    building: isBuilding,
+    size,
+    tier: itemTiers()[cls],
+  });
 }
 
 function iconImg(display: string, size = 18): string {
@@ -807,7 +822,12 @@ function iconImg(display: string, size = 18): string {
   if (!cls) return "";
   const item = gameData && gameData.items[cls];
   const isBuilding = !!(gameData && gameData.buildings[cls]);
-  return glyphSVG(cls, { fluid: !!(item && item.fluid), building: isBuilding, size });
+  return glyphSVG(cls, {
+    fluid: !!(item && item.fluid),
+    building: isBuilding,
+    size,
+    tier: itemTiers()[cls],
+  });
 }
 
 function matchedIconCount(): number {

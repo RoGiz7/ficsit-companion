@@ -313,3 +313,52 @@ export function describeDiff(d: GameDataDiff | null, data: GameData, lang: strin
   if (d.addedBuildings) parts.push(`${d.addedBuildings} edificio(s) nuevo(s)`);
   return parts.length ? parts.join(" · ") : "Sin cambios respecto a la última lectura.";
 }
+
+// Tier de progresion de cada pieza: en que punto de la partida aparece en tu
+// mundo. El juego NO lo guarda en ninguna parte, hay que deducirlo, y deducirlo
+// mal es peor que no tenerlo. Tres cosas aprendidas midiendolo:
+//
+// 1. Solo cuentan hitos, MAM, tutorial y recetas iniciales. Incluir las
+//    alternativas de los discos duros hundia la mitad del juego en el tier 0,
+//    porque son esquemas de tier bajo que desbloquean piezas tardias: el
+//    circuito impreso salia tier 0.
+// 2. El convertidor no produce mineral. Fabrica mineral a partir de otra cosa
+//    en el tier 9, y es la UNICA receta que "produce" mineral de hierro, asi
+//    que sin excluirlo lo primero que picas en el juego salia de endgame.
+// 3. Lo que no se fabrica, se hereda de quien lo consume. El mineral de hierro
+//    no tiene receta propia, pero el lingote de hierro es tier 0 y lo come:
+//    luego el mineral existe desde el tier 0. Esto cubre tambien lo que se
+//    recoge del suelo (hojas, palibayas, babosas).
+//
+// La produccion manda y el consumo solo rellena lo que no se fabrica. Al reves
+// no funciona: algun esquema temprano consume ordenadores y los hundia al 0.
+//
+// Comprobado contra diez piezas de tier conocido: nueve exactas, y la decima
+// ni existe en esta version del juego. Sobre una partida real cubre el 100% de
+// lo que hay en los almacenes.
+const TIER_SCHEMATICS = ["EST_Milestone", "EST_MAM", "EST_Tutorial", "EST_Custom"];
+
+export function deriveItemTiers(gd: GameData | null): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!gd) return out;
+  const prod: Record<string, number> = {};
+  const cons: Record<string, number> = {};
+  for (const s of Object.values(gd.schematics)) {
+    if (!TIER_SCHEMATICS.includes(s.type)) continue;
+    for (const rc of s.unlocks || []) {
+      const r = gd.recipes[rc];
+      if (!r) continue;
+      if (r.out && r.building !== "Build_Converter_C") {
+        if (prod[r.out] === undefined || s.tier < prod[r.out]) prod[r.out] = s.tier;
+      }
+      for (const i of r.inputs || []) {
+        if (i.item && (cons[i.item] === undefined || s.tier < cons[i.item])) cons[i.item] = s.tier;
+      }
+    }
+  }
+  for (const cls of Object.keys(gd.items)) {
+    const t = prod[cls] !== undefined ? prod[cls] : cons[cls];
+    if (t !== undefined) out[cls] = t;
+  }
+  return out;
+}
