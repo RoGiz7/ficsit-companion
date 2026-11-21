@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
+- **Achievements: FICSIT's performance review.** A new tab grading each calendar month per world on
+  the game's own scale — mediocre, adequate, efficient — across seven monthly medals, plus a wall
+  of one-off certifications. Nothing is stored: everything is recomputed from the history, so a
+  medal added tomorrow still appears dated when it was actually earned. Thresholds were calibrated
+  against a real history rather than guessed, and they are plain data, easy to retune.
 - **Backups.** History, notes and plans are copied automatically once a day, the last ten are kept,
   and a copy can be made on demand. **Restoring merges rather than replaces**: history is
   cumulative, so combining two copies always yields at least as much as either alone, and a button

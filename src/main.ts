@@ -3,6 +3,13 @@ import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Parser, SatisfactorySaveHeader, SaveReader } from "@etothepii/satisfactory-file-parser";
+import {
+  certifications,
+  GRADES,
+  MEDALS,
+  monthlyScores,
+  type MonthScore,
+} from "./achievements";
 import { applyStaticI18n, detectLang, getLang, setLang, t, type Lang } from "./i18n";
 import {
   describeDiff,
@@ -120,6 +127,7 @@ let mapEl: HTMLElement;
 let compatEl: HTMLElement;
 let gameDataEl: HTMLElement;
 let backupsEl: HTMLElement;
+let achievementsEl: HTMLElement;
 let milestoneEl: HTMLElement;
 let gameData: GameData | null = null;
 let noteText: HTMLTextAreaElement;
@@ -339,6 +347,105 @@ const COLLECT_ES: Record<string, string> = {
 };
 
 // El mundo (sesión) al que pertenece un guardado.
+// ---- Logros ----
+// Se recalculan desde el histórico cada vez que se abre un mundo. No se
+// guardan: así una medalla que añadamos mañana aparece con la fecha en la que
+// de verdad se ganó, en vez de estrenar el muro vacío.
+function monthName(key: string): string {
+  const [y, m] = key.split("-").map((x) => parseInt(x, 10));
+  const d = new Date(y, m - 1, 1);
+  const s = d.toLocaleDateString(getLang(), { month: "long", year: "numeric" });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function medalRow(ms: MonthScore["medals"][number], showNext: boolean): string {
+  const def = MEDALS.find((m) => m.id === ms.id)!;
+  const lang = getLang();
+  if (ms.value === null) return "";
+  const val = ms.value >= 100 ? Math.round(ms.value) : Math.round(ms.value * 10) / 10;
+  const grade = GRADES[ms.grade][lang];
+  const next =
+    showNext && ms.next !== null
+      ? `<span class="md-next">${t("ach.toNext", {
+          n: ms.next >= 10 ? Math.round(ms.next) : Math.round(ms.next * 10) / 10,
+          unit: def.unit[lang],
+          grade: GRADES[ms.nextGrade][lang],
+        })}</span>`
+      : "";
+  return (
+    `<div class="md-row md-g${ms.grade}" title="${escapeAttr(def.desc[lang])}">` +
+    `<span class="md-name">${escapeXml(def.name[lang])}</span>` +
+    `<span class="md-val">${val.toLocaleString()} <span class="muted">${escapeXml(def.unit[lang])}</span></span>` +
+    `<span class="md-grade">${escapeXml(grade)}</span>${next}</div>`
+  );
+}
+
+function renderAchievements(snaps: Snapshot[]) {
+  if (!achievementsEl) return;
+  const lang = getLang();
+  if (!snaps.length) {
+    achievementsEl.innerHTML = `<p class="muted">${t("ach.noData")}</p>`;
+    return;
+  }
+
+  const months = monthlyScores(snaps);
+  const nowKey = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  })();
+  const current = months.find((m) => m.key === nowKey);
+  const past = months.filter((m) => m.key !== nowKey);
+
+  // La tarjeta del mes en curso va primero: lo que aún puedes conseguir es lo
+  // que hace volver a abrir la app. El muro histórico es pasado.
+  let html = "";
+  if (current) {
+    const rows = current.medals.map((m) => medalRow(m, true)).join("");
+    html +=
+      `<div class="rev-card rev-now"><h3 class="rev-title">${t("ach.review")} — ${escapeXml(monthName(current.key))}` +
+      `<span class="rev-grade rev-g${current.overall}">${escapeXml(GRADES[current.overall][lang])}</span></h3>` +
+      `<p class="rev-verdict">${t(current.enough ? `ach.verdict.${current.overall}` : "ach.needTwo")}</p>` +
+      (current.enough ? rows : "") +
+      `</div>`;
+  }
+
+  if (past.length) {
+    html += `<h3 class="inv-title">${t("ach.history")}</h3>`;
+    html += past
+      .map((m) => {
+        const rows = m.medals
+          .filter((x) => x.grade > 0)
+          .map((x) => medalRow(x, false))
+          .join("");
+        return (
+          `<div class="rev-card"><h4 class="rev-sub">${escapeXml(monthName(m.key))}` +
+          `<span class="rev-grade rev-g${m.overall}">${escapeXml(GRADES[m.overall][lang])}</span></h4>` +
+          `<p class="rev-verdict">${t(m.enough ? `ach.verdict.${m.overall}` : "ach.needTwo")}</p>` +
+          rows +
+          `</div>`
+        );
+      })
+      .join("");
+  }
+
+  const certs = certifications(snaps);
+  html += `<h3 class="inv-title">${t("ach.certs")} · ${certs.length}</h3>`;
+  html += certs.length
+    ? `<div class="cert-wall">` +
+      certs
+        .map(
+          (c) =>
+            `<div class="cert"><span class="cert-name">${escapeXml(c.name[lang])}</span>` +
+            `<span class="cert-date">${c.exact ? "" : t("ach.before")} ${new Date(c.ts).toLocaleDateString(lang)}</span></div>`
+        )
+        .join("") +
+      `</div>`
+    : `<p class="muted">${t("ach.noCerts")}</p>`;
+
+  html += `<p class="muted">${t("ach.retro")}</p>`;
+  achievementsEl.innerHTML = html;
+}
+
 // ---- Copias de seguridad ----
 // Lo único irreemplazable que guarda la app es el histórico: el juego rota y
 // sobrescribe los autoguardados, así que una foto que no se tomó no existe en
@@ -945,6 +1052,7 @@ async function inspect(name: string) {
       await invoke("record_snapshot", { folder, name, metrics: snapMetrics });
       const hist = await invoke<Snapshot[]>("get_history", { session: key });
       renderHistory(hist);
+      renderAchievements(hist);
     } catch (e) {
       console.error("Histórico:", e);
     }
@@ -2839,6 +2947,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   compatEl = document.querySelector("#compat") as HTMLElement;
   gameDataEl = document.querySelector("#gamedata") as HTMLElement;
   backupsEl = document.querySelector("#backups") as HTMLElement;
+  achievementsEl = document.querySelector("#achievements") as HTMLElement;
   milestoneEl = document.querySelector("#milestone") as HTMLElement;
   productionEl = document.querySelector("#production") as HTMLElement;
   balanceEl = document.querySelector("#balance") as HTMLElement;

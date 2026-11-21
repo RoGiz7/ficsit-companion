@@ -299,6 +299,48 @@ export const STRINGS: Record<string, Entry> = {
     en: "Fallback estimate: the full parser is not available.",
   },
 
+  // ---- Logros ----
+  "tab.achievements": { es: "Logros", en: "Achievements" },
+  "ach.review": { es: "Evaluación de Desempeño", en: "Performance Review" },
+  "ach.thisMonth": { es: "Mes en curso", en: "Current month" },
+  "ach.history": { es: "Meses anteriores", en: "Previous months" },
+  "ach.certs": { es: "Certificaciones", en: "Certifications" },
+  "ach.noData": {
+    es: "Sin histórico de este mundo. Abre algún guardado o impórtalos desde la pestaña Guardados.",
+    en: "No history for this world. Open a save or import them from the Saves tab.",
+  },
+  "ach.needTwo": {
+    es: "Una sola lectura este mes. No se puede evaluar un mes del que solo hay una foto.",
+    en: "A single reading this month. A month with one snapshot cannot be assessed.",
+  },
+  "ach.toNext": { es: "faltan {n} {unit} para {grade}", en: "{n} {unit} to {grade}" },
+  "ach.before": { es: "no después del", en: "no later than" },
+  "ach.noCerts": {
+    es: "Ninguna certificación todavía. Se conceden solas según avance la partida.",
+    en: "No certifications yet. They are granted on their own as the save progresses.",
+  },
+  "ach.retro": {
+    es: "Las medallas no se guardan: se recalculan desde tu histórico cada vez. Por eso aparecen con la fecha en la que de verdad te las ganaste, aunque la medalla se haya inventado después.",
+    en: "Medals are not stored: they are recomputed from your history every time. That is why they carry the date you actually earned them, even when the medal itself was invented later.",
+  },
+  // Las conclusiones del mes, en el tono de la casa.
+  "ach.verdict.0": {
+    es: "No consta actividad reseñable. FICSIT no juzga; FICSIT registra.",
+    en: "No notable activity on record. FICSIT does not judge; FICSIT records.",
+  },
+  "ach.verdict.1": {
+    es: "Rendimiento por debajo de lo esperado. Se le anima a corregirlo.",
+    en: "Performance below expectations. You are encouraged to correct this.",
+  },
+  "ach.verdict.2": {
+    es: "Rendimiento dentro de parámetros. Prosiga.",
+    en: "Performance within parameters. Carry on.",
+  },
+  "ach.verdict.3": {
+    es: "Rendimiento satisfactorio. No se acostumbre.",
+    en: "Performance satisfactory. Do not get used to it.",
+  },
+
   // ---- Copias de seguridad ----
   "bk.title": { es: "Copias de seguridad", en: "Backups" },
   "bk.create": { es: "Crear copia ahora", en: "Back up now" },

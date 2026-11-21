@@ -88,6 +88,26 @@ The top card shows the current month's medals and the distance to the next grade
 The historical wall is the past. This is the present, and it is what brings someone back into the
 app. It should be the first thing on the tab.
 
+## Two things found while implementing this
+
+Both were caught by running the design against a real history before shipping it, and both would
+have produced confident lies on screen.
+
+**Measure along the world's clock, not the calendar.** A month's snapshots can come from the
+manual save and its three rotating autosaves — different files of the same world. Ordering them by
+date mixes states, and measuring each metric independently can end up subtracting one file's
+buildings from another file's hours. So the month picks **two** snapshots, the one with the lowest
+`play_seconds` and the one with the highest, and every metric is measured between those two. On
+real data this changed "3 floors built this month" into the correct 0: the 3 was the difference
+between two save slots, not anything that was built.
+
+**A date you cannot know must not be stated.** Tier, floors and overclock only exist in snapshots
+that carry metrics, and metrics only began being recorded recently. Reading "first reached Tier 4"
+off the earliest snapshot that *could* show it dated a milestone from months ago to today. Every
+certification now carries an `exact` flag: if the condition already held in the first snapshot able
+to see it, the app says **"no later than"** instead of naming a day. An app that states a date it
+does not know is lying with great confidence.
+
 ## Edge cases that must be handled
 
 - **A month needs two snapshots** to produce a series medal. One snapshot gives no delta.
