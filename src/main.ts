@@ -808,8 +808,10 @@ async function inspect(name: string) {
       renderExploration(a.collect);
       lastPoints = a.points;
       lastBelts = a.belts;
+      lastSlabs = a.slabs;
       mapLevels = a.levels;
-      renderMap(a.points, a.belts);
+      mapFloor = null; // al cambiar de partida, se mira todo otra vez
+      renderMap(a.points, a.belts, a.slabs);
 
       // Centro de mando: signos vitales + "Retoma aquí".
       const deficits = computeDeficits(a.perItem, a.consumed);
@@ -836,8 +838,9 @@ async function inspect(name: string) {
       renderExploration({});
       lastPoints = [];
       lastBelts = [];
+      lastSlabs = [];
       mapLevels = [];
-      renderMap([], []);
+      renderMap([], [], []);
       renderVitals(currentPowerMW, currentGenMW, 0, [], {});
       renderCompat(savesMeta[name], 0, 0, {});
       // Sin parser no sabemos qué hay en los almacenes, y decir "te faltan
@@ -1461,6 +1464,7 @@ async function analyzeWithParser(folder: string, name: string) {
     detail: string;
     item: string;
     cls: string;
+    floor: number; // índice de planta, -1 = sobre terreno
   }[] = [];
   // Energía leída de la documentación oficial, edificio a edificio. Hasta ahora
   // salía de una tabla a mano indexada por nombre traducido.
@@ -1478,6 +1482,10 @@ async function analyzeWithParser(folder: string, name: string) {
   // que no esta en RECIPE_OUTPUT. En vez de ignorarlo en silencio, lo contamos
   // y decimos de donde viene.
   const unknownBySource: Record<string, number> = {};
+  // Suelos construidos. Desde la 1.0 el juego guarda cimientos, muros y rampas
+  // aparte, como "construcciones ligeras", y por eso buscarlos entre los
+  // objetos normales no encontraba ninguno.
+  const slabs: { x: number; y: number; z: number; r: any }[] = [];
   let unknownRecipes = 0;
   let machineCount = 0;
   let overclocked = 0;
@@ -1546,7 +1554,22 @@ async function analyzeWithParser(folder: string, name: string) {
             detail,
             item: prodItem,
             cls,
+            floor: -1, // se asigna abajo, cuando se conocen las plantas
           });
+        }
+      }
+
+      // Cimientos y pasarelas: la superficie sobre la que se construye.
+      const lw = o.specialProperties;
+      if (lw && Array.isArray((lw as any).buildables)) {
+        for (const grp of (lw as any).buildables) {
+          const path = (grp.typeReference && grp.typeReference.pathName) || "";
+          const name = (path.split("/").pop() || "").split(".")[0];
+          if (!FLOOR_PIECE.test(name) || NOT_FLOOR.test(name)) continue;
+          for (const inst of grp.instances || []) {
+            const t = inst.transform && inst.transform.translation;
+            if (t) slabs.push({ x: t.x, y: t.y, z: t.z, r: inst.transform.rotation });
+          }
         }
       }
 
@@ -1608,38 +1631,40 @@ async function analyzeWithParser(folder: string, name: string) {
       }
     }
   }
-  // Niveles de suelo: alturas donde se CONCENTRAN las máquinas (producción,
-  // extracción, generadores, almacenes). Ellas apoyan en el suelo real, tanto
-  // sobre cimientos como sobre terreno, y son lo que pintamos en el mapa.
-  // Método: histograma de Z en bins de 1 m → un nivel = pico con ≥2 máquinas;
-  // picos contiguos (≤2 m) se funden en uno (media ponderada). Así las rampas,
-  // postes o máquinas sueltas en una ladera no generan pisos falsos.
-  const anchors = points.filter((p) => p.cat !== "other").map((p) => p.z);
-  const zSrc = anchors.length >= 3 ? anchors : points.map((p) => p.z);
-  const zBins = new Map<number, number>();
-  for (const z of zSrc) {
-    const k = Math.round(z / 100) * 100;
-    zBins.set(k, (zBins.get(k) || 0) + 1);
+  // ---- Plantas, deducidas del suelo construido ----
+  // Antes esto salía de un histograma de las alturas de las máquinas, y era
+  // adivinar: Satisfactory no tiene plantas, tiene cosas a distintas alturas.
+  // Los cimientos sí las tienen, porque una planta ES una superficie.
+  //
+  // La clave está en distinguir una planta de una escalera. Una escalera deja
+  // una o dos piezas de suelo por escalón, cada dos metros; una planta deja
+  // decenas a la misma altura. Así que una planta es una altura con una
+  // CONCENTRACIÓN de suelo, no cualquier altura con suelo.
+  const slabBins = new Map<number, number>();
+  for (const sl of slabs) {
+    const k = Math.round(sl.z / 100) * 100;
+    slabBins.set(k, (slabBins.get(k) || 0) + 1);
   }
-  // Un cimiento de Satisfactory mide 4 m, así que dos pisos distintos están
-  // separados al menos eso. Fusionar sólo lo que esté a menos de 2 m partía un
-  // mismo altillo en cinco "pisos".
-  const FLOOR_GAP = 800; // 8 m: dos cimientos de margen
-  const zPeaks = [...zBins.entries()].filter(([, c]) => c >= 2).sort((a, b) => a[0] - b[0]);
-  const floorLevels: number[] = [];
-  let accZ = 0, accN = 0, lastPeak = NaN;
-  const flushLevel = () => {
-    if (accN) floorLevels.push(accZ / accN);
-    accZ = 0;
-    accN = 0;
+  const maxSlab = slabBins.size ? Math.max(...slabBins.values()) : 0;
+  const slabMin = Math.max(8, maxSlab * 0.15);
+  const floorLevels = [...slabBins.entries()]
+    .filter(([, c]) => c >= slabMin)
+    .map(([z]) => z)
+    .sort((a, b) => a - b);
+
+  // Cada máquina va a la planta que pisa: la superficie inmediatamente por
+  // debajo, si está a menos de 6 m. Lo que no pise ninguna está sobre terreno,
+  // que es un sitio perfectamente legítimo donde construir y no un error.
+  const FLOOR_REACH = 600;
+  const floorOf = (z: number): number => {
+    let best = -1;
+    for (let i = 0; i < floorLevels.length; i++) {
+      const fz = floorLevels[i];
+      if (z >= fz - 100 && z - fz <= FLOOR_REACH && (best < 0 || fz > floorLevels[best])) best = i;
+    }
+    return best; // -1 = sobre terreno
   };
-  for (const [z, c] of zPeaks) {
-    if (!isNaN(lastPeak) && z - lastPeak > FLOOR_GAP) flushLevel();
-    accZ += z * c;
-    accN += c;
-    lastPeak = z;
-  }
-  flushLevel();
+  for (const p of points) p.floor = floorOf(p.z);
 
   return {
     perItem,
@@ -1657,6 +1682,7 @@ async function analyzeWithParser(folder: string, name: string) {
     genMW,
     powerFromDocs,
     storedByClass,
+    slabs,
   };
 }
 
@@ -1808,6 +1834,12 @@ function renderExploration(collect: Record<string, number>) {
 // pionero ha construido sobre el terreno.
 const NOT_FACTORY = /ProjectAssembly|Orbital/i;
 
+// Piezas que forman suelo pisable, y las que no lo son aunque lo parezcan.
+const FLOOR_PIECE = /Foundation|Walkway|Platform/i;
+const NOT_FLOOR = /Ramp|Wall|Pillar|Corner/i;
+// Un cimiento mide 8 m de lado.
+const SLAB_SIZE = 800;
+
 function qrot(q: any, v: any) {
   const tx = 2 * (q.y * v.z - q.z * v.y);
   const ty = 2 * (q.z * v.x - q.x * v.z);
@@ -1862,8 +1894,9 @@ function mapShape(cat: string, cx: number, cy: number, r: number, title: string)
 
 // Dibuja un plano cenital: cintas como líneas, máquinas como puntos con nombre (al pasar el ratón).
 function renderMap(
-  points: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string }[],
-  belts: { pts: [number, number][]; z: number; z0: number; z1: number }[]
+  points: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string; floor: number }[],
+  belts: { pts: [number, number][]; z: number; z0: number; z1: number }[],
+  slabs: { x: number; y: number; z: number; r: any }[] = []
 ) {
   if (!points.length && !belts.length) {
     mapEl.innerHTML = `<p class="muted">No hay posiciones para dibujar (¿parser no disponible?).</p>`;
@@ -1917,6 +1950,37 @@ function renderMap(
   const beltOp = hi ? 0.12 : 0.7;
   const otherOp = hi ? 0.18 : 1;
 
+  // Suelo construido, debajo de todo. Es lo que hace que la fábrica deje de
+  // flotar en el vacío: se ve sobre qué está puesta cada cosa.
+  const floorOfZ = (z: number): number => {
+    let best = -1;
+    for (let i = 0; i < mapLevels.length; i++) {
+      const fz = mapLevels[i];
+      if (z >= fz - 100 && z - fz <= 600 && (best < 0 || fz > mapLevels[best])) best = i;
+    }
+    return best;
+  };
+  let slabSvg = "";
+  const half = SLAB_SIZE / 2;
+  for (const sl of slabs) {
+    // El cimiento es un cuadrado de 8 m; se gira con su propio cuaternión para
+    // que los bloques en diagonal no salgan torcidos.
+    const corners = [
+      { x: -half, y: -half, z: 0 },
+      { x: half, y: -half, z: 0 },
+      { x: half, y: half, z: 0 },
+      { x: -half, y: half, z: 0 },
+    ]
+      .map((c) => {
+        const w = sl.r ? qrot(sl.r, c) : c;
+        return `${px(sl.x + w.x).toFixed(1)},${py(sl.y + w.y).toFixed(1)}`;
+      })
+      .join(" ");
+    slabSvg +=
+      `<g data-cat="floor" data-z="${Math.round(sl.z)}" data-floor="${floorOfZ(sl.z)}">` +
+      `<polygon points="${corners}" fill="#2b313c" fill-opacity="0.75" stroke="#39404d" stroke-width="0.3"/></g>`;
+  }
+
   // Cintas (líneas). Cada una en su grupo con categoría y altura para los filtros.
   let lines = "";
   for (const b of belts) {
@@ -1932,7 +1996,7 @@ function renderMap(
   const counts: Record<string, number> = {};
   for (const p of points) {
     const cx = px(p.x).toFixed(1), cy = py(p.y).toFixed(1);
-    const zAttr = `data-z="${Math.round(p.z)}"`;
+    const zAttr = `data-z="${Math.round(p.z)}" data-floor="${p.floor}"`;
     if (p.cat === "other") {
       others += `<g data-cat="other" ${zAttr}><circle cx="${cx}" cy="${cy}" r="1.1" fill="#aab0bd" fill-opacity="${otherOp}"/></g>`;
     } else {
@@ -1971,6 +2035,7 @@ function renderMap(
     ["extr", "Extracción"],
     ["power", "Generadores"],
     ["store", "Almacén"],
+    ["floor", "Suelos"],
     ["belt", "Cintas"],
     ["other", "Resto"],
   ];
@@ -1990,62 +2055,66 @@ function renderMap(
   const zStep = Math.max(1, Math.round((maxZ - minZ) / 100));
   const heightFilter =
     `<div class="map-height">` +
-    `<span class="muted">Altura (pisos):</span>` +
+    `<span class="muted">Altura (ajuste fino):</span>` +
     `<input type="range" id="z-min" min="${Math.floor(minZ)}" max="${Math.ceil(maxZ)}" step="${zStep}" value="${Math.floor(minZ)}" />` +
     `<input type="range" id="z-max" min="${Math.floor(minZ)}" max="${Math.ceil(maxZ)}" step="${zStep}" value="${Math.ceil(maxZ)}" />` +
     `<span id="z-label" class="muted"></span>` +
     `</div>`;
 
-  // Chips de niveles construidos (suelos): saltan a la banda de ese piso.
-  // La banda va del punto medio con el nivel de abajo al punto medio con el de
-  // arriba; los extremos absorben todo lo que quede fuera.
+  // Plantas, deducidas del suelo construido. "Terreno" no es un fallo de
+  // detección: es dónde está construida de verdad media fábrica.
   mapGround = mapLevels.length ? mapLevels[0] : minZ;
+  const perFloor = new Map<number, number>();
+  for (const p of points) {
+    if (p.cat === "other") continue;
+    perFloor.set(p.floor, (perFloor.get(p.floor) || 0) + 1);
+  }
+  const chip = (f: number | null, label: string, n?: number) =>
+    `<button class="lvl-chip${mapFloor === f ? " active" : ""}" data-floor="${f === null ? "all" : f}">` +
+    `${label}${n !== undefined ? ` <span class="lvl-n">${n}</span>` : ""}</button>`;
+
   let levelChips = "";
-  if (mapLevels.length >= 1) {
-    const chips = mapLevels
-      .map((lz, i) => {
-        const prev = mapLevels[i - 1];
-        const next = mapLevels[i + 1];
-        const lo = prev === undefined ? Math.floor(minZ) - 1 : (prev + lz) / 2;
-        const hi = next === undefined ? Math.ceil(maxZ) + 1 : (lz + next) / 2;
-        // Cuántas máquinas hay realmente en ese piso: un nivel con dos cosas
-        // no merece la misma atención que uno con cincuenta.
-        const n = points.filter((p) => p.cat !== "other" && p.z >= lo && p.z <= hi).length;
-        const relM = Math.round((lz - mapGround) / 100);
-        const lbl = i === 0 ? "Suelo" : `+${relM} m`;
-        return (
-          `<button class="lvl-chip" data-lo="${Math.round(lo)}" data-hi="${Math.round(hi)}">` +
-          `${lbl} <span class="lvl-n">${n}</span></button>`
-        );
-      })
+  if (mapLevels.length || perFloor.has(-1)) {
+    const floors = mapLevels
+      .map((lz, i) => chip(i, `${Math.round((lz - mapGround) / 100)} m`, perFloor.get(i) || 0))
       .join("");
     levelChips =
-      `<div class="map-levels"><span class="muted">Niveles construidos (${mapLevels.length}):</span> ` +
-      `<button class="lvl-chip active" data-lo="all">Todos</button>${chips}</div>`;
+      `<div class="map-levels"><span class="muted">Plantas (${mapLevels.length}):</span> ` +
+      chip(null, "Todas") +
+      (perFloor.has(-1) ? chip(-1, "Terreno", perFloor.get(-1) || 0) : "") +
+      floors +
+      (mapLevels.length
+        ? ""
+        : ` <span class="muted map-hint">sin cimientos: todo está sobre el terreno</span>`) +
+      `</div>`;
   }
 
   mapEl.innerHTML =
-    `<h3 class="inv-title">Plano 2D · ${points.length} construcciones · ${belts.length} cintas</h3>` +
+    `<h3 class="inv-title">Plano 2D · ${points.length} construcciones · ${belts.length} cintas` +
+    `${slabs.length ? ` · ${slabs.length} piezas de suelo` : ""}</h3>` +
     banner +
     `<div class="map-filters">${filters}<span class="muted map-hint">rueda = zoom · arrastra = mover</span></div>` +
     levelChips +
     heightFilter +
     `<svg viewBox="0 0 ${W} ${H}" class="map2d" id="map-svg">` +
-    `<g id="map-vp">${lines}${others}${shapes}</g></svg>` +
+    `<g id="map-vp">${slabSvg}${lines}${others}${shapes}</g></svg>` +
     `<div class="map-legend">${legend}<span class="leg-item"><span style="color:#8a93a3">─</span> cintas</span>` +
     `<span class="leg-item"><span style="color:#aab0bd">·</span> resto</span></div>` +
     `<p class="muted">Vista cenital, norte arriba. Pasa el ratón por una pieza para ver qué es y qué ` +
-    `fabrica. Al aislar un piso, el resto no desaparece: se queda en sombra para que no pierdas la ` +
-    `referencia, y las cintas que suben entre plantas siguen visibles porque son justo lo que ` +
-    `explica cómo se conecta todo.</p>`;
+    `fabrica. Las plantas salen del suelo que has construido, no de adivinar alturas: una planta es ` +
+    `una altura con una concentración de cimientos, y lo que no pisa ninguno está sobre terreno. Al ` +
+    `elegir una planta el resto no desaparece, se queda en sombra, y las cintas siguen visibles ` +
+    `porque son lo que explica cómo se conecta todo.</p>`;
 
   setupMapInteraction();
 }
 
 // Estado del mapa para resaltar cuellos de botella.
-let lastPoints: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string }[] = [];
+let lastPoints: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string; floor: number }[] = [];
 let lastBelts: { pts: [number, number][]; z: number; z0: number; z1: number }[] = [];
 let mapGround = 0; // altura del nivel más bajo, para mostrar metros relativos
+let lastSlabs: { x: number; y: number; z: number; r: any }[] = [];
+let mapFloor: number | null = null; // planta elegida; null = todas
 let mapLevels: number[] = []; // alturas de los niveles construidos del mundo abierto
 let highlightItem: string | null = null;
 
@@ -2053,7 +2122,7 @@ let highlightItem: string | null = null;
 function highlightOnMap(item: string) {
   highlightItem = item;
   showTab("mapa");
-  renderMap(lastPoints, lastBelts);
+  renderMap(lastPoints, lastBelts, lastSlabs);
 }
 
 // Zoom (rueda), arrastre (ratón) y filtros del mapa.
@@ -2063,7 +2132,7 @@ function setupMapInteraction() {
   if (clearBtn) {
     clearBtn.addEventListener("click", () => {
       highlightItem = null;
-      renderMap(lastPoints, lastBelts);
+      renderMap(lastPoints, lastBelts, lastSlabs);
     });
   }
 
@@ -2125,19 +2194,11 @@ function setupMapInteraction() {
   mapEl.querySelectorAll<HTMLInputElement>("#z-min, #z-max").forEach((sl) => {
     sl.addEventListener("input", applyMapFilters);
   });
-  // Chips de niveles: ajustan la banda de altura al piso elegido.
+  // Chips de planta: eligen sobre qué suelo mirar.
   mapEl.querySelectorAll<HTMLButtonElement>(".lvl-chip").forEach((b) => {
     b.addEventListener("click", () => {
-      const zMinEl = document.querySelector("#z-min") as HTMLInputElement | null;
-      const zMaxEl = document.querySelector("#z-max") as HTMLInputElement | null;
-      if (!zMinEl || !zMaxEl) return;
-      if (b.dataset.lo === "all") {
-        zMinEl.value = zMinEl.min;
-        zMaxEl.value = zMaxEl.max;
-      } else {
-        zMinEl.value = b.dataset.lo!;
-        zMaxEl.value = b.dataset.hi!;
-      }
+      const v = b.dataset.floor;
+      mapFloor = v === "all" || v === undefined ? null : parseInt(v, 10);
       mapEl.querySelectorAll(".lvl-chip").forEach((c) => c.classList.remove("active"));
       b.classList.add("active");
       applyMapFilters();
@@ -2181,6 +2242,13 @@ function applyMapFilters() {
     // dónde está ese piso dentro de la fábrica.
     // Un punto tiene una altura; una cinta tiene un rango y basta con que lo
     // toque para seguir contando, porque es la que une las plantas.
+    // Planta elegida. Las cintas no llevan planta (pueden cruzar varias), así
+    // que a ellas solo les aplica la banda de altura.
+    const df = g.getAttribute("data-floor");
+    if (mapFloor !== null && df !== null && parseInt(df, 10) !== mapFloor) {
+      g.classList.add("offband");
+      return;
+    }
     const za = g.getAttribute("data-z0");
     const zb = g.getAttribute("data-z1");
     const zc = g.getAttribute("data-z") || "0";
