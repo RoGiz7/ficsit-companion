@@ -72,6 +72,17 @@ hand-written translation table, so it can disagree with the names shown on the m
 `count_buildings` return the class name alongside the count would put the whole app on one
 vocabulary. Small backend change, removes a visible inconsistency.
 
+## Later: ask Coffee Stain
+
+Once the app is stronger and more stable, write to Coffee Stain and ask what they are willing to
+make available to tools like this one. Their press page is aimed at press and content creators and
+states no terms for fan projects, so it grants nothing: it points to emailing them instead. Worth
+asking about item and building icons, the map image, and whether the FICSIT name can be used in a
+free tool's title.
+
+Until there is an answer in writing, the rule stands: nothing of theirs ships with the app, and
+anything of theirs the app uses is read from the user's own installation.
+
 ## Not worth doing
 
 - **Bundling the game's data files.** They are Coffee Stain's. Reading the user's own copy is both

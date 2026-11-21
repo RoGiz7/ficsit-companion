@@ -15,44 +15,50 @@
           <span class="brand-dot"></span>
           <div>
             <h1>FICSIT <span>Companion</span></h1>
-            <span class="brand-sub">Asistente de Pionero</span>
+            <span class="brand-sub" data-i18n="brand.sub">Asistente de Pionero</span>
           </div>
         </div>
-        <span class="phase" id="app-version"></span>
+        <div class="head-right">
+          <div class="lang-switch" role="group" aria-label="Idioma">
+            <button type="button" class="lang-btn" data-lang="es">ES</button>
+            <button type="button" class="lang-btn" data-lang="en">EN</button>
+          </div>
+          <span class="phase" id="app-version"></span>
+        </div>
       </header>
 
       <!-- Ajustes: se tocan una vez y estorban el resto del tiempo, así que
            van en una sola barra plegada en lugar de dos. -->
       <details class="acc settings" id="acc-settings">
-        <summary><span class="acc-title">Ajustes</span></summary>
+        <summary><span class="acc-title" data-i18n="settings">Ajustes</span></summary>
         <div class="settings-body">
           <div class="set-block">
-            <h4 class="set-title">Carpeta de partidas</h4>
+            <h4 class="set-title" data-i18n="settings.folder">Carpeta de partidas</h4>
             <div class="folder-row">
               <input id="folder" spellcheck="false" aria-label="Ruta de la carpeta de partidas" />
-              <button id="refresh" type="button">Vigilar</button>
+              <button id="refresh" type="button" data-i18n="settings.watch">Vigilar</button>
             </div>
           </div>
           <div class="set-block">
-            <h4 class="set-title">Datos del juego</h4>
+            <h4 class="set-title" data-i18n="settings.gamedata">Datos del juego</h4>
             <div id="gamedata" class="gamedata"></div>
           </div>
         </div>
       </details>
 
       <section class="world-bar">
-        <label for="world-select">Mundo</label>
+        <label for="world-select" data-i18n="world">Mundo</label>
         <select id="world-select"></select>
       </section>
 
-      <p id="status" class="status">Cargando…</p>
+      <p id="status" class="status" data-i18n="loading">Cargando…</p>
 
       <nav class="tabs">
-        <button class="tab active" data-tab="resumen" type="button">Resumen</button>
-        <button class="tab" data-tab="produccion" type="button">Producción</button>
-        <button class="tab" data-tab="mapa" type="button">Mapa</button>
-        <button class="tab" data-tab="plan" type="button">Plan y notas</button>
-        <button class="tab" data-tab="guardados" type="button">Guardados</button>
+        <button class="tab active" data-tab="resumen" type="button" data-i18n="tab.summary">Resumen</button>
+        <button class="tab" data-tab="produccion" type="button" data-i18n="tab.production">Producción</button>
+        <button class="tab" data-tab="mapa" type="button" data-i18n="tab.map">Mapa</button>
+        <button class="tab" data-tab="plan" type="button" data-i18n="tab.plan">Plan y notas</button>
+        <button class="tab" data-tab="guardados" type="button" data-i18n="tab.saves">Guardados</button>
       </nav>
 
       <!-- RESUMEN: estado del mundo abierto -->
@@ -70,27 +76,27 @@
         <!-- Abierto por defecto: es la respuesta a "¿y ahora qué?", que es
              para lo que existe esta app. -->
         <details class="acc" id="acc-milestone" data-sync open>
-          <summary><span class="acc-title">Siguiente hito</span></summary>
+          <summary><span class="acc-title" data-i18n="sec.milestone">Siguiente hito</span></summary>
           <div id="milestone" class="milestone"></div>
         </details>
         <details class="acc" id="acc-progress" data-sync>
-          <summary><span class="acc-title">Progreso de la partida</span></summary>
+          <summary><span class="acc-title" data-i18n="sec.progress">Progreso de la partida</span></summary>
           <div id="progress" class="progress"></div>
         </details>
         <details class="acc" id="acc-inventory" data-sync>
-          <summary><span class="acc-title">Inventario de construcciones</span></summary>
+          <summary><span class="acc-title" data-i18n="sec.inventory">Inventario de construcciones</span></summary>
           <div id="inventory" class="inventory"></div>
         </details>
         <details class="acc" id="acc-stored" data-sync>
-          <summary><span class="acc-title">Materiales almacenados</span></summary>
+          <summary><span class="acc-title" data-i18n="sec.stored">Materiales almacenados</span></summary>
           <div id="stored" class="inventory"></div>
         </details>
         <details class="acc" id="acc-exploration" data-sync>
-          <summary><span class="acc-title">Exploración</span></summary>
+          <summary><span class="acc-title" data-i18n="sec.exploration">Exploración</span></summary>
           <div id="exploration" class="progress"></div>
         </details>
         <details class="acc" id="acc-history" data-sync>
-          <summary><span class="acc-title">Evolución</span></summary>
+          <summary><span class="acc-title" data-i18n="sec.history">Evolución</span></summary>
           <div id="history" class="history"></div>
         </details>
       </section>
@@ -100,7 +106,7 @@
         <div id="production" class="production"></div>
         <div id="balance" class="balance"></div>
         <details class="acc" id="acc-calc" data-sync>
-          <summary><span class="acc-title">Calculadora de producción</span></summary>
+          <summary><span class="acc-title" data-i18n="sec.calc">Calculadora de producción</span></summary>
           <div id="calc" class="calc"></div>
         </details>
       </section>
@@ -114,14 +120,15 @@
       <section class="tab-panel hidden" id="tab-plan">
         <div id="plan" class="plan"></div>
         <div class="notes">
-          <label for="note-text" id="note-label">Notas de esta partida</label>
+          <label for="note-text" id="note-label" data-i18n="notes.label">Notas de esta partida</label>
           <textarea
             id="note-text"
+            data-i18n-ph="notes.placeholder"
             rows="6"
-            placeholder="¿Dónde lo dejaste? ¿Qué ibas a montar? Ej: 'Falta conectar la línea de placas de circuito al norte; pendiente subir energía.'"
+            placeholder="¿Dónde lo dejaste? ¿Qué ibas a montar?"
           ></textarea>
           <div class="notes-bar">
-            <button id="note-save" type="button">Guardar nota</button>
+            <button id="note-save" type="button" data-i18n="notes.save">Guardar nota</button>
             <span id="note-status" class="note-status"></span>
           </div>
         </div>
@@ -132,17 +139,17 @@
         <table class="saves">
           <thead>
             <tr>
-              <th>Partida</th>
-              <th>Tiempo jugado</th>
-              <th>Guardada</th>
-              <th class="num">Tamaño</th>
-              <th>Estado</th>
+              <th data-i18n="saves.name">Partida</th>
+              <th data-i18n="saves.played">Tiempo jugado</th>
+              <th data-i18n="saves.saved">Guardada</th>
+              <th class="num" data-i18n="saves.size">Tamaño</th>
+              <th data-i18n="saves.state">Estado</th>
             </tr>
           </thead>
           <tbody id="saves-body"></tbody>
         </table>
         <div class="import-bar">
-          <button id="import-history" type="button">Importar mis partidas al histórico</button>
+          <button id="import-history" type="button" data-i18n="saves.import">Importar mis partidas al histórico</button>
           <span id="import-status" class="muted"></span>
         </div>
       </section>

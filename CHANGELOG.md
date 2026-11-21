@@ -49,7 +49,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   is opened, so the existing history fills itself in instead of staying poor forever.
 - "Import my saves" now parses each save properly instead of only dating it, which rescues the
   metrics of the rotating autosaves before the game overwrites them.
-- Bilingual interface (English / Spanish) with a language switcher in the top bar.
+- **Bilingual interface (English / Spanish)** with a switcher in the top bar, no restart needed.
+  The app picks your browser's language the first time and remembers your choice. Game terms —
+  items, buildings, recipes, milestones — come from the game's own documentation in the chosen
+  language rather than from a translation table, so they match what you read in-game. Switching
+  language re-reads the open save, since those names come out of the analysis.
+  One gap: the fallback tables used when the game is not installed are Spanish-only, so English
+  without the game shows Spanish part names.
 - **Automatic detection of the save folder.** The path used to be hardcoded, complete with a
   Windows username and a Steam ID, so the app worked on exactly one computer in the world. It now
   looks where the game actually saves (Windows, and the Steam Play and Epic paths on Linux), lists

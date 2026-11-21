@@ -1254,3 +1254,39 @@ table.saves {
   font-size: 0.8rem;
   text-align: right;
 }
+
+/* ---- Selector de idioma ---- */
+.head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lang-switch {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.lang-btn {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.lang-btn:hover {
+  color: var(--text);
+}
+
+.lang-btn.active {
+  background: rgba(255, 158, 61, 0.15);
+  color: var(--accent);
+}

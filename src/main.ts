@@ -3,6 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Parser, SatisfactorySaveHeader, SaveReader } from "@etothepii/satisfactory-file-parser";
+import { applyStaticI18n, detectLang, getLang, setLang, t, type Lang } from "./i18n";
 import {
   describeDiff,
   diffGameData,
@@ -200,6 +201,7 @@ let currentPowerMW = 0; // consumo estimado del mundo abierto
 let currentGenMW = 0; // generación estimada del mundo abierto
 let currentTier = 99; // tier del mundo abierto (99 = mostrar todo hasta saberlo)
 let currentNoteKey = "";
+let openSaveName = ""; // guardado abierto, para poder repasarlo al cambiar de idioma
 
 // ---- Traducción de términos del juego (inglés → español) ----
 // Si un nombre no está en la tabla, se muestra tal cual (respaldo en inglés).
@@ -341,16 +343,14 @@ const COLLECT_ES: Record<string, string> = {
 // juego no se encuentra instalado), cae en las tablas escritas a mano. Las
 // tablas pasan así de ser la fuente de verdad a ser el plan B.
 
-const UI_LANG = "es"; // de momento fijo; el selector de idioma vendrá luego
-
 function gdItemName(cls: string): string | null {
   const it = gameData && gameData.items[cls];
-  return (it && (it.name[UI_LANG] || it.name.en)) || null;
+  return (it && (it.name[getLang()] || it.name.en)) || null;
 }
 
 function gdBuildingName(cls: string): string | null {
   const b = gameData && gameData.buildings[cls];
-  return (b && (b.name[UI_LANG] || b.name.en)) || null;
+  return (b && (b.name[getLang()] || b.name.en)) || null;
 }
 
 // Una receta lista para usar: nombres ya traducidos y ritmos por minuto.
@@ -400,7 +400,7 @@ function renderGameData(status: string, detail: string, busy = false) {
   gameDataEl.innerHTML =
     `<p class="gd-status">${escapeXml(status)}</p>` +
     (detail ? `<p class="muted gd-detail">${escapeXml(detail)}</p>` : "") +
-    `<button id="gd-reload" type="button"${busy ? " disabled" : ""}>Releer datos del juego</button>`;
+    `<button id="gd-reload" type="button"${busy ? " disabled" : ""}>${t("gd.reload")}</button>`;
   document.querySelector("#gd-reload")?.addEventListener("click", () => initGameData(true));
 }
 
@@ -413,10 +413,10 @@ async function initGameData(force = false) {
     if (!folders.length) {
       gameData = cached && cached.schema === GAMEDATA_SCHEMA ? cached : null;
       renderGameData(
-        gameData ? "Usando datos guardados del juego." : "No encuentro la instalación del juego.",
+        gameData ? t("gd.cached") : t("gd.notFound"),
         gameData
-          ? `${Object.keys(gameData.recipes).length} recetas · leídos el ${new Date(gameData.extractedAt).toLocaleDateString()}`
-          : "Sin los datos oficiales uso mis propias tablas, que van por detrás de los parches."
+          ? t("gd.cachedDetail", { r: Object.keys(gameData.recipes).length, date: new Date(gameData.extractedAt).toLocaleDateString() })
+          : t("gd.noGameNote")
       );
       return;
     }
@@ -431,13 +431,13 @@ async function initGameData(force = false) {
     if (upToDate && !force) {
       gameData = cached;
       renderGameData(
-        "Datos del juego al día.",
-        `${Object.keys(cached!.recipes).length} recetas · ${Object.keys(cached!.schematics).length} hitos · ${cached!.langs.join(", ")}`
+        t("gd.upToDate"),
+        t("gd.detail", { r: Object.keys(cached!.recipes).length, s: Object.keys(cached!.schematics).length, langs: cached!.langs.join(", ") })
       );
       return;
     }
 
-    renderGameData("Leyendo la documentación del juego…", `${docs.path}`, true);
+    renderGameData(t("gd.reading"), `${docs.path}`, true);
     const fresh = await extractGameData(docs.path, docs.languages);
     fresh.docsNewestMs = docs.newest_ms;
 
@@ -448,7 +448,7 @@ async function initGameData(force = false) {
     const changed =
       diff && (diff.addedRecipes.length || diff.changedRates.length || diff.removedRecipes.length);
     renderGameData(
-      changed ? "El juego ha cambiado desde la última lectura." : "Datos del juego actualizados.",
+      changed ? t("gd.changed") : t("gd.updated"),
       describeDiff(diff, fresh, "es")
     );
     // Si algo cambió, que no pase desapercibido aunque la sección esté plegada.
@@ -458,7 +458,7 @@ async function initGameData(force = false) {
     }
   } catch (e) {
     console.error("Datos del juego:", e);
-    renderGameData("No se pudieron leer los datos del juego.", String(e));
+    renderGameData(t("gd.failed"), String(e));
   }
 }
 
@@ -589,17 +589,16 @@ function renderCompat(
   if (meta && meta.isModded) {
     const list = meta.mods.map((m) => `${m.name} ${m.version}`).join(" · ");
     saveLines.push(
-      `<b>Partida con ${meta.mods.length} mods.</b> El juego no la abrirá sin ellos instalados. ` +
-        `<span class="muted">${escapeXml(list)}</span>`
+      t("compat.mods", { n: meta.mods.length, list: escapeXml(list) })
     );
   }
   if (meta && newestSaveVersion && meta.saveVersion < newestSaveVersion) {
     saveLines.push(
-      `Guardada en formato <b>v${meta.saveVersion}</b>, por detrás de tus partidas más nuevas (v${newestSaveVersion}).`
+      t("compat.oldFormat", { v: meta.saveVersion, newest: newestSaveVersion })
     );
   }
   if (meta && meta.creative) {
-    saveLines.push(`Modo creativo activado: los datos no son comparables con una partida normal.`);
+    saveLines.push(t("compat.creative"));
   }
 
   if (unknown > 0 && machineCount > 0) {
@@ -613,16 +612,13 @@ function renderCompat(
         .map(([k, v]) => `${v} de ${escapeXml(k)}`)
         .join(", ");
       saveLines.push(
-        `<b>${modTotal} de ${machineCount} máquinas</b> fabrican recetas de mods. Lo que producen ` +
-          `solo lo sabe el propio mod, así que no entran en los cálculos: ${src}.`
+        t("compat.modRecipes", { n: modTotal, total: machineCount, src })
       );
     }
     if (base > 0) {
       const pct = Math.round((base / machineCount) * 100);
       appLines.push(
-        `<b>${base} de ${machineCount} máquinas (${pct}%)</b> usan recetas del juego base que todavía ` +
-          `no tengo en mis tablas, así que su producción y su consumo no entran en los cálculos. ` +
-          `Esto es una limitación mía, no un problema de tu partida.`
+        t("compat.baseRecipes", { n: base, total: machineCount, pct })
       );
     }
   }
@@ -633,8 +629,8 @@ function renderCompat(
     `</div>`;
 
   let html = "";
-  if (saveLines.length) html += card("", "⚠ Ojo con los datos de esta partida", saveLines);
-  if (appLines.length) html += card("info", "ℹ Cobertura de recetas", appLines);
+  if (saveLines.length) html += card("", t("compat.save"), saveLines);
+  if (appLines.length) html += card("info", t("compat.app"), appLines);
   compatEl.innerHTML = html;
 }
 
@@ -666,7 +662,7 @@ function populateWorldSelect() {
     .map((w) => {
       const n = currentWorlds[w].length;
       const sel = w === selectedWorld ? " selected" : "";
-      return `<option value="${w}"${sel}>${w} (${n} guardado${n === 1 ? "" : "s"})</option>`;
+      return `<option value="${w}"${sel}>${t("worlds.option", { w, n })}</option>`;
     })
     .join("");
 }
@@ -714,7 +710,7 @@ function render(saves: SaveEntry[]) {
     const tr = document.createElement("tr");
     if (i === 0) tr.classList.add("newest");
 
-    const tag = i === 0 ? ' <span class="badge">más reciente</span>' : "";
+    const tag = i === 0 ? ` <span class="badge">${t("saves.newest")}</span>` : "";
     const playTime = h ? formatDuration(h.play_duration_seconds) : "—";
     // Fecha de la partida (de la cabecera); si no se pudo leer, usamos la del archivo.
     const dateMs = h && h.save_date_ms ? h.save_date_ms : s.modified_ms;
@@ -745,15 +741,16 @@ async function inspect(name: string) {
   currentNoteKey = key;
   highlightItem = null; // al cambiar de partida, quitamos el resaltado del mapa
 
+  openSaveName = name;
   detailTitle.textContent = name;
 
   // Notas: se cargan al instante desde la caché, sin esperar a la descompresión.
   noteText.value = notesCache[key] || "";
-  noteLabel.textContent = `Notas del mundo "${key}"`;
+  noteLabel.textContent = t("notes.worldLabel", { world: key });
   noteStatus.textContent = "";
 
   compatEl.innerHTML = "";
-  detailStatus.textContent = "Leyendo el interior de la partida…";
+  detailStatus.textContent = t("detail.reading");
   detailStatus.className = "detail-status";
   detailGrid.innerHTML = "";
   inventoryEl.innerHTML = "";
@@ -763,10 +760,10 @@ async function inspect(name: string) {
     detailStatus.textContent = "";
     const mb = (info.uncompressed_bytes / 1024 / 1024).toFixed(2);
     detailGrid.innerHTML =
-      cell("Construcciones", String(info.total_buildings)) +
-      cell("Tipos distintos", String(info.type_count)) +
-      cell("Versión del juego", gameVersionOf(name, info.game_version)) +
-      cell("Datos descomprimidos", `${mb} MB`);
+      cell(t("detail.builds"), String(info.total_buildings)) +
+      cell(t("detail.types"), String(info.type_count)) +
+      cell(t("detail.gameVersion"), gameVersionOf(name, info.game_version)) +
+      cell(t("detail.uncompressed"), `${mb} MB`);
     renderInventory(info.inventory);
 
     // Inventario del mundo (nombre ES → cantidad) para el planificador; consumo con nombres originales.
@@ -801,7 +798,7 @@ async function inspect(name: string) {
         a.perItem,
         a.machineCount,
         a.overclocked,
-        "Datos exactos del parser completo (incluye overclock real)."
+        t("prod.fromParser")
       );
       renderBottlenecks(a.perItem, a.consumed);
       renderStored(a.stored);
@@ -833,7 +830,7 @@ async function inspect(name: string) {
         perItemFromRecipeCounts(info.production),
         info.production.reduce((s, r) => s + r.count, 0),
         0,
-        "Estimación de respaldo (el parser completo no está disponible)."
+        t("prod.fallback")
       );
       renderBottlenecks({}, {});
       renderStored(null);
@@ -900,8 +897,8 @@ function renderNextMilestone(
 
   if (!pending.length) {
     milestoneEl.innerHTML =
-      `<h3 class="inv-title">Siguiente hito</h3>` +
-      `<p class="muted">No quedan hitos pendientes en tu tier actual ni en el siguiente.</p>`;
+      `<h3 class="inv-title">${t("sec.milestone")}</h3>` +
+      `<p class="muted">${t("ms.none")}</p>`;
     return;
   }
 
@@ -931,10 +928,10 @@ function renderNextMilestone(
           );
         })
         .join("");
-      const title = m.sc.name[UI_LANG] || m.sc.name.en || m.token;
+      const title = m.sc.name[getLang()] || m.sc.name.en || m.token;
       const state = missingTotal
-        ? `<span class="ms-missing">faltan ${missingTotal} de ${m.sc.cost.length}</span>`
-        : `<span class="ms-ready">✓ lo tienes todo</span>`;
+        ? `<span class="ms-missing">${t("ms.missing", { n: missingTotal, total: m.sc.cost.length })}</span>`
+        : `<span class="ms-ready">${t("ms.ready")}</span>`;
       return (
         `<div class="ms-card"><h4 class="ms-title">Tier ${m.sc.tier} · ${escapeXml(title)} ${state}</h4>` +
         rows +
@@ -944,20 +941,17 @@ function renderNextMilestone(
     .join("");
 
   milestoneEl.innerHTML =
-    `<h3 class="inv-title">Siguiente hito · ${pending.length} pendiente(s)</h3>` +
+    `<h3 class="inv-title">${t("ms.title", { n: pending.length })}</h3>` +
     cards +
-    `<p class="muted">Coste oficial del juego frente a lo que tienes en almacenes, máquinas y ` +
-    `depósito. Los minutos son a tu ritmo de producción actual. Los hitos ya hechos se deducen de ` +
-    `la partida, así que alguno podría colarse.</p>`;
+    `<p class="muted">${t("ms.note")}</p>`;
 }
 
 // Dibuja una gráfica SVG simple de construcciones totales a lo largo del tiempo.
 function renderHistory(snaps: Snapshot[]) {
   if (snaps.length < 2) {
     historyEl.innerHTML =
-      `<h3 class="inv-title">Evolución</h3>` +
-      `<p class="muted">Hace falta al menos 2 guardados de este mundo para ver la evolución. ` +
-      `Importa tus partidas o sigue jugando: la app irá apuntando una foto en cada guardado.</p>`;
+      `<h3 class="inv-title">${t("sec.history")}</h3>` +
+      `<p class="muted">${t("history.need2")}</p>`;
     return;
   }
 
@@ -1020,7 +1014,7 @@ function renderHistory(snaps: Snapshot[]) {
   const growth = ys[ys.length - 1] - ys[0];
   const sign = growth >= 0 ? "+" : "";
   historyEl.innerHTML =
-    `<h3 class="inv-title">Evolución · ${snaps.length} guardados · ${sign}${growth} construcciones</h3>` +
+    `<h3 class="inv-title">${t("hist.title", { n: snaps.length, sign, growth })}</h3>` +
     `<svg viewBox="0 0 ${W} ${H}" class="chart" preserveAspectRatio="xMidYMid meet">` +
     `<defs><linearGradient id="histGrad" x1="0" y1="0" x2="0" y2="1">` +
     `<stop offset="0%" stop-color="#ff9e3d" stop-opacity="0.35"/>` +
@@ -1055,7 +1049,7 @@ function renderInventory(items: InvItem[]) {
       );
     })
     .join("");
-  inventoryEl.innerHTML = `<h3 class="inv-title">Inventario de construcciones</h3>${rows}`;
+  inventoryEl.innerHTML = `<h3 class="inv-title">${t("sec.inventory")}</h3>${rows}`;
 }
 
 function cell(label: string, value: string): string {
@@ -1103,20 +1097,20 @@ function renderVitals(
   const mColor = margin < 0 ? "#ff6b6b" : margin < consumption * 0.1 ? "#f4c531" : "#5fd38d";
 
   vitalsEl.innerHTML =
-    `<h3 class="inv-title">Signos vitales</h3>` +
+    `<h3 class="inv-title">${t("sec.vitals")}</h3>` +
     `<div class="detail-grid">` +
-    cellColor("Salud de la fábrica", `${score}/100`, sColor) +
-    cell("Consumo", `≈ ${fmt(consumption)} MW`) +
-    cell("Generación", generation > 0 ? `≈ ${fmt(generation)} MW` : "—") +
-    cellColor("Margen de energía", generation > 0 ? `${margin >= 0 ? "+" : ""}${fmt(margin)} MW` : "—", generation > 0 ? mColor : "#8b93a3") +
-    cell("Tamaño de la fábrica", size) +
-    cell("Piezas almacenadas", storedTotal.toLocaleString()) +
+    cellColor(t("vitals.health"), `${score}/100`, sColor) +
+    cell(t("vitals.draw"), `≈ ${fmt(consumption)} MW`) +
+    cell(t("vitals.gen"), generation > 0 ? `≈ ${fmt(generation)} MW` : "—") +
+    cellColor(t("vitals.margin"), generation > 0 ? `${margin >= 0 ? "+" : ""}${fmt(margin)} MW` : "—", generation > 0 ? mColor : "#8b93a3") +
+    cell(t("vitals.size"), size) +
+    cell(t("vitals.stored"), storedTotal.toLocaleString()) +
     `</div>` +
     `<p class="muted">${
       gameData
-        ? "Energía según la documentación oficial del juego, edificio a edificio (máquinas a 100%)."
-        : "Energía estimada con tablas propias: sin los datos del juego, es una aproximación."
-    } La salud combina cuellos de botella y margen eléctrico.</p>`;
+        ? t("vitals.note.docs")
+        : t("vitals.note.guess")
+    } ${t("vitals.note.health")}</p>`;
 }
 
 // "Retoma aquí": qué cambió desde la última vez, tu nota y qué hacer ahora.
@@ -1144,30 +1138,30 @@ function renderResume(
     changes.sort((a, b) => b[1] - a[1]);
     const top = changes.slice(0, 3).map(([n, d]) => `+${d} ${n}`).join(", ");
     lines.push(
-      `Desde tu guardado anterior${days > 0 ? ` (hace ${days} día${days === 1 ? "" : "s"})` : ""}: ` +
-        `<b>${dTotal >= 0 ? "+" : ""}${dTotal}</b> construcciones${top ? ` · ${top}` : ""}.`
+      `${t("resume.since")}${days > 0 ? t("resume.days", { n: days }) : ""}: ` +
+        `<b>${dTotal >= 0 ? "+" : ""}${dTotal}</b> ${t("resume.builds")}${top ? ` · ${top}` : ""}.`
     );
   } else {
-    lines.push(`Aún no hay histórico para comparar. Importa tus partidas (pestaña Guardados) o sigue jugando.`);
+    lines.push(t("resume.noHistory"));
   }
 
   if (note && note.trim()) {
     const n = note.trim();
-    lines.push(`📝 Tu nota: "${n.slice(0, 160)}${n.length > 160 ? "…" : ""}"`);
+    lines.push(`📝 ${t("resume.note")}: "${n.slice(0, 160)}${n.length > 160 ? "…" : ""}"`);
   }
   lines.push(
     deficitCount > 0
-      ? `⚠️ ${deficitCount} cuello(s) de botella detectado(s) — revisa la pestaña Producción.`
-      : `✅ Producción equilibrada.`
+      ? t("resume.bottlenecks", { n: deficitCount })
+      : t("resume.balanced")
   );
   lines.push(
-    `Vas por <b>Tier ${prog.current_tier}</b>` +
-      (prog.current_tier > 0 ? ` · siguiente objetivo: Tier ${prog.current_tier + 1}` : "") +
-      ` · ${prog.milestones.length} hitos · ${prog.research_count} investigaciones.`
+    `<b>${t("resume.tier", { t: prog.current_tier })}</b>` +
+      (prog.current_tier > 0 ? t("resume.next", { t: prog.current_tier + 1 }) : "") +
+      ` · ${prog.milestones.length} ${t("sec.milestone").toLowerCase()} · ${prog.research_count}.`
   );
 
   resumeEl.innerHTML =
-    `<div class="resume-card"><h3 class="resume-title">↩ Retoma aquí — ${world}</h3>` +
+    `<div class="resume-card"><h3 class="resume-title">${t("resume.title", { world })}</h3>` +
     lines.map((p) => `<p class="resume-line">${p}</p>`).join("") +
     `</div>`;
 }
@@ -1189,7 +1183,7 @@ function renderProgress(p: ProgressInfo) {
     .join("");
 
   progressEl.innerHTML =
-    `<h3 class="inv-title">Progreso de la partida</h3>` +
+    `<h3 class="inv-title">${t("sec.progress")}</h3>` +
     `<div class="detail-grid">` +
     cell("Tier actual", p.current_tier > 0 ? `Tier ${p.current_tier}` : "—") +
     cell("Hitos completados", String(p.milestones.length)) +
@@ -1215,7 +1209,7 @@ function renderPlan(world: string) {
       const pct = target > 0 ? Math.min(100, Math.round((built / target) * 100)) : 100;
       const done = built >= target;
       const missing = Math.max(0, target - built);
-      const status = done ? "✓ completado" : `faltan ${missing}`;
+      const status = done ? t("plan.done") : t("plan.left", { n: missing });
       const safe = escapeAttr(name);
       return (
         `<div class="goal-row">` +
@@ -1223,7 +1217,7 @@ function renderPlan(world: string) {
         `<span class="goal-bar"><span class="goal-fill ${done ? "done" : ""}" style="width:${pct}%"></span></span>` +
         `<span class="goal-count">${built}/${target}</span>` +
         `<span class="goal-status ${done ? "ok" : ""}">${status}</span>` +
-        `<button class="goal-del" data-name="${safe}" title="Quitar objetivo">✕</button>` +
+        `<button class="goal-del" data-name="${safe}" title="${t("plan.removeGoal")}">✕</button>` +
         `</div>`
       );
     })
@@ -1234,13 +1228,13 @@ function renderPlan(world: string) {
     .join("");
 
   planEl.innerHTML =
-    `<h3 class="inv-title">Plan de mejoras</h3>` +
-    (goalRows || `<p class="muted">Aún no hay objetivos. Añade uno abajo para empezar a planificar.</p>`) +
+    `<h3 class="inv-title">${t("plan.title")}</h3>` +
+    (goalRows || `<p class="muted">${t("plan.empty")}</p>`) +
     `<div class="goal-add">` +
     `<input id="goal-name" list="goal-names" placeholder="Tipo (ej: Constructor Mk1)" />` +
     `<datalist id="goal-names">${datalist}</datalist>` +
     `<input id="goal-target" type="number" min="1" placeholder="Cantidad" />` +
-    `<button id="goal-add-btn" type="button">Añadir objetivo</button>` +
+    `<button id="goal-add-btn" type="button">${t("plan.add")}</button>` +
     `</div>`;
 
   // Quitar objetivo
@@ -1392,13 +1386,13 @@ function renderProductionView(
   const ocTxt = overclocked > 0 ? cell("Con overclock", String(overclocked)) : "";
 
   productionEl.innerHTML =
-    `<h3 class="inv-title">Producción actual (máquinas activas)</h3>` +
+    `<h3 class="inv-title">${t("prod.title")}</h3>` +
     `<div class="detail-grid" style="margin-bottom:12px">` +
-    cell("Máquinas con receta", String(machineCount)) +
-    cell("Consumo estimado", `≈ ${fmt(currentPowerMW)} MW`) +
+    cell(t("prod.machines"), String(machineCount)) +
+    cell(t("prod.power"), `≈ ${fmt(currentPowerMW)} MW`) +
     ocTxt +
     `</div>` +
-    (itemRows || `<p class="muted">No se detectaron máquinas con receta asignada.</p>`) +
+    (itemRows || `<p class="muted">${t("production.none")}</p>`) +
     `<p class="muted">${note}</p>`;
 }
 
@@ -1428,8 +1422,8 @@ function renderStored(stored: Record<string, number> | null) {
     })
     .join("");
   storedEl.innerHTML =
-    `<h3 class="inv-title">Materiales almacenados</h3>${rows}` +
-    `<p class="muted">Suma de todos los inventarios del mundo (almacenes, máquinas, depósito, jugador).</p>`;
+    `<h3 class="inv-title">${t("sec.stored")}</h3>${rows}` +
+    `<p class="muted">${t("stored.note")}</p>`;
 }
 
 // De "Build_ConstructorMk1" saca "Constructor Mk1" (igual que el inventario).
@@ -1720,14 +1714,14 @@ async function analyzeWithParser(folder: string, name: string) {
       makes.length && purity >= 0.66
         ? makes[0].item
         : makes.length
-          ? "Área mixta"
+          ? t("zones.mixed")
           : domCat("store") >= group.length / 2
-            ? "Almacén"
+            ? t("zones.storage")
             : domCat("extr") >= group.length / 2
-              ? "Extracción"
+              ? t("zones.extraction")
               : domCat("power") >= group.length / 2
-                ? "Generación"
-                : "Zona";
+                ? t("zones.generation")
+                : t("zones.zone");
     zones.push({
       floor: fl,
       count: group.length,
@@ -1937,8 +1931,8 @@ function renderBottlenecks(produced: Record<string, number>, consumed: Record<st
 
   if (!deficits.length) {
     balanceEl.innerHTML =
-      `<h3 class="inv-title">Cuellos de botella</h3>` +
-      `<p class="muted">Producción equilibrada: ninguna pieza fabricada se consume más rápido de lo que se produce. 🎉</p>`;
+      `<h3 class="inv-title">${t("bn.title")}</h3>` +
+      `<p class="muted">${t("balance.ok")}</p>`;
     return;
   }
 
@@ -1949,7 +1943,7 @@ function renderBottlenecks(produced: Record<string, number>, consumed: Record<st
       return (
         `<div class="bn-row">` +
         `<span class="bn-item">${d.item}</span>` +
-        `<span class="bn-bal">produce ${fmt(d.prod)} · consume ${fmt(d.cons)}/min</span>` +
+        `<span class="bn-bal">${t("bn.makes")} ${fmt(d.prod)} · ${t("bn.uses")} ${fmt(d.cons)}/min</span>` +
         `<span class="bn-def">−${fmt(d.deficit)}/min</span>` +
         `<span class="bn-fix">+${n} ${rec.building}</span>` +
         `<button class="bn-map" data-item="${escapeAttr(d.item)}" type="button">📍 mapa</button>` +
@@ -1959,8 +1953,8 @@ function renderBottlenecks(produced: Record<string, number>, consumed: Record<st
     .join("");
 
   balanceEl.innerHTML =
-    `<h3 class="inv-title">Cuellos de botella · ${deficits.length}</h3>` +
-    `<p class="muted">Piezas que se consumen más rápido de lo que se fabrican (según las recetas activas). Sugerencia de máquinas a añadir:</p>` +
+    `<h3 class="inv-title">${t("bn.title")} · ${deficits.length}</h3>` +
+    `<p class="muted">${t("bn.note")}</p>` +
     rows;
 
   balanceEl.querySelectorAll<HTMLButtonElement>(".bn-map").forEach((b) => {
@@ -1982,9 +1976,9 @@ function renderExploration(collect: Record<string, number>) {
     .map((k) => cell(COLLECT_ES[k], String(collect[k])))
     .join("");
   explorationEl.innerHTML =
-    `<h3 class="inv-title">Exploración · por recoger</h3>` +
+    `<h3 class="inv-title">${t("expl.title")}</h3>` +
     `<div class="detail-grid">${cells}</div>` +
-    `<p class="muted">Coleccionables y cápsulas que aún siguen en el mundo (sin recoger).</p>`;
+    `<p class="muted">${t("expl.note")}</p>`;
 }
 
 // Rota un vector local por un cuaternión (para llevar el trazado de la cinta al mundo).
@@ -2055,7 +2049,9 @@ function mapShape(cat: string, cx: number, cy: number, r: number, title: string)
 function zoneList(zones: Zone[]): string {
   if (!zones.length) return "";
   const floorName = (f: number) =>
-    f < 0 ? "terreno" : `planta ${Math.round((mapLevels[f] - mapGround) / 100)} m`;
+    f < 0
+      ? t("map.ground").toLowerCase()
+      : `${t("map.floors").toLowerCase().replace(/s$/, "")} ${Math.round((mapLevels[f] - mapGround) / 100)} m`;
   const real = zones.filter((z) => z.count >= 2);
   const loose = zones.length - real.length;
   const rows = real
@@ -2068,7 +2064,7 @@ function zoneList(zones: Zone[]): string {
         z.makes
           .slice(0, top)
           .map((m) => `${m.machines}× ${escapeXml(m.item)}`)
-          .join(", ") + (z.makes.length > top ? ` y ${z.makes.length - top} más` : "");
+          .join(", ") + (z.makes.length > top ? t("zones.more", { n: z.makes.length - top }) : "");
       const kinds = Object.entries(z.kinds)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 2)
@@ -2078,23 +2074,22 @@ function zoneList(zones: Zone[]): string {
         `<button class="zone-row${mapZone === idx ? " active" : ""}" data-zone="${idx}" type="button">` +
         `<span class="zone-n">${i + 1}</span>` +
         `<span class="zone-main"><b>${escapeXml(z.name)}</b>` +
-        `<span class="zone-meta">${floorName(z.floor)} · ${z.count} máquinas · ${kinds}` +
-        `${z.makes.length > 1 ? ` · ${Math.round(z.purity * 100)}% dedicada` : ""}` +
+        `<span class="zone-meta">${floorName(z.floor)} · ${z.count} ${t("zones.machines")} · ${kinds}` +
+        `${z.makes.length > 1 ? ` · ${t("zones.dedicated", { n: Math.round(z.purity * 100) })}` : ""}` +
         `${z.powerMW ? ` · ${fmt(z.powerMW)} MW` : ""}</span></span>` +
         `<span class="zone-makes">${makes || "—"}</span></button>`
       );
     })
     .join("");
   return (
-    `<h3 class="inv-title">Zonas · ${real.length}</h3>` +
+    `<h3 class="inv-title">${t("sec.zones")} · ${real.length}</h3>` +
     `<div class="zone-list">` +
     `<button class="zone-row zone-all${mapZone === null ? " active" : ""}" data-zone="all" type="button">` +
-    `<span class="zone-n">·</span><span class="zone-main"><b>Toda la fábrica</b></span></button>` +
+    `<span class="zone-n">·</span><span class="zone-main"><b>${t("zones.all")}</b></span></button>` +
     rows +
     `</div>` +
-    (loose ? `<p class="muted">Y ${loose} máquina(s) suelta(s) sin zona.</p>` : "") +
-    `<p class="muted">Una zona es un grupo de máquinas juntas en la misma planta: el espacio que ` +
-    `montaste para una receta. Pulsa una para quedarte solo con ella.</p>`
+    (loose ? `<p class="muted">${t("zones.loose", { n: loose })}</p>` : "") +
+    `<p class="muted">${t("zones.note")}</p>`
   );
 }
 
@@ -2105,7 +2100,7 @@ function renderMap(
   zones: Zone[] = []
 ) {
   if (!points.length && !belts.length) {
-    mapEl.innerHTML = `<p class="muted">No hay posiciones para dibujar (¿parser no disponible?).</p>`;
+    mapEl.innerHTML = `<p class="muted">${t("map.empty")}</p>`;
     return;
   }
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -2237,13 +2232,13 @@ function renderMap(
 
   // Casillas para mostrar/ocultar cada capa.
   const filterDefs = [
-    ["prod", "Producción"],
-    ["extr", "Extracción"],
-    ["power", "Generadores"],
-    ["store", "Almacén"],
-    ["floor", "Suelos"],
-    ["belt", "Cintas"],
-    ["other", "Resto"],
+    ["prod", t("layer.prod")],
+    ["extr", t("layer.extr")],
+    ["power", t("layer.power")],
+    ["store", t("layer.store")],
+    ["floor", t("layer.floor")],
+    ["belt", t("layer.belt")],
+    ["other", t("layer.other")],
   ];
   const filters = filterDefs
     .map(
@@ -2253,15 +2248,15 @@ function renderMap(
     .join("");
 
   const banner = hi
-    ? `<div class="map-banner">📍 Cuello de botella: <b>${escapeXml(hi)}</b> · ${hiCount} máquina(s) marcada(s) en rojo` +
-      `<button id="clear-hi" type="button">limpiar</button></div>`
+    ? `<div class="map-banner">${t("map.banner", { item: escapeXml(hi), n: hiCount })}` +
+      `<button id="clear-hi" type="button">${t("map.clear")}</button></div>`
     : "";
 
   // Filtro de altura (pisos): dos deslizadores para aislar una banda vertical.
   const zStep = Math.max(1, Math.round((maxZ - minZ) / 100));
   const heightFilter =
     `<div class="map-height">` +
-    `<span class="muted">Altura (ajuste fino):</span>` +
+    `<span class="muted">${t("map.height")}</span>` +
     `<input type="range" id="z-min" min="${Math.floor(minZ)}" max="${Math.ceil(maxZ)}" step="${zStep}" value="${Math.floor(minZ)}" />` +
     `<input type="range" id="z-max" min="${Math.floor(minZ)}" max="${Math.ceil(maxZ)}" step="${zStep}" value="${Math.ceil(maxZ)}" />` +
     `<span id="z-label" class="muted"></span>` +
@@ -2285,21 +2280,21 @@ function renderMap(
       .map((lz, i) => chip(i, `${Math.round((lz - mapGround) / 100)} m`, perFloor.get(i) || 0))
       .join("");
     levelChips =
-      `<div class="map-levels"><span class="muted">Plantas (${mapLevels.length}):</span> ` +
-      chip(null, "Todas") +
-      (perFloor.has(-1) ? chip(-1, "Terreno", perFloor.get(-1) || 0) : "") +
+      `<div class="map-levels"><span class="muted">${t("map.floors")} (${mapLevels.length}):</span> ` +
+      chip(null, t("map.allFloors")) +
+      (perFloor.has(-1) ? chip(-1, t("map.ground"), perFloor.get(-1) || 0) : "") +
       floors +
       (mapLevels.length
         ? ""
-        : ` <span class="muted map-hint">sin cimientos: todo está sobre el terreno</span>`) +
+        : ` <span class="muted map-hint">${t("map.noSlabs")}</span>`) +
       `</div>`;
   }
 
   mapEl.innerHTML =
-    `<h3 class="inv-title">Plano 2D · ${points.length} construcciones · ${belts.length} cintas` +
-    `${slabs.length ? ` · ${slabs.length} piezas de suelo` : ""}</h3>` +
+    `<h3 class="inv-title">${t("map.title", { b: points.length, c: belts.length })}` +
+    `${slabs.length ? t("map.slabs", { n: slabs.length }) : ""}</h3>` +
     banner +
-    `<div class="map-filters">${filters}<span class="muted map-hint">rueda = zoom · arrastra = mover</span></div>` +
+    `<div class="map-filters">${filters}<span class="muted map-hint">${t("map.hint")}</span></div>` +
     levelChips +
     heightFilter +
     `<svg viewBox="0 0 ${W} ${H}" class="map2d" id="map-svg">` +
@@ -2307,11 +2302,7 @@ function renderMap(
     `<div class="map-legend">${legend}<span class="leg-item"><span style="color:#8a93a3">─</span> cintas</span>` +
     `<span class="leg-item"><span style="color:#aab0bd">·</span> resto</span></div>` +
     zoneList(zones) +
-    `<p class="muted">Vista cenital, norte arriba. Pasa el ratón por una pieza para ver qué es y qué ` +
-    `fabrica. Las plantas salen del suelo que has construido, no de adivinar alturas: una planta es ` +
-    `una altura con una concentración de cimientos, y lo que no pisa ninguno está sobre terreno. Al ` +
-    `elegir una planta el resto no desaparece, se queda en sombra, y las cintas siguen visibles ` +
-    `porque son lo que explica cómo se conecta todo.</p>`;
+    `<p class="muted">${t("map.note")}</p>`;
 
   setupMapInteraction();
 }
@@ -2569,10 +2560,10 @@ function renderCalc() {
       : "";
 
   calcEl.innerHTML =
-    `<h3 class="inv-title">Calculadora de producción</h3>` +
+    `<h3 class="inv-title">${t("sec.calc")}</h3>` +
     hint +
     `<div class="calc-controls">` +
-    `<span>Quiero producir</span>` +
+    `<span>${t("calc.want")}</span>` +
     `<input id="calc-rate" type="number" min="1" value="100" />` +
     `<span>/min de</span>` +
     `<select id="calc-item">${opts}</select>` +
@@ -2617,10 +2608,10 @@ function renderCalcResult(item: string, rate: number) {
 
   resultEl.innerHTML =
     `<p class="calc-head">Para <b>${fmt(rate)}/min</b> de <b>${item}</b>:</p>` +
-    `<h4 class="calc-sub">Máquinas necesarias</h4>${buildingRows}` +
-    `<h4 class="calc-sub">Cadena de producción</h4>${stepRows}` +
-    `<h4 class="calc-sub">Materias primas</h4>${rawRows}` +
-    `<p class="muted calc-note">Ritmos base (máquinas al 100%, recetas estándar). Los mineros se estiman sobre nodo de pureza normal.</p>`;
+    `<h4 class="calc-sub">${t("calc.machines")}</h4>${buildingRows}` +
+    `<h4 class="calc-sub">${t("calc.chain")}</h4>${stepRows}` +
+    `<h4 class="calc-sub">${t("calc.raw")}</h4>${rawRows}` +
+    `<p class="muted calc-note">${t("calc.note")}</p>`;
 }
 
 // Guarda la nota del mundo actualmente seleccionado.
@@ -2630,7 +2621,7 @@ async function saveNote() {
   try {
     await invoke("set_note", { key: currentNoteKey, text });
     notesCache[currentNoteKey] = text;
-    noteStatus.textContent = "Guardado ✓";
+    noteStatus.textContent = t("notes.saved");
     noteStatus.className = "note-status ok";
   } catch (e) {
     noteStatus.textContent = String(e);
@@ -2661,7 +2652,7 @@ async function refresh() {
     rememberFolder(folder);
     statusEl.className = "status ok";
     statusEl.textContent =
-      `${numWorlds} mundo(s) · ${saves.length} guardado(s) · actualizado a las ${new Date().toLocaleTimeString()}`;
+      t("worlds.status", { w: numWorlds, s: saves.length, time: new Date().toLocaleTimeString() });
   } catch (e) {
     tableBody.innerHTML = "";
     statusEl.className = "status err";
@@ -2691,7 +2682,7 @@ async function importHistory() {
   let done = 0;
   let rich = 0;
   for (const s of saves) {
-    importStatus.textContent = `Analizando ${++done}/${saves.length}…`;
+    importStatus.textContent = t("import.working", { i: ++done, n: saves.length });
     // Analizamos de verdad cada guardado, no solo lo fechamos: es la única
     // ocasión de rescatar las métricas de los autoguardados que el juego
     // acabará sobrescribiendo.
@@ -2717,7 +2708,7 @@ async function importHistory() {
       console.error("Importar", s.name, e);
     }
   }
-  importStatus.textContent = `Importadas ${saves.length} partidas (${rich} con datos completos) ✓`;
+  importStatus.textContent = t("import.done", { n: saves.length, r: rich });
   // Si hay una partida abierta, refrescamos su gráfica.
   if (currentNoteKey) {
     try {
@@ -2768,6 +2759,31 @@ window.addEventListener("DOMContentLoaded", async () => {
   noteLabel = document.querySelector("#note-label") as HTMLElement;
   folderInput.value = await pickFolder();
 
+  // Idioma: del recuerdo o del navegador. Los nombres del juego ya vienen en
+  // el idioma pedido desde la documentación oficial, así que cambiar de idioma
+  // es releer la partida, no traducir nada a mano.
+  setLang(detectLang());
+  applyStaticI18n();
+  const markLang = () =>
+    document.querySelectorAll<HTMLElement>(".lang-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.lang === getLang());
+    });
+  markLang();
+  document.querySelectorAll<HTMLButtonElement>(".lang-btn").forEach((b) => {
+    b.addEventListener("click", async () => {
+      const l = b.dataset.lang as Lang;
+      if (l === getLang()) return;
+      setLang(l);
+      applyStaticI18n();
+      markLang();
+      renderCalc();
+      // Repasamos la partida abierta: los nombres de piezas y edificios salen
+      // del análisis, así que hay que rehacerlo para que cambien de idioma.
+      const open = currentSaves.find((x) => x.name === openSaveName);
+      if (open) await inspect(open.name);
+    });
+  });
+
   setupAccordions();
 
   // Version de la app en la chapa de la cabecera. Antes ponia la fase de
@@ -2795,7 +2811,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   noteSave.addEventListener("click", saveNote);
   // Al escribir, marcamos que hay cambios sin guardar.
   noteText.addEventListener("input", () => {
-    noteStatus.textContent = "Sin guardar…";
+    noteStatus.textContent = t("notes.unsaved");
     noteStatus.className = "note-status";
   });
 
@@ -2839,7 +2855,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     // abierta en vez de dejar la app en blanco sin explicación.
     statusEl.className = "status err";
     statusEl.textContent =
-      "No encuentro la carpeta de partidas de Satisfactory. Indícala arriba y pulsa Vigilar.";
+      t("folder.notFound");
     const folderAcc = document.querySelector<HTMLDetailsElement>("#acc-settings");
     if (folderAcc) folderAcc.open = true;
     return;
