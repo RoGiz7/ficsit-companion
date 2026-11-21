@@ -2453,11 +2453,21 @@ function categoryOf(tp: string): string {
 }
 
 // Estilo (color + etiqueta) de cada categoría del mapa.
+// Paleta del mapa, validada contra el fondo oscuro igual que la de las
+// gráficas. Naranja y azul son los mismos de las series, así que el mapa y
+// los gráficos hablan el mismo idioma.
+//
+// Cuatro tonos categóricos dentro de la banda de luminosidad y además
+// separados para daltonismo es difícil: el mejor par encontrado deja 7,6 de
+// separación entre magenta y azul para deuteranopía, por debajo del 8 ideal.
+// Eso es aceptable SOLO con una segunda codificación, y la tenemos: cada
+// categoría tiene su forma (círculo, triángulo, cuadrado, rombo) y la leyenda
+// las nombra. Por eso las formas no son decoración y no se tocan.
 const CATS: Record<string, { color: string; label: string }> = {
-  prod: { color: "#e8772e", label: "Producción" },
-  extr: { color: "#3aa0ff", label: "Extracción" },
-  power: { color: "#f4c531", label: "Generadores" },
-  store: { color: "#4fc97a", label: "Almacenamiento" },
+  prod: { color: "#cf7a2a", label: "Producción" },
+  extr: { color: "#3f93e0", label: "Extracción" },
+  power: { color: "#b45fb0", label: "Generadores" },
+  store: { color: "#3f9e6a", label: "Almacenamiento" },
 };
 
 // Dibuja una forma distinta por categoría, centrada en (cx,cy).
@@ -2498,7 +2508,7 @@ function zoneList(zones: Zone[]): string {
       const makes =
         z.makes
           .slice(0, top)
-          .map((m) => `${m.machines}× ${escapeXml(m.item)}`)
+          .map((m) => `${m.machines}× ${iconImg(m.item, 15)}${escapeXml(m.item)}`)
           .join(", ") + (z.makes.length > top ? t("zones.more", { n: z.makes.length - top }) : "");
       const kinds = Object.entries(z.kinds)
         .sort((a, b) => b[1] - a[1])

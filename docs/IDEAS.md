@@ -92,6 +92,56 @@ later; `docs/LEGAL.md` records what was decided, on what evidence, and what each
 to undo. The short version: the map borrows nothing, the name is better precedented than the icons
 are, and the bundle identifier is frozen so that a rename could never cost a user their data.
 
+## Icons on the map: the blocker is zoom, not the icons
+
+Now that the app can show the game's icons, the obvious next thought is to use them as map markers
+instead of coloured shapes. It does not work as things stand, and the reason is worth writing down
+so it is not re-proposed every few months.
+
+The map is a single SVG of 720×620 fitted to the pane, with markers of radius 3.4 — about seven
+pixels on screen. The game's icons are drawn for inventory slots at 256 and 512 pixels. At seven
+pixels they are mud. A mature save has over two thousand buildings, so that is also two thousand
+images to decode and paint where today there are two thousand vector shapes.
+
+The accessibility argument is the stronger one. The map's four categories were revalidated against
+the dark surface and the best in-band palette leaves 7.6 separation between the closest pair for
+deuteranopia, under the 8 the checker wants. That is acceptable **only** because the four shapes —
+circle, triangle, square, diamond — carry the category independently of colour. Replacing shapes
+with icons would delete that second channel and leave colour alone doing work it cannot do.
+
+So the shapes stay, and icons went where the map has few of something and the size can be read:
+the zone list, where each zone shows what it makes.
+
+What would actually unlock icons as markers is **zoom and pan**. The Satisfactory Calculator
+interactive map is built on Leaflet with canvas rendering, which is exactly what lets it afford
+per-building icons: at close zoom there is room for them, and at far zoom it can draw something
+simpler. Our map is a static fit-to-view plan, so it only ever has the far-zoom case. Adding
+zoom and pan is the real feature; icons as markers are a consequence of it, not a prerequisite.
+
+## Measuring ourselves against the community tools
+
+Satisfactory Calculator (SCIM) is the reference point and does a superb job. It reads the binary
+save into JSON and is a full save editor, built on Leaflet with canvas rendering, with a database
+of 551 buildings, 178 items, 887 recipes and 414 schematics, plus support for 93 mods. The official
+wiki lists it among the community tools.
+
+Where it is ahead: a zoomable editable map, mod support, resource and collectable markers on the
+world map, and nothing to install.
+
+Where this app is a different thing rather than a worse one:
+
+- **It never uploads anything.** SCIM works by sending the save to a website. This app reads the
+  file where it already is and has no server at all.
+- **It reads the game's own documentation** from the user's installation, so recipes and buildings
+  are current the day the game updates, instead of being a database someone has to maintain.
+- **It watches time.** SCIM shows a save as it is now. This app records snapshots and can answer
+  how the factory changed — power over time, growth, monthly medals. That is the thing none of the
+  upload-a-save tools do, and it is where the app should keep pushing.
+- **It never writes to a save.** Not a missing feature: a rule.
+
+The honest summary is that SCIM is a better map and a better editor, and this is a better logbook.
+Trying to out-map them would be a losing race; being the thing that remembers is not.
+
 ## Not worth doing
 
 - **Bundling the game's data files.** They are Coffee Stain's. Reading the user's own copy is both
