@@ -45,11 +45,43 @@ interface RecipeCount {
   recipe: string;
   count: number;
 }
+interface ItemRate {
+  item: string;
+  rate: number;
+}
+interface ItemCount {
+  item: string;
+  count: number;
+}
+// Métricas ricas de una foto del histórico. OJO con los nombres de pieza:
+// en schema 1 van en español, porque RECIPE_OUTPUT/RECIPES están indexados así.
+// Si algún día canonizamos a inglés, el campo schema permite migrar el
+// histórico viejo sin perderlo.
+interface SnapshotMetrics {
+  schema: number;
+  tier: number | null;
+  milestones: number | null;
+  research_count: number | null;
+  machines_with_recipe: number | null;
+  overclocked: number | null;
+  power_consumption_mw: number | null;
+  power_generation_mw: number | null;
+  production: ItemRate[] | null;
+  consumption: ItemRate[] | null;
+  deficits: ItemRate[] | null;
+  stored: ItemCount[] | null;
+  collectables: ItemCount[] | null;
+  levels: number | null;
+  extent_m: number | null;
+  game_version: string | null;
+  save_name: string | null;
+}
 interface Snapshot {
   ts_ms: number;
   play_seconds: number;
   total_buildings: number;
   types: InvItem[];
+  metrics?: SnapshotMetrics | null;
 }
 
 let folderInput: HTMLInputElement;
@@ -360,6 +392,9 @@ async function inspect(name: string) {
     renderProgress(info.progression);
     renderCalc();
 
+    // Métricas para el histórico; se rellenan si el parser completo funciona.
+    let snapMetrics: SnapshotMetrics | null = null;
+
     // Producción y almacenado con el PARSER COMPLETO; si falla, heurística de respaldo.
     try {
       const a = await analyzeWithParser(folder, name);
@@ -380,6 +415,7 @@ async function inspect(name: string) {
       // Centro de mando: signos vitales + "Retoma aquí".
       const deficits = computeDeficits(a.perItem, a.consumed);
       renderVitals(currentPowerMW, currentGenMW, deficits.length, a.points, a.stored);
+      snapMetrics = buildMetrics(a, info, deficits, currentPowerMW, currentGenMW, name);
       try {
         const snaps = await invoke<Snapshot[]>("get_history", { session: key });
         renderResume(key, snaps, notesCache[key] || "", deficits.length, info.progression);
@@ -407,7 +443,7 @@ async function inspect(name: string) {
 
     // Histórico: registramos esta foto (si es nueva) y dibujamos la evolución del mundo.
     try {
-      await invoke("record_snapshot", { folder, name });
+      await invoke("record_snapshot", { folder, name, metrics: snapMetrics });
       const hist = await invoke<Snapshot[]>("get_history", { session: key });
       renderHistory(hist);
     } catch (e) {
@@ -1020,6 +1056,70 @@ async function analyzeWithParser(folder: string, name: string) {
   return { perItem, consumed, machineCount, overclocked, stored, points, belts, collect, levels: floorLevels };
 }
 
+// ---- Histórico rico: qué nos llevamos de cada guardado ----
+// Esto es historia irrepetible: lo que no se guarde hoy no se podrá
+// reconstruir mañana, porque el juego sobrescribe los autoguardados. Si
+// quieres medir algo nuevo, añádelo aquí cuanto antes y sube SNAPSHOT_SCHEMA.
+const SNAPSHOT_SCHEMA = 1;
+
+function toRates(m: Record<string, number>, max = 80): ItemRate[] {
+  return Object.entries(m)
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, max)
+    .map(([item, rate]) => ({ item, rate: Math.round(rate * 100) / 100 }));
+}
+
+function toCounts(m: Record<string, number>, max = 80): ItemCount[] {
+  return Object.entries(m)
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, max)
+    .map(([item, count]) => ({ item, count }));
+}
+
+// Diagonal de la caja que envuelve la fábrica, en metros (el save va en cm).
+function extentMeters(pts: { x: number; y: number }[]): number | null {
+  if (pts.length < 2) return null;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return Math.round(Math.hypot((maxX - minX) / 100, (maxY - minY) / 100));
+}
+
+function buildMetrics(
+  a: Awaited<ReturnType<typeof analyzeWithParser>>,
+  info: BodyInfo,
+  deficits: { item: string; deficit: number }[],
+  powerIn: number,
+  powerGen: number,
+  saveName: string
+): SnapshotMetrics {
+  return {
+    schema: SNAPSHOT_SCHEMA,
+    tier: info.progression.current_tier,
+    milestones: info.progression.milestones.length,
+    research_count: info.progression.research_count,
+    machines_with_recipe: a.machineCount,
+    overclocked: a.overclocked,
+    power_consumption_mw: Math.round(powerIn * 10) / 10,
+    power_generation_mw: Math.round(powerGen * 10) / 10,
+    production: toRates(a.perItem),
+    consumption: toRates(a.consumed),
+    deficits: deficits.map((d) => ({ item: d.item, rate: Math.round(d.deficit * 100) / 100 })),
+    stored: toCounts(a.stored),
+    collectables: toCounts(a.collect),
+    levels: a.levels.length,
+    extent_m: extentMeters(a.points),
+    game_version: info.game_version,
+    save_name: saveName,
+  };
+}
+
 // Calcula los déficits (piezas fabricables que se consumen más de lo que se producen).
 function computeDeficits(produced: Record<string, number>, consumed: Record<string, number>) {
   const deficits: { item: string; prod: number; cons: number; deficit: number }[] = [];
@@ -1613,15 +1713,35 @@ async function importHistory() {
   const importStatus = document.querySelector("#import-status") as HTMLElement;
   const saves = currentSaves;
   let done = 0;
+  let rich = 0;
   for (const s of saves) {
-    importStatus.textContent = `Importando ${++done}/${saves.length}…`;
+    importStatus.textContent = `Analizando ${++done}/${saves.length}…`;
+    // Analizamos de verdad cada guardado, no solo lo fechamos: es la única
+    // ocasión de rescatar las métricas de los autoguardados que el juego
+    // acabará sobrescribiendo.
+    let metrics: SnapshotMetrics | null = null;
     try {
-      await invoke("record_snapshot", { folder, name: s.name });
+      const inf = await invoke<BodyInfo>("inspect_body", { folder, name: s.name });
+      const a = await analyzeWithParser(folder, s.name);
+      let pIn = 0;
+      let pGen = 0;
+      for (const it of inf.inventory) {
+        pIn += (POWER_MW[it.name] || 0) * it.count;
+        pGen += (GEN_MW[it.name] || 0) * it.count;
+      }
+      metrics = buildMetrics(a, inf, computeDeficits(a.perItem, a.consumed), pIn, pGen, s.name);
+      rich++;
+    } catch (e) {
+      // Partida vieja o parser no disponible: guardamos la foto básica igual.
+      console.warn("Sin métricas para", s.name, e);
+    }
+    try {
+      await invoke("record_snapshot", { folder, name: s.name, metrics });
     } catch (e) {
       console.error("Importar", s.name, e);
     }
   }
-  importStatus.textContent = `Importadas ${saves.length} partidas ✓`;
+  importStatus.textContent = `Importadas ${saves.length} partidas (${rich} con datos completos) ✓`;
   // Si hay una partida abierta, refrescamos su gráfica.
   if (currentNoteKey) {
     try {

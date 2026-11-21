@@ -7,6 +7,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
+- **Rich history snapshots.** Every snapshot now stores what the save actually contained: tier,
+  milestones and research, machines with a recipe and how many are overclocked, estimated power
+  consumption and generation, production and consumption per item, the deficits found, stored
+  materials, uncollected collectables, detected floors and the factory's extent in metres. The
+  format is versioned (`schema`) and every new field is optional, so existing histories keep
+  loading. This is the groundwork for achievements and medals: history that is not recorded today
+  cannot be reconstructed tomorrow.
+- Snapshots that were recorded before this change are **upgraded in place** the next time that save
+  is opened, so the existing history fills itself in instead of staying poor forever.
+- "Import my saves" now parses each save properly instead of only dating it, which rescues the
+  metrics of the rotating autosaves before the game overwrites them.
 - Bilingual interface (English / Spanish) with a language switcher in the top bar.
 - Automatic detection of the Satisfactory save folder, with the chosen folder remembered between
   runs.

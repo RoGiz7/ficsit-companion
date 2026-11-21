@@ -614,13 +614,61 @@ fn set_note(app: AppHandle, key: String, text: String) -> Result<(), String> {
 
 // ---- Histórico: una "foto" del inventario por cada guardado ----
 
+// Una pieza y su ritmo por minuto.
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(default)]
+struct ItemRate {
+    item: String,
+    rate: f64,
+}
+
+// Una pieza y cuántas unidades hay.
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(default)]
+struct ItemCount {
+    item: String,
+    count: f64,
+}
+
+// Métricas ricas de una foto: todo lo que el parser completo sabe sacar del
+// save. Van aparte y son opcionales por dos motivos: el histórico antiguo no
+// las tiene, y si el parser falla seguimos guardando la foto básica.
+//
+// IMPORTANTE: esto es historia que no se puede reconstruir. Si un día quieres
+// medir algo nuevo, añádelo aquí cuanto antes: solo se puede contar desde el
+// día en que se empieza a guardar.
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(default)]
+struct SnapshotMetrics {
+    schema: u32, // versión del formato de métricas (1 = primera)
+    tier: Option<i32>,
+    milestones: Option<u32>,
+    research_count: Option<u32>,
+    machines_with_recipe: Option<u32>,
+    overclocked: Option<u32>,
+    power_consumption_mw: Option<f64>,
+    power_generation_mw: Option<f64>,
+    production: Option<Vec<ItemRate>>,   // pieza → unidades/min producidas
+    consumption: Option<Vec<ItemRate>>,  // pieza → unidades/min consumidas
+    deficits: Option<Vec<ItemRate>>,     // pieza → déficit/min (cuellos de botella)
+    stored: Option<Vec<ItemCount>>,      // almacenes, máquinas, depósito, jugador
+    collectables: Option<Vec<ItemCount>>, // lo que sigue sin recoger en el mundo
+    levels: Option<u32>,                 // plantas detectadas
+    extent_m: Option<f64>,               // diagonal de la fábrica en metros
+    game_version: Option<String>,
+    save_name: Option<String>,
+}
+
 // Una foto del estado de un mundo en un momento dado.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(default)]
 struct Snapshot {
     ts_ms: i64,          // fecha de la partida (de la cabecera)
     play_seconds: i32,   // tiempo jugado en ese momento
     total_buildings: u32,
     types: Vec<InvItem>, // conteo por tipo, para evolución detallada futura
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metrics: Option<SnapshotMetrics>,
 }
 
 fn history_file(app: &AppHandle) -> Result<PathBuf, String> {
@@ -650,7 +698,12 @@ fn save_history(app: &AppHandle, map: &HashMap<String, Vec<Snapshot>>) -> Result
 // Comando: registra una foto de una partida en el histórico de su mundo.
 // Deduplicado por fecha: si ya teníamos esa foto, no hace nada (ni descomprime).
 #[tauri::command]
-fn record_snapshot(app: AppHandle, folder: String, name: String) -> Result<u32, String> {
+fn record_snapshot(
+    app: AppHandle,
+    folder: String,
+    name: String,
+    metrics: Option<SnapshotMetrics>,
+) -> Result<u32, String> {
     let path = Path::new(&folder).join(&name);
     let header = read_header_from_path(&path)
         .ok_or("No se pudo leer la cabecera para fechar la foto.")?;
@@ -663,8 +716,17 @@ fn record_snapshot(app: AppHandle, folder: String, name: String) -> Result<u32, 
     let mut map = load_history(&app)?;
     let list = map.entry(session).or_default();
 
-    // ¿Ya tenemos una foto con esta fecha? Entonces no repetimos.
-    if list.iter().any(|s| s.ts_ms == header.save_date_ms) {
+    // ¿Ya tenemos una foto con esta fecha? Entonces no repetimos... salvo que
+    // la que teníamos fuese "pobre" (sin métricas) y ahora lleguen: en ese caso
+    // la enriquecemos en el sitio. Así, al abrir partidas viejas, el histórico
+    // que ya existía se va completando solo.
+    if let Some(i) = list.iter().position(|s| s.ts_ms == header.save_date_ms) {
+        if metrics.is_some() && list[i].metrics.is_none() {
+            list[i].metrics = metrics;
+            let n = list.len() as u32;
+            save_history(&app, &map)?;
+            return Ok(n);
+        }
         return Ok(list.len() as u32);
     }
 
@@ -678,6 +740,7 @@ fn record_snapshot(app: AppHandle, folder: String, name: String) -> Result<u32, 
         play_seconds: header.play_duration_seconds,
         total_buildings,
         types: inventory,
+        metrics,
     });
     list.sort_by(|a, b| a.ts_ms.cmp(&b.ts_ms));
     let n = list.len() as u32;
