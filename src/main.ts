@@ -1,4 +1,5 @@
 // Frontend (interfaz en TypeScript)
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Parser } from "@etothepii/satisfactory-file-parser";
@@ -351,6 +352,13 @@ function populateWorldSelect() {
     .join("");
 }
 
+// El save trae el marcador crudo ("++FactoryGame+rel-main-1.2.6"); al pionero
+// le interesa el numero.
+function prettyGameVersion(raw: string): string {
+  const m = raw.match(/(\d+\.\d+(?:\.\d+)?)/);
+  return m ? m[1] : raw;
+}
+
 function formatSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + " MB";
   if (bytes >= 1024) return Math.round(bytes / 1024) + " KB";
@@ -424,7 +432,7 @@ async function inspect(name: string) {
     detailGrid.innerHTML =
       cell("Construcciones", String(info.total_buildings)) +
       cell("Tipos distintos", String(info.type_count)) +
-      cell("Versión del juego", info.game_version) +
+      cell("Versión del juego", prettyGameVersion(info.game_version)) +
       cell("Datos descomprimidos", `${mb} MB`);
     renderInventory(info.inventory);
 
@@ -1846,6 +1854,17 @@ window.addEventListener("DOMContentLoaded", async () => {
   folderInput.value = DEFAULT_FOLDER;
 
   setupAccordions();
+
+  // Version de la app en la chapa de la cabecera. Antes ponia la fase de
+  // desarrollo, que no le dice nada a quien no haya programado esto.
+  getVersion()
+    .then((v) => {
+      const el = document.querySelector("#app-version");
+      if (el) el.textContent = `v${v}`;
+    })
+    .catch(() => {
+      /* fuera de Tauri no hay version que mostrar */
+    });
 
   document.querySelector("#refresh")?.addEventListener("click", () => {
     refresh();
