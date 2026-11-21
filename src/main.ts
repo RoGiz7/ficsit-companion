@@ -259,18 +259,18 @@ const BUILDING_ES: Record<string, string> = {
 };
 const ITEM_ES: Record<string, string> = {
   "Iron Ingot": "Lingote de hierro",
-  "Iron Plate": "Placa de hierro",
-  "Iron Rod": "Varilla de hierro",
-  "Iron Screw": "Tornillo",
-  Screw: "Tornillo",
+  "Iron Plate": "Plancha de hierro",
+  "Iron Rod": "Barra de hierro",
+  "Iron Screw": "Tornillos",
+  Screw: "Tornillos",
   "Copper Ingot": "Lingote de cobre",
-  Wire: "Hilo de cobre",
+  Wire: "Alambre",
   Cable: "Cable",
   Cement: "Hormigón",
   Concrete: "Hormigón",
-  "Iron Plate Reinforced": "Placa de hierro reforzada",
+  "Iron Plate Reinforced": "Plancha de hierro reforzada",
   Rotor: "Rotor",
-  "Modular Frame": "Marco modular",
+  "Modular Frame": "Armazón modular",
   "Copper Sheet": "Lámina de cobre",
   "Steel Ingot": "Lingote de acero",
   "Steel Beam": "Viga de acero",
@@ -286,8 +286,8 @@ const ITEM_ES: Record<string, string> = {
   "Iron Ore": "Mineral de hierro",
   "Copper Ore": "Mineral de cobre",
   "Caterium Ore": "Mineral de caterium",
-  "Caterium Ingot": "Lingote de caterium",
-  Quickwire: "Quickwire",
+  "Caterium Ingot": "Lingote de caterio",
+  Quickwire: "Turboalambre",
   "Crude Oil": "Petróleo crudo",
   "Liquid Oil": "Petróleo crudo",
   Plastic: "Plástico",
@@ -297,14 +297,14 @@ const ITEM_ES: Record<string, string> = {
   "Liquid Fuel": "Combustible líquido",
   Fuel: "Combustible",
   "Petroleum Coke": "Coque de petróleo",
-  "Circuit Board": "Placa de circuito",
+  "Circuit Board": "Circuito impreso",
   Computer: "Ordenador",
   Motor: "Motor",
   Stator: "Estátor",
   "Ai Limiter": "Limitador de IA",
   "AI Limiter": "Limitador de IA",
-  "Encased Industrial Beam": "Viga industrial revestida",
-  "Modular Frame Heavy": "Marco modular pesado",
+  "Encased Industrial Beam": "Viga industrial reforzada",
+  "Modular Frame Heavy": "Armazón modular pesado",
   "Quartz Crystal": "Cristal de cuarzo",
   Silica: "Sílice",
   "Raw Quartz": "Cuarzo en bruto",
@@ -452,7 +452,7 @@ async function initGameData(force = false) {
     );
     // Si algo cambió, que no pase desapercibido aunque la sección esté plegada.
     if (changed) {
-      const acc = document.querySelector<HTMLDetailsElement>("#acc-gamedata");
+      const acc = document.querySelector<HTMLDetailsElement>("#acc-settings");
       if (acc) acc.open = true;
     }
   } catch (e) {
@@ -1190,15 +1190,15 @@ const RECIPE_OUTPUT: Record<
   Recipe_IngotIron: { item: "Lingote de hierro", rate: 30 },
   Recipe_IngotCopper: { item: "Lingote de cobre", rate: 30 },
   Recipe_IngotSteel: { item: "Lingote de acero", rate: 45 },
-  Recipe_IngotCaterium: { item: "Lingote de caterium", rate: 15 },
-  Recipe_IronRod: { item: "Varilla de hierro", rate: 15 },
-  Recipe_IronPlate: { item: "Placa de hierro", rate: 20 },
-  Recipe_Screw: { item: "Tornillo", rate: 40 },
-  Recipe_Wire: { item: "Hilo de cobre", rate: 30 },
+  Recipe_IngotCaterium: { item: "Lingote de caterio", rate: 15 },
+  Recipe_IronRod: { item: "Barra de hierro", rate: 15 },
+  Recipe_IronPlate: { item: "Plancha de hierro", rate: 20 },
+  Recipe_Screw: { item: "Tornillos", rate: 40 },
+  Recipe_Wire: { item: "Alambre", rate: 30 },
   Recipe_Cable: { item: "Cable", rate: 30 },
   Recipe_Concrete: { item: "Hormigón", rate: 15 },
   Recipe_CopperSheet: { item: "Lámina de cobre", rate: 10 },
-  Recipe_IronPlateReinforced: { item: "Placa de hierro reforzada", rate: 5 },
+  Recipe_IronPlateReinforced: { item: "Plancha de hierro reforzada", rate: 5 },
   Recipe_Rotor: { item: "Rotor", rate: 4 },
   // Biomasa y derivados: faltaban enteros. Son de las primeras máquinas que
   // pone cualquiera, así que su ausencia se nota desde el minuto uno.
@@ -1211,32 +1211,32 @@ const RECIPE_OUTPUT: Record<
     inputs: [{ item: "Biomasa", rate: 120 }],
   },
   Recipe_SpaceElevatorPart_1: {
-    item: "Placa inteligente",
+    item: "Placas inteligentes",
     rate: 2,
     inputs: [
-      { item: "Placa de hierro reforzada", rate: 2 },
+      { item: "Plancha de hierro reforzada", rate: 2 },
       { item: "Rotor", rate: 2 },
     ],
   },
-  Recipe_ModularFrame: { item: "Marco modular", rate: 2 },
+  Recipe_ModularFrame: { item: "Armazón modular", rate: 2 },
   Recipe_SteelBeam: { item: "Viga de acero", rate: 15 },
   Recipe_SteelPipe: { item: "Tubería de acero", rate: 20 },
   Recipe_QuartzCrystal: { item: "Cristal de cuarzo", rate: 22.5 },
   Recipe_Silica: { item: "Sílice", rate: 37.5 },
-  Recipe_Quickwire: { item: "Quickwire", rate: 60 },
+  Recipe_Quickwire: { item: "Turboalambre", rate: 60 },
   Recipe_Plastic: { item: "Plástico", rate: 20 },
   Recipe_Rubber: { item: "Caucho", rate: 20 },
   Recipe_LiquidFuel: { item: "Combustible", rate: 40 },
   Recipe_PetroleumCoke: { item: "Coque de petróleo", rate: 120 },
-  Recipe_CircuitBoard: { item: "Placa de circuito", rate: 7.5 },
+  Recipe_CircuitBoard: { item: "Circuito impreso", rate: 7.5 },
   Recipe_Stator: { item: "Estátor", rate: 5 },
   Recipe_Motor: { item: "Motor", rate: 5 },
   Recipe_Computer: { item: "Ordenador", rate: 2.5 },
   Recipe_AILimiter: { item: "Limitador de IA", rate: 5 },
-  Recipe_EncasedIndustrialBeam: { item: "Viga industrial revestida", rate: 6 },
-  Recipe_ModularFrameHeavy: { item: "Marco modular pesado", rate: 2 },
-  Recipe_Alclad: { item: "Lámina de alclad", rate: 30 },
-  Recipe_AluminumIngot: { item: "Lingote de aluminio", rate: 30 },
+  Recipe_EncasedIndustrialBeam: { item: "Viga industrial reforzada", rate: 6 },
+  Recipe_ModularFrameHeavy: { item: "Armazón modular pesado", rate: 2 },
+  Recipe_AluminumSheet: { item: "Lámina de aluminio revestido", rate: 30 },
+  Recipe_IngotAluminum: { item: "Lingote de aluminio", rate: 60 },
 };
 
 // Generación (MW) de cada generador a 100%, por su nombre de inventario.
@@ -2077,29 +2077,29 @@ const MINER_MK1_NORMAL = 60; // /min en un nodo de pureza normal
 const RECIPES: Record<string, Recipe> = {
   "Lingote de hierro": { building: "Fundición", out: 30, tier: 0, inputs: [{ item: "Mineral de hierro", rate: 30 }] },
   "Lingote de cobre": { building: "Fundición", out: 30, tier: 0, inputs: [{ item: "Mineral de cobre", rate: 30 }] },
-  "Placa de hierro": { building: "Constructora", out: 20, tier: 0, inputs: [{ item: "Lingote de hierro", rate: 30 }] },
-  "Varilla de hierro": { building: "Constructora", out: 15, tier: 0, inputs: [{ item: "Lingote de hierro", rate: 15 }] },
-  Tornillo: { building: "Constructora", out: 40, tier: 0, inputs: [{ item: "Varilla de hierro", rate: 10 }] },
-  "Hilo de cobre": { building: "Constructora", out: 30, tier: 0, inputs: [{ item: "Lingote de cobre", rate: 15 }] },
-  Cable: { building: "Constructora", out: 30, tier: 0, inputs: [{ item: "Hilo de cobre", rate: 60 }] },
+  "Plancha de hierro": { building: "Constructora", out: 20, tier: 0, inputs: [{ item: "Lingote de hierro", rate: 30 }] },
+  "Barra de hierro": { building: "Constructora", out: 15, tier: 0, inputs: [{ item: "Lingote de hierro", rate: 15 }] },
+  Tornillos: { building: "Constructora", out: 40, tier: 0, inputs: [{ item: "Barra de hierro", rate: 10 }] },
+  "Alambre": { building: "Constructora", out: 30, tier: 0, inputs: [{ item: "Lingote de cobre", rate: 15 }] },
+  Cable: { building: "Constructora", out: 30, tier: 0, inputs: [{ item: "Alambre", rate: 60 }] },
   Hormigón: { building: "Constructora", out: 15, tier: 0, inputs: [{ item: "Caliza", rate: 45 }] },
   "Lámina de cobre": { building: "Constructora", out: 10, tier: 2, inputs: [{ item: "Lingote de cobre", rate: 20 }] },
-  "Placa de hierro reforzada": { building: "Ensambladora", out: 5, tier: 2, inputs: [{ item: "Placa de hierro", rate: 30 }, { item: "Tornillo", rate: 60 }] },
-  Rotor: { building: "Ensambladora", out: 4, tier: 2, inputs: [{ item: "Varilla de hierro", rate: 20 }, { item: "Tornillo", rate: 100 }] },
-  "Marco modular": { building: "Ensambladora", out: 2, tier: 2, inputs: [{ item: "Placa de hierro reforzada", rate: 3 }, { item: "Varilla de hierro", rate: 12 }] },
+  "Plancha de hierro reforzada": { building: "Ensambladora", out: 5, tier: 2, inputs: [{ item: "Plancha de hierro", rate: 30 }, { item: "Tornillos", rate: 60 }] },
+  Rotor: { building: "Ensambladora", out: 4, tier: 2, inputs: [{ item: "Barra de hierro", rate: 20 }, { item: "Tornillos", rate: 100 }] },
+  "Armazón modular": { building: "Ensambladora", out: 2, tier: 2, inputs: [{ item: "Plancha de hierro reforzada", rate: 3 }, { item: "Barra de hierro", rate: 12 }] },
   "Lingote de acero": { building: "Fundición (Foundry)", out: 45, tier: 3, inputs: [{ item: "Mineral de hierro", rate: 45 }, { item: "Carbón", rate: 45 }] },
   "Viga de acero": { building: "Constructora", out: 15, tier: 3, inputs: [{ item: "Lingote de acero", rate: 60 }] },
   "Tubería de acero": { building: "Constructora", out: 20, tier: 3, inputs: [{ item: "Lingote de acero", rate: 30 }] },
-  "Viga industrial revestida": { building: "Ensambladora", out: 6, tier: 4, inputs: [{ item: "Viga de acero", rate: 24 }, { item: "Hormigón", rate: 30 }] },
-  "Marco modular pesado": { building: "Fabricante", out: 2, tier: 4, inputs: [{ item: "Marco modular", rate: 10 }, { item: "Tubería de acero", rate: 30 }, { item: "Viga industrial revestida", rate: 10 }, { item: "Tornillo", rate: 200 }] },
-  "Lingote de caterium": { building: "Fundición", out: 15, tier: 5, inputs: [{ item: "Mineral de caterium", rate: 45 }] },
-  Quickwire: { building: "Constructora", out: 60, tier: 5, inputs: [{ item: "Lingote de caterium", rate: 12 }] },
+  "Viga industrial reforzada": { building: "Ensambladora", out: 6, tier: 4, inputs: [{ item: "Viga de acero", rate: 24 }, { item: "Hormigón", rate: 30 }] },
+  "Armazón modular pesado": { building: "Fabricante", out: 2, tier: 4, inputs: [{ item: "Armazón modular", rate: 10 }, { item: "Tubería de acero", rate: 30 }, { item: "Viga industrial reforzada", rate: 10 }, { item: "Tornillos", rate: 200 }] },
+  "Lingote de caterio": { building: "Fundición", out: 15, tier: 5, inputs: [{ item: "Mineral de caterium", rate: 45 }] },
+  Turboalambre: { building: "Constructora", out: 60, tier: 5, inputs: [{ item: "Lingote de caterio", rate: 12 }] },
   Plástico: { building: "Refinería", out: 20, tier: 5, inputs: [{ item: "Petróleo crudo", rate: 30 }] },
   Caucho: { building: "Refinería", out: 20, tier: 5, inputs: [{ item: "Petróleo crudo", rate: 30 }] },
-  "Placa de circuito": { building: "Ensambladora", out: 7.5, tier: 5, inputs: [{ item: "Lámina de cobre", rate: 15 }, { item: "Plástico", rate: 30 }] },
-  Estátor: { building: "Ensambladora", out: 5, tier: 5, inputs: [{ item: "Tubería de acero", rate: 15 }, { item: "Hilo de cobre", rate: 40 }] },
+  "Circuito impreso": { building: "Ensambladora", out: 7.5, tier: 5, inputs: [{ item: "Lámina de cobre", rate: 15 }, { item: "Plástico", rate: 30 }] },
+  Estátor: { building: "Ensambladora", out: 5, tier: 5, inputs: [{ item: "Tubería de acero", rate: 15 }, { item: "Alambre", rate: 40 }] },
   Motor: { building: "Ensambladora", out: 5, tier: 5, inputs: [{ item: "Rotor", rate: 10 }, { item: "Estátor", rate: 10 }] },
-  Ordenador: { building: "Fabricante", out: 2.5, tier: 6, inputs: [{ item: "Placa de circuito", rate: 25 }, { item: "Cable", rate: 22.5 }, { item: "Plástico", rate: 45 }] },
+  Ordenador: { building: "Fabricante", out: 2.5, tier: 6, inputs: [{ item: "Circuito impreso", rate: 25 }, { item: "Cable", rate: 22.5 }, { item: "Plástico", rate: 45 }] },
 };
 
 // Calcula la demanda total por item (sumando todas las ramas de la cadena).
@@ -2249,7 +2249,7 @@ async function refresh() {
     statusEl.textContent = String(e);
     // Si la carpeta no vale, de poco sirve tenerla plegada: la abrimos para
     // que se pueda corregir sin ir a buscarla.
-    const folderAcc = document.querySelector<HTMLDetailsElement>("#acc-folder");
+    const folderAcc = document.querySelector<HTMLDetailsElement>("#acc-settings");
     if (folderAcc) folderAcc.open = true;
   }
 }
@@ -2420,7 +2420,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     statusEl.className = "status err";
     statusEl.textContent =
       "No encuentro la carpeta de partidas de Satisfactory. Indícala arriba y pulsa Vigilar.";
-    const folderAcc = document.querySelector<HTMLDetailsElement>("#acc-folder");
+    const folderAcc = document.querySelector<HTMLDetailsElement>("#acc-settings");
     if (folderAcc) folderAcc.open = true;
     return;
   }

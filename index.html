@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="/src/styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Satisfactory Companion</title>
+    <title>FICSIT Companion</title>
     <script type="module" src="/src/main.ts" defer></script>
   </head>
 
@@ -21,17 +21,23 @@
         <span class="phase" id="app-version"></span>
       </header>
 
-      <details class="acc folder-bar" id="acc-folder">
-        <summary><span class="acc-title">Carpeta de partidas</span></summary>
-        <div class="folder-row">
-          <input id="folder" spellcheck="false" />
-          <button id="refresh" type="button">Vigilar</button>
+      <!-- Ajustes: se tocan una vez y estorban el resto del tiempo, así que
+           van en una sola barra plegada en lugar de dos. -->
+      <details class="acc settings" id="acc-settings">
+        <summary><span class="acc-title">Ajustes</span></summary>
+        <div class="settings-body">
+          <div class="set-block">
+            <h4 class="set-title">Carpeta de partidas</h4>
+            <div class="folder-row">
+              <input id="folder" spellcheck="false" aria-label="Ruta de la carpeta de partidas" />
+              <button id="refresh" type="button">Vigilar</button>
+            </div>
+          </div>
+          <div class="set-block">
+            <h4 class="set-title">Datos del juego</h4>
+            <div id="gamedata" class="gamedata"></div>
+          </div>
         </div>
-      </details>
-
-      <details class="acc folder-bar" id="acc-gamedata">
-        <summary><span class="acc-title">Datos del juego</span></summary>
-        <div id="gamedata" class="gamedata"></div>
       </details>
 
       <section class="world-bar">

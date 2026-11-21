@@ -1129,3 +1129,23 @@ table.saves {
   color: var(--accent);
   font-size: 0.72rem;
 }
+
+/* ---- Ajustes ---- */
+.settings-body {
+  display: grid;
+  gap: 16px;
+}
+
+.set-title {
+  margin: 0 0 8px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+}
+
+.set-block + .set-block {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
