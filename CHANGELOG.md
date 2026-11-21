@@ -21,6 +21,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   unchanged. See `docs/ICONS.md`, which also states the terms plainly: the art is Coffee Stain's,
   this project is not affiliated with them, and the feature comes out if they ask.
 
+- **Floor alerts.** The summary now opens with what has actually stopped — grouped by block and
+  machine type — and clicking one takes the map straight to that spot and pins it. The signal is
+  the game's own productivity measurement, not the `mIsProducing` flag, which reads as "everything
+  is stopped" in most saves because people save when they stop playing. Only machines under 15%
+  get a row: running below 100% is normal in this game and usually deliberate.
+- **The map's zoom now gains you something.** Markers keep their size on screen, so moving closer
+  separates things instead of magnifying them — previously marker and distance grew together and
+  the density was identical. Belts and slab outlines stopped thickening with zoom, and there is a
+  fit-view button plus double-click to get back.
+- Icons in the zone list, showing what each block makes.
+
+### Changed
+- **The map's four category colours were revalidated.** All four were outside the lightness band
+  for a dark surface, and green against yellow sat at 8.3 separation for protanopia, right on the
+  floor — it passed only because the four shapes carry the category independently of colour.
+  Orange and blue are now the same as the chart series; generators move from yellow to magenta,
+  because yellow and green are neighbouring hues and darkening the yellow into band turns it olive
+  and collides harder. The shapes stay: they are what makes the map readable without colour.
+
 ### Fixed
 - The machine suggestion on a bottleneck assumed the part was in the app's hand-written recipe
   table. With the official game data loaded that stopped being true, and a shortfall on any part
