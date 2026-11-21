@@ -50,6 +50,16 @@ interface SaveEntry {
 interface InvItem {
   name: string;
   count: number;
+  // Clase del juego. Opcional porque un histórico viejo no la trae.
+  cls?: string;
+}
+
+// El nombre de un edificio del inventario, por el mismo camino que el resto de
+// la app: documentación oficial primero, tabla de respaldo después. Antes el
+// inventario iba por su cuenta y podía llamar a la misma máquina de dos formas
+// según se mirara aquí o en el mapa.
+function invName(it: InvItem): string {
+  return (it.cls && gdBuildingName(it.cls)) || trBuilding(it.name);
 }
 interface ProgressInfo {
   current_tier: number;
@@ -1115,7 +1125,7 @@ async function inspect(name: string) {
     currentPowerMW = 0;
     currentGenMW = 0;
     for (const it of info.inventory) {
-      currentInventory[trBuilding(it.name)] = it.count;
+      currentInventory[invName(it)] = it.count;
       currentPowerMW += (POWER_MW[it.name] || 0) * it.count;
       currentGenMW += (GEN_MW[it.name] || 0) * it.count;
     }
@@ -1470,7 +1480,7 @@ function renderInventory(items: InvItem[]) {
       const pct = Math.max(4, Math.round((it.count / max) * 100));
       return (
         `<div class="inv-row">` +
-        `<span class="inv-name">${trBuilding(it.name)}</span>` +
+        `<span class="inv-name">${iconImg(invName(it))}${invName(it)}</span>` +
         `<span class="inv-bar"><span class="inv-fill" style="width:${pct}%"></span></span>` +
         `<span class="inv-count">${it.count}</span>` +
         `</div>`

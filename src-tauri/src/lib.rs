@@ -678,6 +678,11 @@ const CHUNK_SIG: [u8; 8] = [0xC1, 0x83, 0x2A, 0x9E, 0x22, 0x22, 0x22, 0x22];
 struct InvItem {
     name: String,
     count: u32,
+    // La clase tal cual la nombra el juego (Build_ConstructorMk1_C). Con ella
+    // el frontend saca el nombre de la documentación oficial, que es la misma
+    // fuente que usa el mapa; `name` queda solo de respaldo para quien no
+    // tenga el juego instalado.
+    cls: String,
 }
 
 // Cuántas máquinas activas están fabricando cada receta.
@@ -830,6 +835,7 @@ fn count_buildings(body: &[u8]) -> Vec<InvItem> {
         .map(|(raw, count)| InvItem {
             name: prettify(&raw),
             count,
+            cls: format!("{raw}_C"),
         })
         .collect();
     // Más numerosas primero; a igualdad, por nombre.
