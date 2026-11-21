@@ -131,6 +131,9 @@ nuestro, qué es suyo y qué costaría deshacer cada cosa: [docs/LEGAL.md](docs/
   instalación. Ese arte es suyo; ver [docs/ICONS.md](docs/ICONS.md).
 - [@etothepii/satisfactory-file-parser](https://github.com/etothepii4/satisfactory-file-parser) por
   la lectura del formato de guardado.
+- Iconos de las medallas de **Delapouite** y **Lorc**, de [game-icons.net](https://game-icons.net),
+  bajo [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Ver
+  [branding/medals/NOTICE.md](branding/medals/NOTICE.md).
 - Hecha con [Tauri](https://tauri.app/), Rust y TypeScript.
 - Diseñada y escrita codo con codo con **Claude** (Anthropic). Este proyecto está hecho con ayuda
   de IA y se dice abiertamente: las ideas, las decisiones y las pruebas son mías, la programación

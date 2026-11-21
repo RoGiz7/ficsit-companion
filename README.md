@@ -125,6 +125,9 @@ what each would cost to undo: [docs/LEGAL.md](docs/LEGAL.md).
   art is theirs; see [docs/ICONS.md](docs/ICONS.md).
 - [@etothepii/satisfactory-file-parser](https://github.com/etothepii4/satisfactory-file-parser) for
   reading the save format.
+- Medal icons by **Delapouite** and **Lorc**, from [game-icons.net](https://game-icons.net),
+  under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). See
+  [branding/medals/NOTICE.md](branding/medals/NOTICE.md).
 - Built with [Tauri](https://tauri.app/), Rust and TypeScript.
 - Designed and written side by side with **Claude** (Anthropic). This project is openly
   AI-assisted: the ideas, the decisions and the testing are mine, the pair programming is shared,
