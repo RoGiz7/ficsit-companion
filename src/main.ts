@@ -10,6 +10,14 @@ import {
   monthlyScores,
   type MonthScore,
 } from "./achievements";
+import {
+  attachChartHover,
+  divergingBars,
+  legend,
+  lineChart,
+  VIZ,
+  type Series,
+} from "./charts";
 import { applyStaticI18n, detectLang, getLang, setLang, t, type Lang } from "./i18n";
 import {
   describeDiff,
@@ -116,6 +124,7 @@ let resumeEl: HTMLElement;
 let vitalsEl: HTMLElement;
 let inventoryEl: HTMLElement;
 let historyEl: HTMLElement;
+let energyEl: HTMLElement;
 let planEl: HTMLElement;
 let calcEl: HTMLElement;
 let progressEl: HTMLElement;
@@ -1052,6 +1061,7 @@ async function inspect(name: string) {
       await invoke("record_snapshot", { folder, name, metrics: snapMetrics });
       const hist = await invoke<Snapshot[]>("get_history", { session: key });
       renderHistory(hist);
+      renderEnergyHistory(hist);
       renderAchievements(hist);
     } catch (e) {
       console.error("Histórico:", e);
@@ -1146,7 +1156,46 @@ function renderNextMilestone(
 }
 
 // Dibuja una gráfica SVG simple de construcciones totales a lo largo del tiempo.
+// Serie elegible del histórico. Un eje, una pregunta: mezclar MW con número
+// de edificios en la misma gráfica es mentir con dos escalas.
+type HistSeriesKey = "buildings" | "power" | "gen" | "prod" | "hours";
+
+const HIST_SERIES: {
+  key: HistSeriesKey;
+  label: string;
+  unit: string;
+  get: (s: Snapshot) => number | null;
+}[] = [
+  { key: "buildings", label: "hist.pick_buildings", unit: "", get: (s) => s.total_buildings },
+  {
+    key: "power",
+    label: "hist.pick_power",
+    unit: "MW",
+    get: (s) => s.metrics?.power_consumption_mw ?? null,
+  },
+  {
+    key: "gen",
+    label: "hist.pick_gen",
+    unit: "MW",
+    get: (s) => s.metrics?.power_generation_mw ?? null,
+  },
+  {
+    key: "prod",
+    label: "hist.pick_prod",
+    unit: "/min",
+    get: (s) =>
+      s.metrics?.production
+        ? Math.round(s.metrics.production.reduce((t, r) => t + r.rate, 0) * 10) / 10
+        : null,
+  },
+  { key: "hours", label: "hist.pick_hours", unit: "h", get: (s) => Math.round(s.play_seconds / 360) / 10 },
+];
+
+let histPick: HistSeriesKey = "buildings";
+let histSnaps: Snapshot[] = [];
+
 function renderHistory(snaps: Snapshot[]) {
+  histSnaps = snaps;
   if (snaps.length < 2) {
     historyEl.innerHTML =
       `<h3 class="inv-title">${t("sec.history")}</h3>` +
@@ -1154,79 +1203,108 @@ function renderHistory(snaps: Snapshot[]) {
     return;
   }
 
-  const W = 600,
-    H = 200,
-    padL = 44,
-    padR = 14,
-    padT = 14,
-    padB = 28;
-  const xs = snaps.map((s) => s.ts_ms);
-  const ys = snaps.map((s) => s.total_buildings);
-  const minX = Math.min(...xs),
-    maxX = Math.max(...xs);
-  // Eje Y ajustado al rango de los datos (no desde 0), para que se vean
-  // bien los cambios aunque sean pequeños respecto al total.
-  const dataMin = Math.min(...ys);
-  const dataMax = Math.max(...ys);
-  let minY: number;
-  let maxY: number;
-  if (dataMin === dataMax) {
-    minY = Math.max(0, dataMin - 1);
-    maxY = dataMax + 1;
-  } else {
-    const pad = (dataMax - dataMin) * 0.15;
-    minY = Math.max(0, dataMin - pad);
-    maxY = dataMax + pad;
-  }
-  const px = (x: number) =>
-    padL + ((x - minX) / (maxX - minX || 1)) * (W - padL - padR);
-  const py = (y: number) =>
-    H - padB - ((y - minY) / (maxY - minY || 1)) * (H - padT - padB);
+  // Solo ofrecemos las series que de verdad tienen dos lecturas. Un botón que
+  // lleva a una gráfica vacía es peor que no tener el botón.
+  const avail = HIST_SERIES.filter(
+    (d) => snaps.filter((s) => d.get(s) !== null).length >= 2
+  );
+  if (!avail.some((d) => d.key === histPick)) histPick = avail[0].key;
+  const def = avail.find((d) => d.key === histPick)!;
 
-  const ptArr = snaps.map((s) => [px(s.ts_ms), py(s.total_buildings)] as [number, number]);
-  const pts = ptArr.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const pts = snaps
+    .map((s) => ({ x: s.ts_ms, y: def.get(s) }))
+    .filter((p): p is { x: number; y: number } => p.y !== null);
 
-  // Relleno degradado bajo la línea (área).
-  const baseY = H - padB;
-  const area =
-    `M ${ptArr[0][0].toFixed(1)} ${baseY} ` +
-    ptArr.map(([x, y]) => `L ${x.toFixed(1)} ${y.toFixed(1)}`).join(" ") +
-    ` L ${ptArr[ptArr.length - 1][0].toFixed(1)} ${baseY} Z`;
-
-  // Rejilla horizontal (3 líneas) + etiquetas Y.
-  let grid = "";
-  const gN = 3;
-  for (let i = 0; i <= gN; i++) {
-    const val = minY + ((maxY - minY) * i) / gN;
-    const gy = py(val).toFixed(1);
-    grid +=
-      `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" stroke="#2a2f3a" stroke-width="1"/>` +
-      `<text x="${padL - 6}" y="${(+gy + 3).toFixed(1)}" fill="#6f7585" font-size="10" text-anchor="end">${Math.round(val)}</text>`;
-  }
-
-  const first = new Date(minX).toLocaleDateString();
-  const last = new Date(maxX).toLocaleDateString();
-  const dots = ptArr
-    .map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="#ffd9a6" stroke="#ff9e3d" stroke-width="1"/>`)
-    .join("");
-
-  const growth = ys[ys.length - 1] - ys[0];
+  const series: Series[] = [{ name: t(def.label), color: VIZ.series1, points: pts }];
+  const growth = pts[pts.length - 1].y - pts[0].y;
   const sign = growth >= 0 ? "+" : "";
+  const unit = def.unit ? ` ${def.unit}` : "";
+
+  const picker =
+    avail.length > 1
+      ? `<div class="viz-pick">` +
+        avail
+          .map(
+            (d) =>
+              `<button type="button" data-k="${d.key}"${d.key === histPick ? ' class="active"' : ""}>${t(d.label)}</button>`
+          )
+          .join("") +
+        `</div>`
+      : "";
+
   historyEl.innerHTML =
-    `<h3 class="inv-title">${t("hist.title", { n: snaps.length, sign, growth })}</h3>` +
-    `<svg viewBox="0 0 ${W} ${H}" class="chart" preserveAspectRatio="xMidYMid meet">` +
-    `<defs><linearGradient id="histGrad" x1="0" y1="0" x2="0" y2="1">` +
-    `<stop offset="0%" stop-color="#ff9e3d" stop-opacity="0.35"/>` +
-    `<stop offset="100%" stop-color="#ff9e3d" stop-opacity="0"/>` +
-    `</linearGradient></defs>` +
-    grid +
-    `<path d="${area}" fill="url(#histGrad)"/>` +
-    `<polyline fill="none" stroke="#ff9e3d" stroke-width="4" stroke-opacity="0.18" points="${pts}"/>` +
-    `<polyline fill="none" stroke="#ff9e3d" stroke-width="2" points="${pts}"/>` +
-    dots +
-    `<text x="${W - padR}" y="${H - 8}" fill="#6f7585" font-size="10" text-anchor="end">${last}</text>` +
-    `<text x="${padL}" y="${H - 8}" fill="#6f7585" font-size="10">${first}</text>` +
-    `</svg>`;
+    `<h3 class="inv-title">${t("hist.title", {
+      n: snaps.length,
+      sign,
+      growth: Math.round(growth * 10) / 10,
+    })}</h3>` +
+    picker +
+    `<div class="viz-wrap">` +
+    lineChart({
+      series,
+      unit: def.unit,
+      lang: getLang(),
+      tip: (i) =>
+        `${new Date(pts[i].x).toLocaleDateString(getLang())} · <b>${pts[i].y}${unit}</b>`,
+    }) +
+    `</div>`;
+
+  attachChartHover(historyEl);
+  historyEl.querySelectorAll<HTMLButtonElement>(".viz-pick button").forEach((b) => {
+    b.addEventListener("click", () => {
+      histPick = b.dataset.k as HistSeriesKey;
+      renderHistory(histSnaps);
+    });
+  });
+}
+
+// Energía en el tiempo: generación y consumo juntos, con el hueco entre las
+// dos coloreado según quién manda. Azul arriba es margen, rojo es que la red
+// va cuesta arriba.
+function renderEnergyHistory(snaps: Snapshot[]) {
+  const withPower = snaps.filter(
+    (s) => s.metrics && s.metrics.power_generation_mw != null && s.metrics.power_consumption_mw != null
+  );
+  if (withPower.length < 2) {
+    energyEl.innerHTML =
+      `<h3 class="inv-title">${t("sec.energy")}</h3>` +
+      `<p class="muted">${t("energy.need2")}</p>`;
+    return;
+  }
+
+  const use = withPower.map((s) => ({ x: s.ts_ms, y: s.metrics!.power_consumption_mw! }));
+  const gen = withPower.map((s) => ({ x: s.ts_ms, y: s.metrics!.power_generation_mw! }));
+  const series: Series[] = [
+    { name: t("energy.use"), color: VIZ.series1, points: use },
+    { name: t("energy.gen"), color: VIZ.series2, points: gen },
+  ];
+
+  const last = withPower.length - 1;
+  const margin = Math.round((gen[last].y - use[last].y) * 10) / 10;
+  const note =
+    margin >= 0
+      ? t("energy.margin_ok", { n: margin })
+      : t("energy.margin_bad", { n: Math.abs(margin) });
+
+  energyEl.innerHTML =
+    `<h3 class="inv-title">${t("sec.energy")}</h3>` +
+    `<p class="muted">${note}</p>` +
+    legend(series) +
+    `<div class="viz-wrap">` +
+    lineChart({
+      series,
+      unit: "MW",
+      lang: getLang(),
+      zeroBased: true,
+      band: { over: VIZ.pos, under: VIZ.neg },
+      tip: (i) =>
+        `${new Date(use[i].x).toLocaleDateString(getLang())}<br>` +
+        `${t("energy.use")}: <b>${Math.round(use[i].y)} MW</b><br>` +
+        `${t("energy.gen")}: <b>${Math.round(gen[i].y)} MW</b>`,
+    }) +
+    `</div>`;
+
+  attachChartHover(energyEl);
 }
 
 // Dibuja la tabla de inventario (tipo de construcción → cantidad).
@@ -2124,37 +2202,71 @@ function computeDeficits(produced: Record<string, number>, consumed: Record<stri
   return deficits;
 }
 
-// Detector de cuellos de botella: piezas que se consumen más rápido de lo que se producen.
-function renderBottlenecks(produced: Record<string, number>, consumed: Record<string, number>) {
-  const deficits = computeDeficits(produced, consumed);
+// Balance de la cadena: no solo lo que falta, también el margen que sobra.
+// Mirar únicamente los déficits deja fuera la mitad del problema — en
+// Satisfactory sobreproducir también cuesta máquinas y megavatios.
+function computeBalance(produced: Record<string, number>, consumed: Record<string, number>) {
+  const rows: { item: string; prod: number; cons: number; net: number }[] = [];
+  for (const item of Object.keys(consumed)) {
+    // Una materia prima que se consume no es un desequilibrio, es una mina.
+    if (!isCraftable(item)) continue;
+    const prod = produced[item] || 0;
+    rows.push({ item, prod, cons: consumed[item], net: prod - consumed[item] });
+  }
+  rows.sort((a, b) => a.net - b.net); // lo más roto primero
+  return rows;
+}
 
-  if (!deficits.length) {
+function renderBottlenecks(produced: Record<string, number>, consumed: Record<string, number>) {
+  const rows = computeBalance(produced, consumed);
+  const bad = rows.filter((r) => r.net < -0.01);
+
+  if (!rows.length) {
     balanceEl.innerHTML =
-      `<h3 class="inv-title">${t("bn.title")}</h3>` +
+      `<h3 class="inv-title">${t("bal.title")}</h3>` +
       `<p class="muted">${t("balance.ok")}</p>`;
     return;
   }
 
-  const rows = deficits
-    .map((d) => {
-      const rec = RECIPES[d.item];
-      const n = Math.ceil(d.deficit / rec.out);
-      return (
-        `<div class="bn-row">` +
-        `<span class="bn-item">${d.item}</span>` +
-        `<span class="bn-bal">${t("bn.makes")} ${fmt(d.prod)} · ${t("bn.uses")} ${fmt(d.cons)}/min</span>` +
-        `<span class="bn-def">−${fmt(d.deficit)}/min</span>` +
-        `<span class="bn-fix">+${n} ${rec.building}</span>` +
-        `<button class="bn-map" data-item="${escapeAttr(d.item)}" type="button">📍 mapa</button>` +
-        `</div>`
-      );
-    })
-    .join("");
+  // Si no hay ni un déficit, lo decimos antes de la gráfica: la buena noticia
+  // va primero, no escondida entre barras azules.
+  const head =
+    `<h3 class="inv-title">${t("bal.title")}${bad.length ? ` · ${bad.length}` : ""}</h3>` +
+    `<p class="muted">${bad.length ? t("bal.note") : t("bal.ok")}</p>`;
 
-  balanceEl.innerHTML =
-    `<h3 class="inv-title">${t("bn.title")} · ${deficits.length}</h3>` +
-    `<p class="muted">${t("bn.note")}</p>` +
-    rows;
+  // Los déficits enteros, y del excedente solo los mayores: la lista existe
+  // para decidir, no para inventariar.
+  const show = [...bad, ...rows.filter((r) => r.net >= -0.01).slice(-6).reverse()];
+
+  const chart = divergingBars(
+    show.map((r) => {
+      let detail = "";
+      if (r.net < -0.01) {
+        // La sugerencia de máquinas solo si de verdad conocemos la receta.
+        // Antes esto daba por hecho que la pieza estaba en la tabla interna y
+        // con los datos oficiales cargados eso ya no es cierto.
+        const rec = RECIPES[r.item];
+        if (rec) {
+          const n = Math.ceil(-r.net / rec.out);
+          detail = `+${n} ${trBuilding(rec.building)}`;
+        }
+      } else if (r.cons > 0) {
+        detail = `${Math.round((r.net / r.cons) * 100)}%`;
+      }
+      return {
+        label: r.item,
+        value: Math.round(r.net * 100) / 100,
+        detail:
+          `<span class="dv-fix">${detail}</span>` +
+          `<button class="bn-map" data-item="${escapeAttr(r.item)}" type="button" title="${t("map.locate")}" aria-label="${t("map.locate")}">` +
+          `<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M8 1.6c-2.4 0-4.3 1.9-4.3 4.3 0 3.2 4.3 8.5 4.3 8.5s4.3-5.3 4.3-8.5c0-2.4-1.9-4.3-4.3-4.3zm0 6a1.7 1.7 0 110-3.4 1.7 1.7 0 010 3.4z" fill="currentColor"/></svg>` +
+          `</button>`,
+      };
+    }),
+    "/min"
+  );
+
+  balanceEl.innerHTML = head + chart;
 
   balanceEl.querySelectorAll<HTMLButtonElement>(".bn-map").forEach((b) => {
     b.addEventListener("click", () => highlightOnMap(b.dataset.item || ""));
@@ -2913,6 +3025,7 @@ async function importHistory() {
     try {
       const hist = await invoke<Snapshot[]>("get_history", { session: currentNoteKey });
       renderHistory(hist);
+      renderEnergyHistory(hist);
     } catch (e) {
       console.error(e);
     }
@@ -2941,6 +3054,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   vitalsEl = document.querySelector("#vitals") as HTMLElement;
   inventoryEl = document.querySelector("#inventory") as HTMLElement;
   historyEl = document.querySelector("#history") as HTMLElement;
+  energyEl = document.querySelector("#energy") as HTMLElement;
   planEl = document.querySelector("#plan") as HTMLElement;
   calcEl = document.querySelector("#calc") as HTMLElement;
   progressEl = document.querySelector("#progress") as HTMLElement;

@@ -1436,3 +1436,175 @@ table.saves {
   font-size: 0.74rem;
   white-space: nowrap;
 }
+
+/* ---- Gráficas: lenguaje visual común --------------------------------------
+   Paleta validada contra la superficie oscura con el comprobador de contraste
+   y daltonismo. Dos cosas que cambió: el naranja de marca es demasiado claro
+   para marcar datos sobre oscuro (las series usan un escalón más bajo), y el
+   par rojo/verde que usaba la app para déficit y margen es indistinguible con
+   deuteranopía — el divergente es rojo contra azul. */
+
+.viz-wrap {
+  position: relative;
+  margin: 6px 0 4px;
+}
+
+.viz {
+  display: block;
+  width: 100%;
+  height: 230px;
+  overflow: visible;
+}
+
+.viz-tick {
+  fill: #8b93a3;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.viz-hit {
+  cursor: crosshair;
+}
+
+.viz-tip {
+  position: absolute;
+  top: 4px;
+  transform: translateX(-50%);
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(12, 14, 18, 0.95);
+  color: var(--text);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.viz-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 2px 0 8px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.viz-leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.viz-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+/* Selector de serie: una gráfica, varias preguntas, un solo eje. */
+.viz-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.viz-pick button {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.viz-pick button.active {
+  border-color: var(--accent-dim);
+  background: rgba(255, 158, 61, 0.12);
+  color: var(--accent);
+}
+
+/* ---- Barras divergentes ---- */
+.dv-list {
+  display: grid;
+  gap: 3px;
+  margin: 6px 0 8px;
+}
+
+.dv-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1.1fr) 2.4fr minmax(96px, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  font-size: 0.84rem;
+}
+
+.dv-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-track {
+  position: relative;
+  height: 15px;
+}
+
+.dv-zero {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #4a5160;
+}
+
+.dv-bar {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 4px;
+}
+
+.dv-neg {
+  background: #d9534f;
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.dv-pos {
+  background: #3f93e0;
+}
+
+.dv-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.dv-tneg { color: #e8807c; }
+.dv-tpos { color: #74b2ea; }
+
+.dv-detail {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.dv-detail .dv-fix {
+  margin-right: 6px;
+}
+
+.dv-detail .bn-map {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  padding: 2px 5px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.74rem;
+}
