@@ -27,7 +27,8 @@
         "enable": true,
         "scope": {
           "allow": [
-            "$APPDATA/icons/**"
+            "$APPDATA/icons/*",
+            "$APPDATA/icons/**/*"
           ],
           "deny": []
         }

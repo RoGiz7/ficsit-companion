@@ -87,6 +87,11 @@ tools like this than have every tool extract its own.
 Until there is an answer in writing, the rule stands: nothing of theirs ships with the app, and
 anything of theirs the app uses is read from the user's own installation.
 
+The name and the map were evaluated before the first release rather than left to be discovered
+later; `docs/LEGAL.md` records what was decided, on what evidence, and what each piece would cost
+to undo. The short version: the map borrows nothing, the name is better precedented than the icons
+are, and the bundle identifier is frozen so that a rename could never cost a user their data.
+
 ## Not worth doing
 
 - **Bundling the game's data files.** They are Coffee Stain's. Reading the user's own copy is both

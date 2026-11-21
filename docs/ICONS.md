@@ -65,6 +65,12 @@ Building icons live on the descriptor class (`Desc_ConstructorMk1_C`), not on th
 
 Keeping the extracted files is up to you; the app only reads them.
 
+## Where this sits among the rest
+
+[LEGAL.md](LEGAL.md) ranks every piece of Coffee Stain's that this project touches by what it would
+cost to undo. The icons are the most exposed of them and also the cheapest to drop, which is why
+the feature was built so that an empty folder is already the "off" switch.
+
 ## If this ever changes
 
 `docs/IDEAS.md` carries a note to write to Coffee Stain once the app is stronger and ask what they

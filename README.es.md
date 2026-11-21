@@ -121,7 +121,8 @@ Coffee Stain Studios. Esa práctica se apoya en la tolerancia, no en una licenci
 lo dice en vez de disimularlo. **Si Coffee Stain pide que no usemos sus iconos, la función se
 retira.**
 
-Cómo configurarlo y el razonamiento completo: [docs/ICONS.md](docs/ICONS.md) (en inglés).
+Cómo configurarlo y el razonamiento completo: [docs/ICONS.md](docs/ICONS.md) (en inglés). Qué es
+nuestro, qué es suyo y qué costaría deshacer cada cosa: [docs/LEGAL.md](docs/LEGAL.md) (en inglés).
 
 ## 🙏 Créditos
 

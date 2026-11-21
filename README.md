@@ -115,7 +115,8 @@ extracting them while stating that the exported content is copyrighted and belon
 Studios. That practice rests on tolerance, not on a licence, and this project says so rather than
 pretending otherwise. **If Coffee Stain asks us not to use their icons, the feature comes out.**
 
-Setup and the full reasoning: [docs/ICONS.md](docs/ICONS.md).
+Setup and the full reasoning: [docs/ICONS.md](docs/ICONS.md). What is ours, what is theirs and
+what each would cost to undo: [docs/LEGAL.md](docs/LEGAL.md).
 
 ## 🙏 Credits
 
