@@ -50,6 +50,41 @@ What keeps this true for us:
 
 If any of those three stopped being true, this entry would need re-reading.
 
+## What everyone else actually does about the icons
+
+Worth writing down, because the obvious question — "where do all the other tools get them, do they
+ask?" — has a clear and slightly uncomfortable answer.
+
+**Nobody asks.** Across the tools, mods and sites examined, not one documents having requested
+permission. One project considered it and explicitly chose the other route: say the icons belong to
+Coffee Stain and remove them on request, rather than ask first.
+
+The modding community's own documentation is the sharpest statement on the subject. Its page on
+extracting game files says plainly that redistributing these assets should not be done without
+permission, because they are Coffee Stain's copyrighted content — and on the same page notes that
+Coffee Stain kindly ships the extra version and mapping information that makes the extraction work.
+So the studio actively helps people extract, while the community's own guidance says not to
+redistribute.
+
+In practice the tools redistribute anyway, carefully: the assets sit in their own folder with a
+notice saying they are © Coffee Stain Studios, used as fan content, outside the repository's own
+licence, and removed on request. Live tools carry the same line in their footer. The official wiki
+tags every such image with a first-party copyright template, and has a separate template for images
+that come from third-party tools using Satisfactory's assets.
+
+So the landscape is: an explicit written rule against redistribution, a universal practice of doing
+it anyway with a notice, and a studio that tolerates it and helps the extraction along.
+
+**This project is the odd one out, and that is a choice with a price.** We ship nothing and ask the
+user to extract their own, which means almost nobody will, which means the feature mostly will not
+be used. The alternatives are honest ones — shipping with a notice is what careful projects do, not
+a reckless move — but two things keep us where we are. Our README makes a specific promise that
+nothing of theirs is distributed, and reversing that is a visible retreat. And a feature built on
+"we will take it away if asked" is a feature you have already agreed to lose.
+
+The third option is the one nobody takes: ask. `docs/IDEAS.md` carries that note. Given that no
+project seems to have asked, an actual answer in writing would be worth more than the icons.
+
 ## The decision that is expensive, and how we made it cheap
 
 The display name is a string. The **bundle identifier** (`com.rogiz7.ficsitcompanion`) is not: it is
