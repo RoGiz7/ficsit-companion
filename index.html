@@ -76,6 +76,10 @@
            que hacer, el inventario, la exploración y dos gráficas: cinco
            trabajos en un cajón. El orden es el de un pionero que abre la
            tablet: ¿algo roto? ¿qué fabrico? ¿dónde está? ¿cómo voy? -->
+      <!-- Barra pegajosa: las pestañas y el índice de secciones viajan con
+           uno al bajar. Antes, para cambiar de sitio había que volver arriba,
+           y eso con el mapa abierto son dos pantallas de scroll. -->
+      <div class="navbar">
       <nav class="tabs">
         <button class="tab active" data-tab="ahora" type="button" data-i18n="tab.now">Ahora</button>
         <button class="tab" data-tab="fabrica" type="button" data-i18n="tab.factory">Fábrica</button>
@@ -84,6 +88,8 @@
         <button class="tab" data-tab="bitacora" type="button" data-i18n="tab.log">Bitácora</button>
         <button class="tab" data-tab="guardados" type="button" data-i18n="tab.saves">Guardados</button>
       </nav>
+        <div id="section-nav" class="secnav"></div>
+      </div>
 
       <!-- AHORA: qué reclama atención y por dónde voy -->
       <section class="tab-panel" id="tab-ahora">
@@ -184,6 +190,7 @@
           <span id="import-status" class="muted"></span>
         </div>
       </section>
+      <button id="to-top" class="to-top" type="button" aria-label="Volver arriba" title="Volver arriba">↑</button>
     </main>
   </body>
 </html>

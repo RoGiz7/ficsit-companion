@@ -231,6 +231,78 @@ function setupAccordions() {
 }
 
 // Cambia la pestaña visible.
+
+// ---- Índice de secciones ----
+//
+// Se construye solo a partir de lo que hay en la pestaña abierta, así que
+// cuando mañana añadamos otra sección aparece sin tocar nada. Lo que no tiene
+// contenido no sale: un índice que lleva a un hueco vacío es peor que no
+// tenerlo.
+function buildSectionNav() {
+  const nav = document.querySelector("#section-nav");
+  if (!nav) return;
+  const panel = document.querySelector(".tab-panel:not(.hidden)");
+  if (!panel) {
+    nav.innerHTML = "";
+    return;
+  }
+  const items: { id: string; label: string }[] = [];
+  panel.querySelectorAll<HTMLElement>(":scope > details.acc, :scope > div[id]").forEach((el) => {
+    if (!el.id || !el.textContent || !el.textContent.trim()) return;
+    const title =
+      el.querySelector(".acc-title")?.textContent ||
+      el.querySelector(".inv-title")?.textContent ||
+      "";
+    const label = title.split("·")[0].trim();
+    if (label) items.push({ id: el.id, label });
+  });
+  // Con una sección o ninguna no hace falta índice: no hay a dónde saltar.
+  nav.innerHTML =
+    items.length > 1
+      ? items
+          .map((i) => `<button type="button" data-goto="${escapeAttr(i.id)}">${escapeXml(i.label)}</button>`)
+          .join("")
+      : "";
+
+  nav.querySelectorAll<HTMLButtonElement>("[data-goto]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const el = document.getElementById(b.dataset.goto || "");
+      if (!el) return;
+      // Si la sección está plegada, se abre: saltar a un acordeón cerrado
+      // deja al usuario mirando un título y nada más.
+      if (el instanceof HTMLDetailsElement) el.open = true;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+  markSectionHere();
+}
+
+// Marca en qué sección anda uno. Sin observadores raros: al hacer scroll se
+// mira cuál es la última que ha pasado por debajo de la barra.
+function markSectionHere() {
+  const nav = document.querySelector("#section-nav");
+  if (!nav) return;
+  const btns = [...nav.querySelectorAll<HTMLButtonElement>("[data-goto]")];
+  if (!btns.length) return;
+  let active: HTMLButtonElement | null = null;
+  for (const b of btns) {
+    const el = document.getElementById(b.dataset.goto || "");
+    if (el && el.getBoundingClientRect().top <= 110) active = b;
+  }
+  btns.forEach((b) => b.classList.toggle("here", b === active));
+}
+
+function setupScrollChrome() {
+  const top = document.querySelector("#to-top");
+  const onScroll = () => {
+    top?.classList.toggle("show", window.scrollY > 500);
+    markSectionHere();
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  top?.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+  onScroll();
+}
+
 function showTab(name: string) {
   document.querySelectorAll<HTMLElement>(".tab-panel").forEach((p) => {
     p.classList.toggle("hidden", p.id !== `tab-${name}`);
@@ -238,6 +310,7 @@ function showTab(name: string) {
   document.querySelectorAll<HTMLElement>(".tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.tab === name);
   });
+  buildSectionNav();
 }
 
 // Estado en memoria.
@@ -1241,6 +1314,9 @@ async function inspect(name: string) {
       renderEnergyHistory(hist);
       renderAchievements(hist);
       renderBestiary(hist, lastFauna, lastHunted);
+      // Las secciones cambian según lo que tenga esta partida, así que el
+      // índice se rehace cuando ya está todo pintado.
+      buildSectionNav();
       // El rastro sale del histórico, así que solo se puede dibujar una vez
       // leído. Si el mapa ya está pintado, se repinta con él.
       lastSnaps = hist;
@@ -4363,6 +4439,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   document.querySelectorAll<HTMLElement>(".tab").forEach((t) => {
     t.addEventListener("click", () => showTab(t.dataset.tab as string));
   });
+  setupScrollChrome();
   renderCalc(); // la calculadora es independiente del mundo; se monta una vez
   document.querySelector("#import-history")?.addEventListener("click", importHistory);
   noteSave.addEventListener("click", saveNote);

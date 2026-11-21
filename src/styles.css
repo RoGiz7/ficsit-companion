@@ -1947,3 +1947,89 @@ table.saves {
   border-color: var(--accent-dim);
   color: var(--accent);
 }
+
+/* ---- Navegación pegajosa ----
+   Las pestañas y el índice de secciones se quedan arriba al bajar. Con el
+   mapa o el bestiario abiertos, la pantalla da para dos o tres scrolls, y
+   tener que volver al principio solo para cambiar de pestaña es el tipo de
+   fricción que hace que una herramienta se deje de abrir. */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+  padding-top: 4px;
+  margin: 0 -4px;
+  padding-left: 4px;
+  padding-right: 4px;
+  box-shadow: 0 6px 12px -8px rgba(0, 0, 0, 0.9);
+}
+
+.secnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.secnav:empty {
+  display: none;
+}
+
+.secnav button {
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.74rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.secnav button:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+.secnav button.here {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+  background: rgba(255, 158, 61, 0.1);
+}
+
+/* Volver al principio. Aparece solo cuando hay sitio del que volver. */
+.to-top {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 30;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.to-top.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.to-top:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+/* Al saltar a una sección, que no quede pegada bajo la barra. */
+.tab-panel > details.acc,
+.tab-panel > div[id] {
+  scroll-margin-top: 108px;
+}
