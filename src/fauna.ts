@@ -105,3 +105,49 @@ export function speciesNote(cls: string, lang: string): string {
 export function isKnownSpecies(cls: string): boolean {
   return !!KNOWN[cls];
 }
+
+// ---- Rastros de caza ----
+//
+// Un bicho que te ataca y matas no deja objeto en el mundo: desaparece. Pero
+// deja sus restos en tu inventario, y el juego tiene un objeto distinto por
+// familia. Los nombres son los suyos, leídos de su documentación:
+//   Desc_HatcherParts_C  Restos de incubador
+//   Desc_HogParts_C      Restos de jabalí
+//   Desc_SpitterParts_C  Restos de escupidor
+//   Desc_StingerParts_C  Restos de picador
+//
+// Esto responde a la pregunta de "¿y si me ataca uno y lo mato?" mejor que
+// esperar a que alguien guarde la partida en plena pelea.
+//
+// Límite que hay que decir: los restos identifican la FAMILIA, no la
+// variedad. Un picador élite y uno normal dejan lo mismo. Y la proteína
+// alienígena se fabrica con cualquiera de los cuatro, así que una vez
+// procesados ya no dicen de quién eran — por eso el rastro se guarda en el
+// histórico en cuanto se ve, antes de que se gaste.
+export const PARTS_TO_FAMILY: Record<string, string> = {
+  Desc_HatcherParts_C: "hatcher",
+  Desc_HogParts_C: "hog",
+  Desc_SpitterParts_C: "spitter",
+  Desc_StingerParts_C: "stinger",
+};
+
+const FAMILY: Record<string, { es: string; en: string; cls: RegExp }> = {
+  hatcher: { es: "Incubadores", en: "Hatchers", cls: /Hatcher/i },
+  hog: { es: "Jabalíes", en: "Hogs", cls: /Hog/i },
+  spitter: { es: "Escupidores", en: "Spitters", cls: /Spitter/i },
+  stinger: { es: "Picadores", en: "Stingers", cls: /Stinger|Crab/i },
+};
+
+export function familyName(fam: string, lang: string): string {
+  const f = FAMILY[fam];
+  return f ? (lang === "es" ? f.es : f.en) : fam;
+}
+
+export function familyOfClass(cls: string): string | null {
+  for (const [k, f] of Object.entries(FAMILY)) if (f.cls.test(cls)) return k;
+  return null;
+}
+
+export function allFamilies(): string[] {
+  return Object.keys(FAMILY);
+}

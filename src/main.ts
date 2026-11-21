@@ -19,6 +19,10 @@ import {
   type Series,
 } from "./charts";
 import {
+  allFamilies,
+  familyName,
+  familyOfClass,
+  PARTS_TO_FAMILY,
   speciesHostile,
   speciesName,
   speciesNote,
@@ -126,6 +130,7 @@ interface SnapshotMetrics {
   player_y?: number | null;
   zones?: { x: number; y: number; n: number }[] | null;
   fauna?: string[] | null;
+  hunted?: string[] | null;
 }
 interface Snapshot {
   ts_ms: number;
@@ -1186,6 +1191,7 @@ async function inspect(name: string) {
       renderAlerts(computeAlerts(a.points, a.zones));
       renderDanger(a.points);
       lastFauna = a.fauna;
+      lastHunted = a.hunted;
 
       // Centro de mando: signos vitales + "Retoma aquí".
       const deficits = computeDeficits(a.perItem, a.consumed);
@@ -1231,7 +1237,7 @@ async function inspect(name: string) {
       renderHistory(hist);
       renderEnergyHistory(hist);
       renderAchievements(hist);
-      renderBestiary(hist, lastFauna);
+      renderBestiary(hist, lastFauna, lastHunted);
       // El rastro sale del histórico, así que solo se puede dibujar una vez
       // leído. Si el mapa ya está pintado, se repinta con él.
       lastSnaps = hist;
@@ -1935,25 +1941,65 @@ function prettyItem(pathName: string): string {
 // Se arma uniendo lo que había cargado en CADA lectura, no solo en la última:
 // una especie que uno se cruzó hace tres semanas sigue en la ficha aunque hoy
 // no ande cerca. Esa es la mecánica — se llena jugando.
-function renderBestiary(snaps: Snapshot[], now: FaunaEntry[]) {
+function renderBestiary(snaps: Snapshot[], now: FaunaEntry[], huntedNow: string[]) {
   if (!bestiaryEl) return;
-  const first = new Map<string, number>();
+  // Primera vez que se vio cada especie, y primera vez que se cazó cada
+  // familia. Ambas cosas se acumulan sobre TODAS las lecturas, no solo la
+  // última: por eso un bicho que te atacó hace tres semanas sigue en la ficha.
+  const firstSeen = new Map<string, number>();
+  const firstHunt = new Map<string, number>();
   for (const sn of snaps) {
-    const fl = sn.metrics && sn.metrics.fauna;
-    if (!fl) continue;
-    for (const c of fl) if (!first.has(c)) first.set(c, sn.ts_ms);
+    const m = sn.metrics;
+    if (!m) continue;
+    for (const c of m.fauna || []) if (!firstSeen.has(c)) firstSeen.set(c, sn.ts_ms);
+    for (const f of m.hunted || []) if (!firstHunt.has(f)) firstHunt.set(f, sn.ts_ms);
   }
-  // La lectura de ahora también cuenta, aunque todavía no se haya guardado.
-  for (const f of now) if (!first.has(f.cls)) first.set(f.cls, Date.now());
+  for (const f of now) if (!firstSeen.has(f.cls)) firstSeen.set(f.cls, Date.now());
+  for (const h of huntedNow) if (!firstHunt.has(h)) firstHunt.set(h, Date.now());
 
-  if (!first.size) {
+  if (!firstSeen.size && !firstHunt.size) {
     bestiaryEl.innerHTML = "";
     return;
   }
-  const nowMap = new Map(now.map((f) => [f.cls, f]));
+
   const lang = getLang();
-  const rows = [...first.entries()]
-    .sort((a, b) => a[1] - b[1])
+  const nowMap = new Map(now.map((f) => [f.cls, f]));
+
+  // Las cuatro familias hostiles primero: son las que el juego nombra y de
+  // las que deja restos. Luego lo demás que se haya cruzado.
+  const famRows = allFamilies()
+    .map((fam) => {
+      const seenCls = [...firstSeen.keys()].filter((c) => familyOfClass(c) === fam);
+      const huntTs = firstHunt.get(fam);
+      if (!seenCls.length && huntTs === undefined) return "";
+      const liveN = seenCls.reduce((t2, c) => t2 + (nowMap.get(c)?.count || 0), 0);
+      const marks: string[] = [];
+      if (seenCls.length) marks.push(t("fauna.ev_seen"));
+      if (huntTs !== undefined) marks.push(t("fauna.ev_hunted"));
+      const when = Math.min(
+        ...[...seenCls.map((c) => firstSeen.get(c)!), ...(huntTs === undefined ? [] : [huntTs])]
+      );
+      return (
+        `<div class="fa-row"><div class="fa-head"><b>${escapeXml(familyName(fam, lang))}</b>` +
+        `<span class="fa-tag fa-host">${t("fauna.hostile")}</span>` +
+        marks.map((m2) => `<span class="fa-tag">${m2}</span>`).join("") +
+        `</div>` +
+        `<div class="fa-meta">${liveN ? t("fauna.here", { n: liveN }) : t("fauna.not_now")} · ${t("fauna.first", {
+          d: new Date(when).toLocaleDateString(lang),
+        })}</div>` +
+        (seenCls.length
+          ? `<div class="fa-cls">${seenCls.map((c) => escapeXml(c)).join(" · ")}</div>`
+          : `<div class="fa-note">${escapeXml(t("fauna.only_remains"))}</div>`) +
+        `</div>`
+      );
+    })
+    .filter(Boolean)
+    .join("");
+
+  // Lo que no cae en ninguna familia hostil: la fauna pacífica y lo raro.
+  const otherRows = [...firstSeen.entries()]
+    .filter(([c]) => familyOfClass(c) === null)
+    .sort((x, y) => x[1] - y[1])
     .map(([cls, ts]) => {
       const cur = nowMap.get(cls);
       const host = speciesHostile(cls);
@@ -1964,22 +2010,23 @@ function renderBestiary(snaps: Snapshot[], now: FaunaEntry[]) {
             ? `<span class="fa-tag fa-host">${t("fauna.hostile")}</span>`
             : `<span class="fa-tag fa-calm">${t("fauna.passive")}</span>`;
       const note = speciesNote(cls, lang);
-      const here = cur
-        ? t("fauna.here", { n: cur.count }) + (cur.destroyed ? ` · ${t("fauna.destroyed", { n: cur.destroyed })}` : "")
-        : t("fauna.not_now");
       return (
         `<div class="fa-row"><div class="fa-head"><b>${escapeXml(speciesName(cls, lang))}</b>${tag}</div>` +
-        `<div class="fa-meta">${here} · ${t("fauna.first", { d: new Date(ts).toLocaleDateString(lang) })}</div>` +
+        `<div class="fa-meta">${cur ? t("fauna.here", { n: cur.count }) : t("fauna.not_now")} · ${t("fauna.first", {
+          d: new Date(ts).toLocaleDateString(lang),
+        })}</div>` +
         (note ? `<div class="fa-note">${escapeXml(note)}</div>` : "") +
         `<div class="fa-cls">${escapeXml(cls)}</div></div>`
       );
     })
     .join("");
 
+  const n = (famRows.match(/class="fa-row"/g) || []).length + (otherRows.match(/class="fa-row"/g) || []).length;
   bestiaryEl.innerHTML =
-    `<h3 class="inv-title">${t("fauna.title", { n: first.size })}</h3>` +
+    `<h3 class="inv-title">${t("fauna.title", { n })}</h3>` +
     `<p class="muted">${t("fauna.note")}</p>` +
-    rows;
+    famRows +
+    otherRows;
 }
 
 const NEST_NEAR_M = 150;
@@ -2319,6 +2366,9 @@ async function analyzeWithParser(folder: string, name: string) {
   let daysSinceDeath: number | null = null;
   // Bichos que estaban cargados al guardar: los que uno tenía cerca.
   const faunaMap = new Map<string, { count: number; destroyed: number }>();
+  // Familias de las que hay restos en algún inventario: prueba de que las has
+  // cazado, aunque el bicho ya no exista en el mundo.
+  const hunted = new Set<string>();
   const collect: Record<string, number> = {};
   // Lo que no sabemos interpretar. El save se lee entero, pero nuestras tablas
   // de recetas solo conocen el juego base: una maquina de un mod fabrica algo
@@ -2520,6 +2570,21 @@ async function analyzeWithParser(folder: string, name: string) {
         }
       }
 
+      // Cualquier inventario sirve: la mochila, un almacén, una caja.
+      for (const key of Object.keys(props)) {
+        if (!/Inventory|Stacks/i.test(key)) continue;
+        const q: any = (props as any)[key];
+        const arr = q && (q.values || (q.value && q.value.values));
+        if (!Array.isArray(arr)) continue;
+        for (const st of arr) {
+          const sp = (st && st.properties) || {};
+          const ir = sp.Item && sp.Item.value && sp.Item.value.itemReference;
+          const leafIt = ((String((ir && ir.pathName) || "").split("/").pop() || "").split(".").pop()) || "";
+          const fam = PARTS_TO_FAMILY[leafIt];
+          if (fam && sp.NumItems && (sp.NumItems.value ?? sp.NumItems) > 0) hunted.add(fam);
+        }
+      }
+
       const inv = props.mInventoryStacks;
       if (inv && inv.values) {
         for (const st of inv.values) {
@@ -2666,6 +2731,7 @@ async function analyzeWithParser(folder: string, name: string) {
     collectPts,
     fog,
     nests,
+    hunted: [...hunted],
     fauna: [...faunaMap.entries()].map(([cls, e]) => ({ cls, count: e.count, destroyed: e.destroyed })) as FaunaEntry[],
     gameDays,
     daysSinceDeath,
@@ -2756,6 +2822,7 @@ function buildMetrics(
       .slice(0, 40)
       .map((z) => ({ x: Math.round(z.x), y: Math.round(z.y), n: z.count })),
     fauna: a.fauna.map((f) => f.cls),
+    hunted: a.hunted,
   };
 }
 
@@ -3641,6 +3708,7 @@ let gameDays = 0;
 let daysSinceDeath: number | null = null;
 let mapNests = true;
 let lastFauna: FaunaEntry[] = [];
+let lastHunted: string[] = [];
 
 // Distancia del nido a lo construido más cercano. Lo calculamos nosotros en
 // vez de fiarnos de mCachedIsNearBase, que solo aparece en el archivo cuando

@@ -1112,6 +1112,10 @@ struct SnapshotMetrics {
     // bestiario se arma uniendo lo de todas las lecturas, así que una especie
     // que uno vio una vez no se pierde aunque hoy no ande cerca.
     fauna: Option<Vec<String>>,
+    // Familias de las que se vieron restos. Se guarda en cuanto se ven,
+    // porque los restos se gastan al fabricar proteína alienígena y entonces
+    // ya no dicen de quién eran.
+    hunted: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

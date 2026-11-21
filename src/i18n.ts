@@ -123,8 +123,14 @@ export const STRINGS: Record<string, Entry> = {
   "sec.danger": { es: "Fauna", en: "Fauna" },
   "fauna.title": { es: "Bestiario · {n} especie(s)", en: "Bestiary · {n} species" },
   "fauna.note": {
-    es: "Solo entra lo que se ha cruzado de verdad: una especie aparece aquí cuando estaba cerca de usted al guardar. La ficha se llena jugando. Aviso de FICSIT: el archivo no dice qué bicho vive en cada nido, así que esto es lo que ha visto, no lo que hay.",
-    en: "Only what you have actually run into gets in: a species appears here when it was near you as you saved. The file fills as you play. FICSIT notice: the save does not say which creature lives in each nest, so this is what you have seen, not what is out there.",
+    es: "Solo entra lo que se ha cruzado de verdad, por dos caminos: lo tenía cerca al guardar, o sus restos han pasado por su inventario. La ficha se llena jugando y no se vacía. Dos avisos de FICSIT: el archivo no dice qué bicho vive en cada nido, y los restos identifican la familia pero no la variedad — un picador élite deja lo mismo que uno corriente.",
+    en: "Only what you have actually run into gets in, by two routes: it was near you when you saved, or its remains passed through your inventory. The file fills as you play and never empties. Two FICSIT notices: the save does not say which creature lives in each nest, and remains identify the family but not the variety — an elite stinger leaves the same as an ordinary one.",
+  },
+  "fauna.ev_seen": { es: "visto", en: "seen" },
+  "fauna.ev_hunted": { es: "cazado", en: "hunted" },
+  "fauna.only_remains": {
+    es: "No lo ha tenido delante al guardar, pero sus restos han pasado por su inventario. Eso ya cuenta como presentación.",
+    en: "You have not had one in front of you when saving, but its remains have passed through your inventory. That counts as an introduction.",
   },
   "fauna.hostile": { es: "hostil", en: "hostile" },
   "fauna.passive": { es: "pacífica", en: "passive" },
