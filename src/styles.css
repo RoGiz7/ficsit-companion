@@ -1628,3 +1628,27 @@ table.saves {
   font-size: 0.74rem;
   line-height: 1.45;
 }
+
+/* Marcadores del mapa: mantienen su tamaño en pantalla al hacer zoom.
+   Sin esto, acercarse agranda el marcador y la distancia por igual y la
+   densidad queda idéntica — que es como no tener zoom. */
+.map2d .mk {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(var(--mk, 1));
+}
+
+.map-fit {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.map-fit:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}

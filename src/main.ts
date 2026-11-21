@@ -2474,7 +2474,10 @@ const CATS: Record<string, { color: string; label: string }> = {
 function mapShape(cat: string, cx: number, cy: number, r: number, title: string): string {
   const color = (CATS[cat] || {}).color || "#aab0bd";
   const t = `<title>${title}</title>`;
-  const a = `fill="${color}" stroke="#222" stroke-width="0.4"`;
+  // class="mk": el marcador mantiene su tamaño en pantalla al hacer zoom. Sin
+  // eso, acercarse agranda marcador y distancia por igual y la densidad queda
+  // exactamente la misma, que es como no tener zoom.
+  const a = `class="mk" fill="${color}" stroke="#222" stroke-width="0.4" vector-effect="non-scaling-stroke"`;
   switch (cat) {
     case "prod": // círculo
       return `<circle cx="${cx}" cy="${cy}" r="${r}" ${a}>${t}</circle>`;
@@ -2624,7 +2627,7 @@ function renderMap(
       .join(" ");
     slabSvg +=
       `<g data-cat="floor" data-z="${Math.round(sl.z)}" data-floor="${floorOfZ(sl.z)}">` +
-      `<polygon points="${corners}" fill="#2b313c" fill-opacity="0.75" stroke="#39404d" stroke-width="0.3"/></g>`;
+      `<polygon points="${corners}" fill="#2b313c" fill-opacity="0.75" stroke="#39404d" stroke-width="0.3" vector-effect="non-scaling-stroke"/></g>`;
   }
 
   // Cintas (líneas). Cada una en su grupo con categoría y altura para los filtros.
@@ -2633,7 +2636,7 @@ function renderMap(
     const pts = b.pts.map(([x, y]) => `${px(x).toFixed(1)},${py(y).toFixed(1)}`).join(" ");
     lines +=
       `<g data-cat="belt" data-z="${Math.round(b.z)}" data-z0="${Math.round(b.z0)}" data-z1="${Math.round(b.z1)}">` +
-      `<polyline points="${pts}" fill="none" stroke="#8a93a3" stroke-width="1" stroke-opacity="${beltOp}"/></g>`;
+      `<polyline points="${pts}" fill="none" stroke="#8a93a3" stroke-width="1" stroke-opacity="${beltOp}" vector-effect="non-scaling-stroke"/></g>`;
   }
   // Edificios: puntito gris para "otros", forma+color por categoría para el resto.
   let others = "";
@@ -2644,7 +2647,7 @@ function renderMap(
     const cx = px(p.x).toFixed(1), cy = py(p.y).toFixed(1);
     const zAttr = `data-z="${Math.round(p.z)}" data-floor="${p.floor}" data-zone="${p.zone}"`;
     if (p.cat === "other") {
-      others += `<g data-cat="other" ${zAttr}><circle cx="${cx}" cy="${cy}" r="1.1" fill="#aab0bd" fill-opacity="${otherOp}"/></g>`;
+      others += `<g data-cat="other" ${zAttr}><circle class="mk" cx="${cx}" cy="${cy}" r="1.1" fill="#aab0bd" fill-opacity="${otherOp}"/></g>`;
     } else {
       counts[p.cat] = (counts[p.cat] || 0) + 1;
       const match = hi !== null && p.item === hi;
@@ -2652,7 +2655,7 @@ function renderMap(
       const op = hi ? (match ? 1 : 0.18) : 1;
       let s = mapShape(p.cat, +cx, +cy, 3.4, escapeXml(p.name + p.detail));
       if (match) {
-        s = `<circle cx="${cx}" cy="${cy}" r="8" fill="none" stroke="#ff3b3b" stroke-width="1.8" class="map-hi"/>` + s;
+        s = `<circle cx="${cx}" cy="${cy}" r="8" fill="none" stroke="#ff3b3b" stroke-width="1.8" vector-effect="non-scaling-stroke" class="map-hi mk"/>` + s;
       }
       shapes += `<g data-cat="${p.cat}" ${zAttr} opacity="${op}">${s}</g>`;
     }
@@ -2739,7 +2742,9 @@ function renderMap(
     `<h3 class="inv-title">${t("map.title", { b: points.length, c: belts.length })}` +
     `${slabs.length ? t("map.slabs", { n: slabs.length }) : ""}</h3>` +
     banner +
-    `<div class="map-filters">${filters}<span class="muted map-hint">${t("map.hint")}</span></div>` +
+    `<div class="map-filters">${filters}` +
+    `<button id="map-fit" class="map-fit" type="button">${t("map.fit")}</button>` +
+    `<span class="muted map-hint">${t("map.hint")}</span></div>` +
     levelChips +
     heightFilter +
     `<svg viewBox="0 0 ${W} ${H}" class="map2d" id="map-svg">` +
@@ -2785,7 +2790,23 @@ function setupMapInteraction() {
   const vp = document.querySelector("#map-vp") as SVGGElement | null;
   if (!svg || !vp) return;
   mapView = { scale: 1, tx: 0, ty: 0 };
-  const apply = () => vp.setAttribute("transform", `translate(${mapView.tx} ${mapView.ty}) scale(${mapView.scale})`);
+  const apply = () => {
+    vp.setAttribute("transform", `translate(${mapView.tx} ${mapView.ty}) scale(${mapView.scale})`);
+    // Una sola propiedad reescala los dos mil marcadores de golpe, sin tocar
+    // el DOM elemento por elemento. Al alejar no se agrandan: por debajo de
+    // 1x se quedan como están.
+    svg.style.setProperty("--mk", String(1 / Math.max(1, mapView.scale)));
+  };
+  apply();
+
+  // Volver al encuadre inicial. Sin esto, la única manera de recuperar la
+  // vista completa es rodar la rueda hacia atrás a ojo.
+  const reset = () => {
+    mapView = { scale: 1, tx: 0, ty: 0 };
+    apply();
+  };
+  svg.addEventListener("dblclick", reset);
+  document.querySelector("#map-fit")?.addEventListener("click", reset);
 
   svg.addEventListener(
     "wheel",

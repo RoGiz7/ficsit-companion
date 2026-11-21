@@ -84,6 +84,7 @@ export const STRINGS: Record<string, Entry> = {
     es: "Los iconos son obra de Coffee Stain Studios. FICSIT Companion no está afiliado a Coffee Stain y retiraría esta función si lo pidieran.",
     en: "The icons are the work of Coffee Stain Studios. FICSIT Companion is not affiliated with Coffee Stain and would remove this feature if asked.",
   },
+  "map.fit": { es: "Encuadrar", en: "Fit view" },
   "map.locate": { es: "Ver en el mapa", en: "Show on map" },
   "bal.title": { es: "Balance de la cadena", en: "Chain balance" },
   "bal.note": {
