@@ -2715,7 +2715,7 @@ function mapShape(cat: string, cx: number, cy: number, r: number, title: string)
   // class="mk": el marcador mantiene su tamaño en pantalla al hacer zoom. Sin
   // eso, acercarse agranda marcador y distancia por igual y la densidad queda
   // exactamente la misma, que es como no tener zoom.
-  const a = `class="mk" fill="${color}" stroke="#222" stroke-width="0.4" vector-effect="non-scaling-stroke"`;
+  const a = `class="mk" fill="${color}" stroke="#131922" stroke-width="0.6" vector-effect="non-scaling-stroke"`;
   switch (cat) {
     case "prod": // círculo
       return `<circle cx="${cx}" cy="${cy}" r="${r}" ${a}>${t}</circle>`;
@@ -2986,8 +2986,14 @@ function renderMap(
       `<g class="map-track">` +
       lastTrack
         .map((p, i) => {
-          const op = (0.18 + 0.5 * (i / (n - 1))).toFixed(2); // lo reciente, más vivo
-          return `<circle class="mk" cx="${px(p.x).toFixed(1)}" cy="${py(p.y).toFixed(1)}" r="2.2" fill="#e9eaec" fill-opacity="${op}"/>`;
+          const op = (0.25 + 0.55 * (i / (n - 1))).toFixed(2); // lo reciente, más vivo
+          // Anillo hueco, no punto relleno: los puntos grises rellenos ya son
+          // "resto de edificios" y en pantalla no se distinguían. Así hace
+          // familia con el pionero — relleno es ahora, hueco es antes.
+          return (
+            `<circle class="mk" cx="${px(p.x).toFixed(1)}" cy="${py(p.y).toFixed(1)}" r="2.6" ` +
+            `fill="none" stroke="#e9eaec" stroke-opacity="${op}" stroke-width="1.1" vector-effect="non-scaling-stroke"/>`
+          );
         })
         .join("") +
       `</g>`;

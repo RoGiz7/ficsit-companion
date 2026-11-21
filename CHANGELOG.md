@@ -33,6 +33,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Icons in the zone list, showing what each block makes.
 
 ### Changed
+- **The map is drawn on a drafting board instead of a sheet of white.** The map surface was
+  `#e9eaec` — a near-white rectangle filling the pane of an otherwise dark app, which is a glare
+  source and, worse, left three of the four category colours below the 3:1 contrast floor at 2.7:1.
+  It is now a dark board with a fine and a coarse grid, the way a model maker works over a cutting
+  mat. All four colours pass against it. The grid deliberately does not move with the zoom: it is
+  the table, not the drawing.
 - **The map's four category colours were revalidated.** All four were outside the lightness band
   for a dark surface, and green against yellow sat at 8.3 separation for protanopia, right on the
   floor — it passed only because the four shapes carry the category independently of colour.

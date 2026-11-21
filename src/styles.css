@@ -382,10 +382,24 @@ table.saves {
   color: #8b8f9a;
 }
 
+/* Tablero de maquetador: la base sobre la que se monta un plano, con su
+   cuadrícula fina y sus marcas gruesas. Sustituye al fondo casi blanco que
+   tenía antes, que en una app oscura era un foco a pantalla completa — y que
+   además dejaba tres de los cuatro colores de categoría por debajo del
+   contraste mínimo (2,7:1 sobre 3:1). Sobre este fondo pasan los cuatro.
+
+   La cuadrícula no se mueve con el zoom, a propósito: es la mesa, no el
+   dibujo. Si se moviera parecería una escala, y no lo es. */
 .map2d {
   width: 100%;
   height: auto;
-  background: #e9eaec;
+  background-color: #131922;
+  background-image:
+    linear-gradient(rgba(126, 170, 220, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(126, 170, 220, 0.05) 1px, transparent 1px),
+    linear-gradient(rgba(126, 170, 220, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(126, 170, 220, 0.09) 1px, transparent 1px);
+  background-size: 10px 10px, 10px 10px, 50px 50px, 50px 50px;
   border: 1px solid #2c2f37;
   border-radius: 10px;
 }
