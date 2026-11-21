@@ -1199,3 +1199,58 @@ table.saves {
 .ms-eta {
   color: var(--accent);
 }
+
+/* ---- Zonas ---- */
+.zone-list {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.zone-row {
+  display: grid;
+  grid-template-columns: 26px minmax(160px, 1.4fr) minmax(120px, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 0.86rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.zone-row:hover {
+  border-color: var(--accent-dim);
+  background: rgba(255, 158, 61, 0.06);
+}
+
+.zone-row.active {
+  border-color: var(--accent);
+  background: rgba(255, 158, 61, 0.1);
+}
+
+.zone-n {
+  justify-self: center;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.zone-main {
+  display: grid;
+}
+
+.zone-meta {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.zone-makes {
+  color: var(--accent);
+  font-size: 0.8rem;
+  text-align: right;
+}

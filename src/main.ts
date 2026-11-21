@@ -809,9 +809,11 @@ async function inspect(name: string) {
       lastPoints = a.points;
       lastBelts = a.belts;
       lastSlabs = a.slabs;
+      lastZones = a.zones;
       mapLevels = a.levels;
       mapFloor = null; // al cambiar de partida, se mira todo otra vez
-      renderMap(a.points, a.belts, a.slabs);
+      mapZone = null;
+      renderMap(a.points, a.belts, a.slabs, a.zones);
 
       // Centro de mando: signos vitales + "Retoma aquí".
       const deficits = computeDeficits(a.perItem, a.consumed);
@@ -839,8 +841,9 @@ async function inspect(name: string) {
       lastPoints = [];
       lastBelts = [];
       lastSlabs = [];
+      lastZones = [];
       mapLevels = [];
-      renderMap([], [], []);
+      renderMap([], [], [], []);
       renderVitals(currentPowerMW, currentGenMW, 0, [], {});
       renderCompat(savesMeta[name], 0, 0, {});
       // Sin parser no sabemos qué hay en los almacenes, y decir "te faltan
@@ -1465,6 +1468,7 @@ async function analyzeWithParser(folder: string, name: string) {
     item: string;
     cls: string;
     floor: number; // índice de planta, -1 = sobre terreno
+    zone: number; // índice de zona, -1 = sin zona
   }[] = [];
   // Energía leída de la documentación oficial, edificio a edificio. Hasta ahora
   // salía de una tabla a mano indexada por nombre traducido.
@@ -1554,7 +1558,8 @@ async function analyzeWithParser(folder: string, name: string) {
             detail,
             item: prodItem,
             cls,
-            floor: -1, // se asigna abajo, cuando se conocen las plantas
+            floor: -1, // se asignan abajo, al conocerse plantas y zonas
+            zone: -1,
           });
         }
       }
@@ -1666,6 +1671,78 @@ async function analyzeWithParser(folder: string, name: string) {
   };
   for (const p of points) p.floor = floorOf(p.z);
 
+  // Zonas: se agrupan las máquinas de cada planta por cercanía. Los "otros"
+  // (postes, escaleras, señales) no forman zona: no fabrican nada.
+  const zones: Zone[] = [];
+  const machines = points.filter((p) => p.cat !== "other");
+  const byFloor = new Map<number, typeof machines>();
+  for (const m of machines) {
+    const g = byFloor.get(m.floor);
+    if (g) g.push(m);
+    else byFloor.set(m.floor, [m]);
+  }
+  const raw: { fl: number; group: typeof machines }[] = [];
+  for (const [fl, group] of byFloor) {
+    for (const cl of clusterByProximity(group, ZONE_RADIUS)) raw.push({ fl, group: cl });
+  }
+  raw.sort((a, b) => b.group.length - a.group.length);
+
+  raw.forEach(({ fl, group }, idx) => {
+    const makesCount: Record<string, number> = {};
+    const kinds: Record<string, number> = {};
+    let zPower = 0;
+    let sx = 0;
+    let sy = 0;
+    let z0 = Infinity;
+    let z1 = -Infinity;
+    for (const m of group) {
+      m.zone = idx;
+      sx += m.x;
+      sy += m.y;
+      if (m.z < z0) z0 = m.z;
+      if (m.z > z1) z1 = m.z;
+      if (m.item) makesCount[m.item] = (makesCount[m.item] || 0) + 1;
+      kinds[m.name] = (kinds[m.name] || 0) + 1;
+      const gb = gameData && gameData.buildings[m.cls];
+      if (gb) zPower += gb.power;
+    }
+    const makes = Object.entries(makesCount)
+      .sort((a, b) => b[1] - a[1])
+      .map(([item, n]) => ({ item, machines: n }));
+    // El nombre de la zona es lo que fabrica entre todas. Si no fabrica nada,
+    // es por lo que está hecha: almacén, extracción o generación.
+    const domCat = (c: string) => group.filter((m) => m.cat === c).length;
+    const withRecipe = makes.reduce((n, m) => n + m.machines, 0);
+    const purity = withRecipe ? makes[0].machines / withRecipe : 0;
+    // Solo se le pone el nombre de un producto si de verdad está dedicada a
+    // él. Con menos de dos tercios es un área mixta, y conviene decirlo.
+    const name =
+      makes.length && purity >= 0.66
+        ? makes[0].item
+        : makes.length
+          ? "Área mixta"
+          : domCat("store") >= group.length / 2
+            ? "Almacén"
+            : domCat("extr") >= group.length / 2
+              ? "Extracción"
+              : domCat("power") >= group.length / 2
+                ? "Generación"
+                : "Zona";
+    zones.push({
+      floor: fl,
+      count: group.length,
+      x: sx / group.length,
+      y: sy / group.length,
+      z0,
+      z1,
+      name,
+      purity: Math.round(purity * 100) / 100,
+      makes,
+      kinds,
+      powerMW: Math.round(zPower * 10) / 10,
+    });
+  });
+
   return {
     perItem,
     consumed,
@@ -1683,6 +1760,7 @@ async function analyzeWithParser(folder: string, name: string) {
     powerFromDocs,
     storedByClass,
     slabs,
+    zones,
   };
 }
 
@@ -1757,6 +1835,86 @@ function buildMetrics(
     game_version: info.game_version,
     save_name: saveName,
   };
+}
+
+// ---- Zonas: grupos que fabrican una cosa entre todos ----
+// La gente no construye "una fábrica al lado de otra": monta un espacio para
+// cada receta y luego los conecta. Así que una zona es un grupo de máquinas
+// juntas EN LA MISMA PLANTA, y su identidad es lo que fabrican entre todas.
+//
+// Agrupar dentro de cada planta y no en 3D es lo que hace que dos plantas
+// apiladas que hacen cosas distintas no se fundan en una sola zona.
+export interface Zone {
+  floor: number; // -1 = sobre terreno
+  count: number;
+  x: number; // centro, para colocar la etiqueta
+  y: number;
+  z0: number;
+  z1: number;
+  name: string;
+  // Qué proporción de las máquinas hace lo mismo. Un espacio montado para una
+  // receta tiene pureza alta; un bus central o una fábrica espagueti, baja. Es
+  // la diferencia entre poder ponerle nombre y tener que admitir que es un
+  // revoltijo, y la comunidad construye de las dos maneras.
+  purity: number;
+  makes: { item: string; machines: number }[];
+  kinds: Record<string, number>;
+  powerMW: number;
+}
+
+const ZONE_RADIUS = 3000; // 30 m: lo que separa dos montajes distintos
+
+// Agrupado por cercanía con rejilla: comparar todas las máquinas contra todas
+// se vuelve lento en fábricas grandes, así que solo se miran las celdas
+// vecinas.
+function clusterByProximity<T extends { x: number; y: number }>(items: T[], radius: number): T[][] {
+  const parent = items.map((_, i) => i);
+  const find = (a: number): number => {
+    while (parent[a] !== a) {
+      parent[a] = parent[parent[a]];
+      a = parent[a];
+    }
+    return a;
+  };
+  const union = (a: number, b: number) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent[rb] = ra;
+  };
+
+  const cell = new Map<string, number[]>();
+  const key = (x: number, y: number) => `${Math.floor(x / radius)},${Math.floor(y / radius)}`;
+  items.forEach((it, i) => {
+    const k = key(it.x, it.y);
+    const arr = cell.get(k);
+    if (arr) arr.push(i);
+    else cell.set(k, [i]);
+  });
+
+  const r2 = radius * radius;
+  items.forEach((it, i) => {
+    const cx = Math.floor(it.x / radius);
+    const cy = Math.floor(it.y / radius);
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (const j of cell.get(`${cx + dx},${cy + dy}`) || []) {
+          if (j <= i) continue;
+          const ddx = it.x - items[j].x;
+          const ddy = it.y - items[j].y;
+          if (ddx * ddx + ddy * ddy <= r2) union(i, j);
+        }
+      }
+    }
+  });
+
+  const groups = new Map<number, T[]>();
+  items.forEach((it, i) => {
+    const r = find(i);
+    const g = groups.get(r);
+    if (g) g.push(it);
+    else groups.set(r, [it]);
+  });
+  return [...groups.values()];
 }
 
 // Calcula los déficits (piezas fabricables que se consumen más de lo que se producen).
@@ -1893,10 +2051,58 @@ function mapShape(cat: string, cx: number, cy: number, r: number, title: string)
 }
 
 // Dibuja un plano cenital: cintas como líneas, máquinas como puntos con nombre (al pasar el ratón).
+// Lista de zonas: qué montajes tienes, dónde y qué fabrica cada uno.
+function zoneList(zones: Zone[]): string {
+  if (!zones.length) return "";
+  const floorName = (f: number) =>
+    f < 0 ? "terreno" : `planta ${Math.round((mapLevels[f] - mapGround) / 100)} m`;
+  const real = zones.filter((z) => z.count >= 2);
+  const loose = zones.length - real.length;
+  const rows = real
+    .map((z, i) => {
+      const idx = zones.indexOf(z);
+      // En una zona dedicada basta con decir qué hace. En una mixta interesa
+      // el desglose, que es justo lo que no se ve jugando.
+      const top = z.purity >= 0.66 ? 2 : 4;
+      const makes =
+        z.makes
+          .slice(0, top)
+          .map((m) => `${m.machines}× ${escapeXml(m.item)}`)
+          .join(", ") + (z.makes.length > top ? ` y ${z.makes.length - top} más` : "");
+      const kinds = Object.entries(z.kinds)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 2)
+        .map(([k, n]) => `${n} ${escapeXml(k)}`)
+        .join(", ");
+      return (
+        `<button class="zone-row${mapZone === idx ? " active" : ""}" data-zone="${idx}" type="button">` +
+        `<span class="zone-n">${i + 1}</span>` +
+        `<span class="zone-main"><b>${escapeXml(z.name)}</b>` +
+        `<span class="zone-meta">${floorName(z.floor)} · ${z.count} máquinas · ${kinds}` +
+        `${z.makes.length > 1 ? ` · ${Math.round(z.purity * 100)}% dedicada` : ""}` +
+        `${z.powerMW ? ` · ${fmt(z.powerMW)} MW` : ""}</span></span>` +
+        `<span class="zone-makes">${makes || "—"}</span></button>`
+      );
+    })
+    .join("");
+  return (
+    `<h3 class="inv-title">Zonas · ${real.length}</h3>` +
+    `<div class="zone-list">` +
+    `<button class="zone-row zone-all${mapZone === null ? " active" : ""}" data-zone="all" type="button">` +
+    `<span class="zone-n">·</span><span class="zone-main"><b>Toda la fábrica</b></span></button>` +
+    rows +
+    `</div>` +
+    (loose ? `<p class="muted">Y ${loose} máquina(s) suelta(s) sin zona.</p>` : "") +
+    `<p class="muted">Una zona es un grupo de máquinas juntas en la misma planta: el espacio que ` +
+    `montaste para una receta. Pulsa una para quedarte solo con ella.</p>`
+  );
+}
+
 function renderMap(
-  points: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string; floor: number }[],
+  points: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string; floor: number; zone: number }[],
   belts: { pts: [number, number][]; z: number; z0: number; z1: number }[],
-  slabs: { x: number; y: number; z: number; r: any }[] = []
+  slabs: { x: number; y: number; z: number; r: any }[] = [],
+  zones: Zone[] = []
 ) {
   if (!points.length && !belts.length) {
     mapEl.innerHTML = `<p class="muted">No hay posiciones para dibujar (¿parser no disponible?).</p>`;
@@ -1996,7 +2202,7 @@ function renderMap(
   const counts: Record<string, number> = {};
   for (const p of points) {
     const cx = px(p.x).toFixed(1), cy = py(p.y).toFixed(1);
-    const zAttr = `data-z="${Math.round(p.z)}" data-floor="${p.floor}"`;
+    const zAttr = `data-z="${Math.round(p.z)}" data-floor="${p.floor}" data-zone="${p.zone}"`;
     if (p.cat === "other") {
       others += `<g data-cat="other" ${zAttr}><circle cx="${cx}" cy="${cy}" r="1.1" fill="#aab0bd" fill-opacity="${otherOp}"/></g>`;
     } else {
@@ -2100,6 +2306,7 @@ function renderMap(
     `<g id="map-vp">${slabSvg}${lines}${others}${shapes}</g></svg>` +
     `<div class="map-legend">${legend}<span class="leg-item"><span style="color:#8a93a3">─</span> cintas</span>` +
     `<span class="leg-item"><span style="color:#aab0bd">·</span> resto</span></div>` +
+    zoneList(zones) +
     `<p class="muted">Vista cenital, norte arriba. Pasa el ratón por una pieza para ver qué es y qué ` +
     `fabrica. Las plantas salen del suelo que has construido, no de adivinar alturas: una planta es ` +
     `una altura con una concentración de cimientos, y lo que no pisa ninguno está sobre terreno. Al ` +
@@ -2110,11 +2317,13 @@ function renderMap(
 }
 
 // Estado del mapa para resaltar cuellos de botella.
-let lastPoints: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string; floor: number }[] = [];
+let lastPoints: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string; floor: number; zone: number }[] = [];
 let lastBelts: { pts: [number, number][]; z: number; z0: number; z1: number }[] = [];
 let mapGround = 0; // altura del nivel más bajo, para mostrar metros relativos
 let lastSlabs: { x: number; y: number; z: number; r: any }[] = [];
 let mapFloor: number | null = null; // planta elegida; null = todas
+let lastZones: Zone[] = [];
+let mapZone: number | null = null; // zona elegida; null = todas
 let mapLevels: number[] = []; // alturas de los niveles construidos del mundo abierto
 let highlightItem: string | null = null;
 
@@ -2122,7 +2331,7 @@ let highlightItem: string | null = null;
 function highlightOnMap(item: string) {
   highlightItem = item;
   showTab("mapa");
-  renderMap(lastPoints, lastBelts, lastSlabs);
+  renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
 }
 
 // Zoom (rueda), arrastre (ratón) y filtros del mapa.
@@ -2132,7 +2341,7 @@ function setupMapInteraction() {
   if (clearBtn) {
     clearBtn.addEventListener("click", () => {
       highlightItem = null;
-      renderMap(lastPoints, lastBelts, lastSlabs);
+      renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
     });
   }
 
@@ -2194,6 +2403,17 @@ function setupMapInteraction() {
   mapEl.querySelectorAll<HTMLInputElement>("#z-min, #z-max").forEach((sl) => {
     sl.addEventListener("input", applyMapFilters);
   });
+  // Zonas: quedarse con un montaje concreto.
+  mapEl.querySelectorAll<HTMLButtonElement>(".zone-row").forEach((b) => {
+    b.addEventListener("click", () => {
+      const v = b.dataset.zone;
+      mapZone = v === "all" || v === undefined ? null : parseInt(v, 10);
+      mapEl.querySelectorAll(".zone-row").forEach((c) => c.classList.remove("active"));
+      b.classList.add("active");
+      applyMapFilters();
+    });
+  });
+
   // Chips de planta: eligen sobre qué suelo mirar.
   mapEl.querySelectorAll<HTMLButtonElement>(".lvl-chip").forEach((b) => {
     b.addEventListener("click", () => {
@@ -2246,6 +2466,11 @@ function applyMapFilters() {
     // que a ellas solo les aplica la banda de altura.
     const df = g.getAttribute("data-floor");
     if (mapFloor !== null && df !== null && parseInt(df, 10) !== mapFloor) {
+      g.classList.add("offband");
+      return;
+    }
+    const dzone = g.getAttribute("data-zone");
+    if (mapZone !== null && dzone !== null && parseInt(dzone, 10) !== mapZone) {
       g.classList.add("offband");
       return;
     }
