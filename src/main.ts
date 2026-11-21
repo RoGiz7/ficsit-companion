@@ -139,6 +139,7 @@ let gameDataEl: HTMLElement;
 let iconsEl: HTMLElement;
 let backupsEl: HTMLElement;
 let achievementsEl: HTMLElement;
+let alertsEl: HTMLElement;
 let milestoneEl: HTMLElement;
 let gameData: GameData | null = null;
 let noteText: HTMLTextAreaElement;
@@ -1142,6 +1143,7 @@ async function inspect(name: string) {
       mapFloor = null; // al cambiar de partida, se mira todo otra vez
       mapZone = null;
       renderMap(a.points, a.belts, a.slabs, a.zones);
+      renderAlerts(computeAlerts(a.points, a.zones));
 
       // Centro de mando: signos vitales + "Retoma aquí".
       const deficits = computeDeficits(a.perItem, a.consumed);
@@ -1841,6 +1843,154 @@ function prettyItem(pathName: string): string {
 }
 
 // Parser COMPLETO (etothepii): producción exacta con overclock + materiales almacenados.
+// ---- Avisos: qué se ha parado y dónde ----
+//
+// El save trae dos señales de funcionamiento y solo una sirve.
+//
+// mIsProducing es el estado en el instante exacto en que se guardó. En las
+// partidas de prueba daba 0 de 49 y 1 de 195 máquinas produciendo: como se
+// guarda al dejar de jugar, una máquina esperando dos segundos a que llegue
+// una placa se lee igual que una muerta de hambre desde hace una semana. Si
+// la app avisara con eso, gritaría que la fábrica entera está parada. No se
+// usa.
+//
+// La otra es la medida de productividad del propio juego: cuánto tiempo del
+// último tramo estuvo la máquina produciendo de verdad. Esa sí distingue —
+// en las mismas partidas repartía de 0% a 100% en vez de aplastarlo todo.
+// Es la que se usa.
+function productivityOf(props: any): number | null {
+  if (!props) return null;
+  const d = props.mLastProductivityMeasurementDuration;
+  const pd = props.mLastProductivityMeasurementProduceDuration;
+  const dv = d && (d.value !== undefined ? d.value : d);
+  const pv = pd && (pd.value !== undefined ? pd.value : pd);
+  if (typeof dv !== "number" || typeof pv !== "number" || dv <= 0) return null;
+  return Math.max(0, Math.min(100, Math.round((pv / dv) * 100)));
+}
+
+export interface Alert {
+  level: "stopped" | "slow";
+  name: string; // tipo de máquina
+  count: number;
+  worst: number; // la peor productividad del grupo
+  zone: number; // -1 si está suelta
+  zoneName: string;
+  x: number; // dónde llevar el mapa
+  y: number;
+  floor: number;
+}
+
+// Solo se avisa de lo que está realmente parado. Probado contra tres partidas
+// reales: con el listón en el 60% salían 29 avisos de 40 máquinas en una de
+// ellas, y eso es gritar que tres cuartas partes de la fábrica van mal. En
+// Satisfactory ir por debajo del 100% es lo normal y muchas veces es a
+// propósito — una fundidora alimentada por un extractor Mk1, una máquina con
+// la salida haciendo de almacén. Por debajo del 15% ya no es un ritmo, es que
+// no está trabajando.
+const STOPPED_PCT = 15;
+// Las que van a medio gas se cuentan, pero no ocupan una fila cada una.
+const SLOW_PCT = 60;
+
+// Agrupa por zona y tipo: nadie quiere una lista de 183 filas, quiere saber
+// qué montaje se le ha caído.
+function computeAlerts(
+  points: { x: number; y: number; cls: string; name: string; prod: number | null; zone: number; floor: number }[],
+  zones: Zone[]
+): Alert[] {
+  const groups = new Map<string, { pts: typeof points; worst: number }>();
+  for (const p of points) {
+    if (p.prod === null || p.prod >= SLOW_PCT) continue;
+    const key = `${p.zone}|${p.name}`;
+    const g = groups.get(key) || { pts: [], worst: 100 };
+    g.pts.push(p);
+    g.worst = Math.min(g.worst, p.prod);
+    groups.set(key, g);
+  }
+
+  const out: Alert[] = [];
+  for (const [key, g] of groups) {
+    const zi = parseInt(key.split("|")[0], 10);
+    const z = zi >= 0 ? zones[zi] : undefined;
+    // El centro del grupo, no el de la zona: lo que se busca es dónde están
+    // estas máquinas, no dónde cae el montaje entero.
+    const cx = g.pts.reduce((t, p) => t + p.x, 0) / g.pts.length;
+    const cy = g.pts.reduce((t, p) => t + p.y, 0) / g.pts.length;
+    out.push({
+      level: g.worst < STOPPED_PCT ? "stopped" : "slow",
+      name: g.pts[0].name,
+      count: g.pts.length,
+      worst: g.worst,
+      zone: zi,
+      zoneName: z ? z.name : "",
+      x: cx,
+      y: cy,
+      floor: g.pts[0].floor,
+    });
+  }
+  // Lo parado antes que lo lento, y dentro de cada grupo lo más numeroso.
+  out.sort((a, b) =>
+    a.level !== b.level ? (a.level === "stopped" ? -1 : 1) : b.count - a.count || a.worst - b.worst
+  );
+  return out;
+}
+
+function renderAlerts(alerts: Alert[]) {
+  if (!alertsEl) return;
+  if (!alerts.length) {
+    alertsEl.innerHTML = "";
+    return;
+  }
+  // Filas solo para lo parado. Lo lento va en una línea al pie, porque es
+  // contexto y no una llamada a la acción.
+  const stopped = alerts.filter((a) => a.level === "stopped");
+  const slow = alerts.length - stopped.length;
+  if (!stopped.length) {
+    alertsEl.innerHTML = slow
+      ? `<p class="muted al-only-slow">${t("alert.only_slow", { n: slow })}</p>`
+      : "";
+    return;
+  }
+  const shown = stopped.slice(0, 10);
+  const rows = shown
+    .map((a, i) => {
+      const where = a.zoneName ? escapeXml(a.zoneName) : t("alert.loose");
+      return (
+        `<button class="al-row al-${a.level}" data-i="${i}" type="button">` +
+        `<span class="al-dot"></span>` +
+        `<span class="al-main">${iconImg(a.name, 16)}<b>${a.count}× ${escapeXml(a.name)}</b>` +
+        `<span class="al-meta">${where} · ${t("alert.at", { n: a.worst })}</span></span>` +
+        `<span class="al-go">${t("alert.see")}</span>` +
+        `</button>`
+      );
+    })
+    .join("");
+
+  alertsEl.innerHTML =
+    `<h3 class="inv-title">${t("alert.title", { n: stopped.length })}</h3>` +
+    `<p class="muted">${t("alert.note_bad")}</p>` +
+    rows +
+    (stopped.length > shown.length
+      ? `<p class="muted">${t("alert.more", { n: stopped.length - shown.length })}</p>`
+      : "") +
+    (slow ? `<p class="muted">${t("alert.plus_slow", { n: slow })}</p>` : "") +
+    `<p class="muted al-foot">${t("alert.foot")}</p>`;
+
+  alertsEl.querySelectorAll<HTMLButtonElement>(".al-row").forEach((b) => {
+    b.addEventListener("click", () => {
+      const a = shown[parseInt(b.dataset.i || "0", 10)];
+      if (!a) return;
+      // Llevar al mapa y dejarlo mirando justo ahí.
+      highlightItem = null;
+      mapZone = a.zone >= 0 ? a.zone : null;
+      mapFloor = null;
+      highlightSpot = { x: a.x, y: a.y, label: `${a.count}× ${a.name}` };
+      showTab("mapa");
+      renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
+      mapEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
+
 async function analyzeWithParser(folder: string, name: string) {
   const bytes = await invoke<ArrayBuffer>("read_save_bytes", { folder, name });
   const save: any = Parser.ParseSave(name, bytes);
@@ -1862,6 +2012,7 @@ async function analyzeWithParser(folder: string, name: string) {
     detail: string;
     item: string;
     cls: string;
+    prod: number | null; // productividad 0..100 medida por el juego, null si no la mide
     floor: number; // índice de planta, -1 = sobre terreno
     zone: number; // índice de zona, -1 = sin zona
   }[] = [];
@@ -1953,6 +2104,7 @@ async function analyzeWithParser(folder: string, name: string) {
             detail,
             item: prodItem,
             cls,
+            prod: productivityOf(o.properties),
             floor: -1, // se asignan abajo, al conocerse plantas y zonas
             zone: -1,
           });
@@ -2738,6 +2890,18 @@ function renderMap(
       `</div>`;
   }
 
+  // Chincheta del aviso: un anillo en el sitio exacto al que se ha pedido ir.
+  let spotSvg = "";
+  if (highlightSpot) {
+    const sx = px(highlightSpot.x).toFixed(1);
+    const sy = py(highlightSpot.y).toFixed(1);
+    spotSvg =
+      `<g class="map-spot">` +
+      `<circle class="mk" cx="${sx}" cy="${sy}" r="13" fill="none" stroke="#ff3b3b" stroke-width="2" vector-effect="non-scaling-stroke"/>` +
+      `<circle class="mk" cx="${sx}" cy="${sy}" r="2.2" fill="#ff3b3b"/>` +
+      `<title>${escapeXml(highlightSpot.label)}</title></g>`;
+  }
+
   mapEl.innerHTML =
     `<h3 class="inv-title">${t("map.title", { b: points.length, c: belts.length })}` +
     `${slabs.length ? t("map.slabs", { n: slabs.length }) : ""}</h3>` +
@@ -2748,7 +2912,7 @@ function renderMap(
     levelChips +
     heightFilter +
     `<svg viewBox="0 0 ${W} ${H}" class="map2d" id="map-svg">` +
-    `<g id="map-vp">${slabSvg}${lines}${others}${shapes}</g></svg>` +
+    `<g id="map-vp">${slabSvg}${lines}${others}${shapes}${spotSvg}</g></svg>` +
     `<div class="map-legend">${legend}<span class="leg-item"><span style="color:#8a93a3">─</span> cintas</span>` +
     `<span class="leg-item"><span style="color:#aab0bd">·</span> resto</span></div>` +
     zoneList(zones) +
@@ -2767,10 +2931,14 @@ let lastZones: Zone[] = [];
 let mapZone: number | null = null; // zona elegida; null = todas
 let mapLevels: number[] = []; // alturas de los niveles construidos del mundo abierto
 let highlightItem: string | null = null;
+// Punto concreto al que ir desde un aviso: no es "resalta esta pieza" sino
+// "llévame a este sitio".
+let highlightSpot: { x: number; y: number; label: string } | null = null;
 
 // Salta al mapa y resalta las máquinas que fabrican `item`.
 function highlightOnMap(item: string) {
   highlightItem = item;
+  highlightSpot = null;
   showTab("mapa");
   renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
 }
@@ -2782,6 +2950,7 @@ function setupMapInteraction() {
   if (clearBtn) {
     clearBtn.addEventListener("click", () => {
       highlightItem = null;
+      highlightSpot = null;
       renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
     });
   }
@@ -3218,6 +3387,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   iconsEl = document.querySelector("#icons") as HTMLElement;
   backupsEl = document.querySelector("#backups") as HTMLElement;
   achievementsEl = document.querySelector("#achievements") as HTMLElement;
+  alertsEl = document.querySelector("#alerts") as HTMLElement;
   milestoneEl = document.querySelector("#milestone") as HTMLElement;
   productionEl = document.querySelector("#production") as HTMLElement;
   balanceEl = document.querySelector("#balance") as HTMLElement;

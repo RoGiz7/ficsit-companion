@@ -84,6 +84,27 @@ export const STRINGS: Record<string, Entry> = {
     es: "Los iconos son obra de Coffee Stain Studios. FICSIT Companion no está afiliado a Coffee Stain y retiraría esta función si lo pidieran.",
     en: "The icons are the work of Coffee Stain Studios. FICSIT Companion is not affiliated with Coffee Stain and would remove this feature if asked.",
   },
+  "alert.title": { es: "Avisos de planta · {n}", en: "Floor alerts · {n}" },
+  "alert.note_bad": {
+    es: "Esto no está produciendo. Pulse en cualquier aviso y le llevamos al sitio exacto del mapa.",
+    en: "This is not producing. Click any alert and we take you to the exact spot on the map.",
+  },
+  "alert.only_slow": {
+    es: "Nada parado. {n} grupo(s) van por debajo del 60%, que en esta industria suele ser una decisión y no una avería.",
+    en: "Nothing stopped. {n} group(s) run below 60%, which in this industry is usually a decision rather than a fault.",
+  },
+  "alert.plus_slow": {
+    es: "Otros {n} grupo(s) van a medio gas. No se listan: por debajo del 100% se vive perfectamente.",
+    en: "Another {n} group(s) run at half steam. Not listed: below 100% is a perfectly livable life.",
+  },
+  "alert.at": { es: "al {n}% de productividad", en: "at {n}% productivity" },
+  "alert.see": { es: "Ver en el mapa", en: "Show on map" },
+  "alert.loose": { es: "fuera de todo montaje", en: "outside any block" },
+  "alert.more": { es: "Y {n} grupo(s) más, de menos entidad.", en: "And {n} more group(s), of lesser note." },
+  "alert.foot": {
+    es: "La productividad la mide el juego, no nosotros: es cuánto tiempo del último tramo estuvo la máquina trabajando de verdad. Baja significa que algo no llega o que la salida está llena — FICSIT no distingue entre pasar hambre y atragantarse.",
+    en: "Productivity is the game's own measure, not ours: how much of the last stretch the machine actually worked. Low means something is not arriving or the output is backed up — FICSIT does not distinguish between starving and choking.",
+  },
   "map.fit": { es: "Encuadrar", en: "Fit view" },
   "map.locate": { es: "Ver en el mapa", en: "Show on map" },
   "bal.title": { es: "Balance de la cadena", en: "Chain balance" },

@@ -118,6 +118,36 @@ per-building icons: at close zoom there is room for them, and at far zoom it can
 simpler. Our map is a static fit-to-view plan, so it only ever has the far-zoom case. Adding
 zoom and pan is the real feature; icons as markers are a consequence of it, not a prerequisite.
 
+## Alerts: which signal in the save can be trusted
+
+A save carries two signals about whether a machine is working, and only one of them is usable.
+Writing this down because the tempting one is the wrong one.
+
+**`mIsProducing` looks perfect and is useless.** It is the state at the instant the save was
+written, and people save when they stop playing. Measured across three real worlds: 1 of 195
+machines producing in one, 0 of 49 in another, 13 of 30 in the third. A machine waiting two seconds
+for an iron plate reads identically to one that has been starved for a week. An app that alerted on
+this would announce that the entire factory is dead, most of the time, and be ignored within a day.
+
+**The productivity measurement is the real one.** The game keeps
+`mLastProductivityMeasurementProduceDuration` over `mLastProductivityMeasurementDuration` — how
+much of the last stretch the machine actually produced. It is the game's own readout, and it
+discriminates: across the same three worlds it spread from 0% to 100% instead of collapsing to one
+value.
+
+The threshold matters as much as the signal. At 60% it fired on 29 of 40 machines in one world,
+which is shouting that three quarters of the factory is broken. Running below 100% is normal in
+this game and usually deliberate — a smelter fed by a Mk1 miner, a machine using its output slot as
+a buffer. Only below 15% is it fair to say the thing is not working. Slow groups are counted in one
+line, not listed.
+
+Every building carries a transform, so every alert is locatable, and clicking one takes the map to
+that spot.
+
+What is **not** built, and why: `mHasFuelCached` on generators looked promising (2 of 7 lacked it
+in one world) but the sample is too small to tell a flat generator from a serialisation quirk.
+Worth revisiting with more worlds before anyone trusts a "your power plant is out of fuel" banner.
+
 ## Measuring ourselves against the community tools
 
 Satisfactory Calculator (SCIM) is the reference point and does a superb job. It reads the binary

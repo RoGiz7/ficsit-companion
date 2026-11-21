@@ -1652,3 +1652,78 @@ table.saves {
   border-color: var(--accent-dim);
   color: var(--accent);
 }
+
+/* ---- Avisos de planta ----
+   Lo primero que se ve al abrir una partida, porque es lo único que pide
+   actuar. Si no hay nada que decir, el bloque no existe: un panel que dice
+   "todo bien" cada día es un panel que se deja de mirar. */
+.alerts {
+  margin: 6px 0 14px;
+}
+
+.al-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.al-row:hover {
+  border-color: var(--accent-dim);
+}
+
+.al-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.al-stopped .al-dot { background: #d9534f; }
+.al-slow .al-dot { background: #cf7a2a; }
+
+.al-stopped { border-left: 3px solid #d9534f; }
+.al-slow { border-left: 3px solid #cf7a2a; }
+
+.al-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.al-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.al-go {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.al-foot {
+  margin-top: 8px;
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.map-spot circle:first-child {
+  animation: spotPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes spotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
