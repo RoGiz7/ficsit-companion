@@ -434,8 +434,11 @@ function compatBadges(meta: SaveMeta | undefined): string {
   return out.join(" ");
 }
 
-// Aviso de compatibilidad del mundo abierto. Solo aparece si hay algo que
-// decir: partida con mods, formato antiguo, o recetas que no sabemos leer.
+// Avisos sobre el mundo abierto. Van en dos bloques a propósito, porque son
+// dos cosas distintas y mezclarlas confunde: lo que le pasa a TU PARTIDA (usa
+// mods, formato viejo, creativa) y lo que me pasa a MÍ (recetas del juego base
+// que aún no tengo en mis tablas). Lo segundo es un fallo mío, no un problema
+// de tu partida, y el mensaje debe decirlo así.
 function renderCompat(
   meta: SaveMeta | undefined,
   machineCount: number,
@@ -443,40 +446,59 @@ function renderCompat(
   bySource: Record<string, number>
 ) {
   if (!compatEl) return;
-  const lines: string[] = [];
+  const saveLines: string[] = [];
+  const appLines: string[] = [];
 
   if (meta && meta.isModded) {
     const list = meta.mods.map((m) => `${m.name} ${m.version}`).join(" · ");
-    lines.push(
+    saveLines.push(
       `<b>Partida con ${meta.mods.length} mods.</b> El juego no la abrirá sin ellos instalados. ` +
         `<span class="muted">${escapeXml(list)}</span>`
     );
   }
   if (meta && newestSaveVersion && meta.saveVersion < newestSaveVersion) {
-    lines.push(
+    saveLines.push(
       `Guardada en formato <b>v${meta.saveVersion}</b>, por detrás de tus partidas más nuevas (v${newestSaveVersion}).`
     );
   }
   if (meta && meta.creative) {
-    lines.push(`Modo creativo activado: los datos no son comparables con una partida normal.`);
-  }
-  if (unknown > 0 && machineCount > 0) {
-    const pct = Math.round((unknown / machineCount) * 100);
-    const src = Object.entries(bySource)
-      .sort((a, b) => b[1] - a[1])
-      .map(([k, v]) => `${v} de ${escapeXml(k)}`)
-      .join(", ");
-    lines.push(
-      `<b>${unknown} de ${machineCount} máquinas (${pct}%)</b> fabrican recetas que no sé interpretar, ` +
-        `así que su producción y su consumo no entran en los cálculos: ${src}.`
-    );
+    saveLines.push(`Modo creativo activado: los datos no son comparables con una partida normal.`);
   }
 
-  compatEl.innerHTML = lines.length
-    ? `<div class="compat-card"><h3 class="compat-title">⚠ Ojo con los datos de esta partida</h3>` +
-      lines.map((l) => `<p>${l}</p>`).join("") +
-      `</div>`
-    : "";
+  if (unknown > 0 && machineCount > 0) {
+    const base = bySource["juego base"] || 0;
+    const mods = Object.entries(bySource).filter(([k]) => k !== "juego base");
+    const modTotal = mods.reduce((n, [, v]) => n + v, 0);
+
+    if (modTotal > 0) {
+      const src = mods
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, v]) => `${v} de ${escapeXml(k)}`)
+        .join(", ");
+      saveLines.push(
+        `<b>${modTotal} de ${machineCount} máquinas</b> fabrican recetas de mods. Lo que producen ` +
+          `solo lo sabe el propio mod, así que no entran en los cálculos: ${src}.`
+      );
+    }
+    if (base > 0) {
+      const pct = Math.round((base / machineCount) * 100);
+      appLines.push(
+        `<b>${base} de ${machineCount} máquinas (${pct}%)</b> usan recetas del juego base que todavía ` +
+          `no tengo en mis tablas, así que su producción y su consumo no entran en los cálculos. ` +
+          `Esto es una limitación mía, no un problema de tu partida.`
+      );
+    }
+  }
+
+  const card = (cls: string, title: string, lines: string[]) =>
+    `<div class="compat-card ${cls}"><h3 class="compat-title">${title}</h3>` +
+    lines.map((l) => `<p>${l}</p>`).join("") +
+    `</div>`;
+
+  let html = "";
+  if (saveLines.length) html += card("", "⚠ Ojo con los datos de esta partida", saveLines);
+  if (appLines.length) html += card("info", "ℹ Cobertura de recetas", appLines);
+  compatEl.innerHTML = html;
 }
 
 function worldKey(s: SaveEntry): string {
@@ -1011,7 +1033,14 @@ async function persistPlan(world: string) {
 
 // ---- Producción real (leída de las máquinas activas) ----
 // Mapa receta del juego → pieza producida y ritmo/min por máquina (al 100%).
-const RECIPE_OUTPUT: Record<string, { item: string; rate: number }> = {
+// Qué fabrica cada receta y a qué ritmo. "inputs" solo hace falta cuando una
+// pieza se puede fabricar de varias formas (la biomasa sale de hojas, madera o
+// micelio): ahí no vale mirar RECIPES, que guarda una receta por pieza, porque
+// el consumo dependería de cuál esté puesta en la máquina.
+const RECIPE_OUTPUT: Record<
+  string,
+  { item: string; rate: number; inputs?: { item: string; rate: number }[] }
+> = {
   Recipe_IngotIron: { item: "Lingote de hierro", rate: 30 },
   Recipe_IngotCopper: { item: "Lingote de cobre", rate: 30 },
   Recipe_IngotSteel: { item: "Lingote de acero", rate: 45 },
@@ -1025,6 +1054,24 @@ const RECIPE_OUTPUT: Record<string, { item: string; rate: number }> = {
   Recipe_CopperSheet: { item: "Lámina de cobre", rate: 10 },
   Recipe_IronPlateReinforced: { item: "Placa de hierro reforzada", rate: 5 },
   Recipe_Rotor: { item: "Rotor", rate: 4 },
+  // Biomasa y derivados: faltaban enteros. Son de las primeras máquinas que
+  // pone cualquiera, así que su ausencia se nota desde el minuto uno.
+  Recipe_Biomass_Leaves: { item: "Biomasa", rate: 60, inputs: [{ item: "Hojas", rate: 120 }] },
+  Recipe_Biomass_Wood: { item: "Biomasa", rate: 300, inputs: [{ item: "Madera", rate: 60 }] },
+  Recipe_Biomass_Mycelia: { item: "Biomasa", rate: 150, inputs: [{ item: "Micelio", rate: 15 }] },
+  Recipe_Biofuel: {
+    item: "Biocombustible sólido",
+    rate: 60,
+    inputs: [{ item: "Biomasa", rate: 120 }],
+  },
+  Recipe_SpaceElevatorPart_1: {
+    item: "Placa inteligente",
+    rate: 2,
+    inputs: [
+      { item: "Placa de hierro reforzada", rate: 2 },
+      { item: "Rotor", rate: 2 },
+    ],
+  },
   Recipe_ModularFrame: { item: "Marco modular", rate: 2 },
   Recipe_SteelBeam: { item: "Viga de acero", rate: 15 },
   Recipe_SteelPipe: { item: "Tubería de acero", rate: 20 },
@@ -1240,9 +1287,12 @@ async function analyzeWithParser(folder: string, name: string) {
         if (out) {
           perItem[out.item] = (perItem[out.item] || 0) + out.rate * oc;
           // Consumo: ingredientes de esa receta (si la conocemos en la calculadora).
+          // Ingredientes de ESA receta si los conocemos; si no, la receta
+          // única que la calculadora guarda para esa pieza.
           const crec = RECIPES[out.item];
-          if (crec) {
-            for (const inp of crec.inputs) {
+          const inputs = out.inputs || (crec ? crec.inputs : null);
+          if (inputs) {
+            for (const inp of inputs) {
               consumed[inp.item] = (consumed[inp.item] || 0) + inp.rate * oc;
             }
           }

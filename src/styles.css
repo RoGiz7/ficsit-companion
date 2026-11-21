@@ -1085,3 +1085,14 @@ table.saves {
 .compat-card p:first-of-type {
   margin-top: 0;
 }
+
+/* Limitación nuestra, no problema de la partida: mismo formato, tono neutro. */
+.compat-card.info {
+  border-color: rgba(58, 160, 255, 0.28);
+  border-left-color: #3aa0ff;
+  background: rgba(58, 160, 255, 0.05);
+}
+
+.compat-card.info .compat-title {
+  color: #3aa0ff;
+}

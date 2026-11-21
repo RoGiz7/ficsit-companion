@@ -11,11 +11,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   hand-rolled byte offsets, which takes about half a millisecond per save. The saves list shows
   whether a save needs mods (and which ones, with versions), whether it was written in an older
   format than your newest save, and whether creative mode was on.
+- Biomass recipes (from leaves, wood and mycelia), Solid Biofuel and Smart Plating, which were
+  missing from the recipe tables entirely even though they are among the first machines anyone
+  builds. `RECIPE_OUTPUT` entries can now carry their own ingredient list, which matters for parts
+  that can be made several ways: biomass consumption depends on which recipe the machine is set to,
+  and a single recipe per part cannot express that.
 - **Honest reporting of what the app cannot interpret.** The save is read in full, but the recipe
   tables only know the base game, so a modded machine produces something the app has never heard
   of. Instead of silently dropping those machines, it now counts them and says where they come
-  from: "8 of 30 machines (27%) run recipes I can't interpret: 6 from RefinedPower, 2 from
-  ContentLib". Snapshots record the coverage figure, so history knows which numbers to trust.
+  from. Modded recipes and base-game recipes are reported separately and worded differently: a
+  modded recipe is something only the mod knows, while a missing base-game recipe is the app's own
+  gap and says so. Snapshots record the coverage figure, so history knows which numbers to trust.
 - **Rich history snapshots.** Every snapshot now stores what the save actually contained: tier,
   milestones and research, machines with a recipe and how many are overclocked, estimated power
   consumption and generation, production and consumption per item, the deficits found, stored
