@@ -108,6 +108,7 @@ interface SnapshotMetrics {
   save_name: string | null;
   player_x?: number | null;
   player_y?: number | null;
+  zones?: { x: number; y: number; n: number }[] | null;
 }
 interface Snapshot {
   ts_ms: number;
@@ -1203,6 +1204,7 @@ async function inspect(name: string) {
       renderAchievements(hist);
       // El rastro sale del histórico, así que solo se puede dibujar una vez
       // leído. Si el mapa ya está pintado, se repinta con él.
+      lastSnaps = hist;
       const track = hist
         .filter((h) => h.metrics && h.metrics.player_x != null && h.metrics.player_y != null)
         .map((h) => ({ x: h.metrics!.player_x!, y: h.metrics!.player_y!, ts: h.ts_ms }));
@@ -2476,6 +2478,13 @@ function buildMetrics(
     save_name: saveName,
     player_x: a.players.length ? Math.round(a.players[0].x) : null,
     player_y: a.players.length ? Math.round(a.players[0].y) : null,
+    // Solo los montajes de verdad, y como mucho cuarenta: esto se guarda en
+    // cada lectura y un histórico de un año no debe pesar por un detalle que
+    // nadie va a mirar.
+    zones: a.zones
+      .filter((z) => z.count >= 2)
+      .slice(0, 40)
+      .map((z) => ({ x: Math.round(z.x), y: Math.round(z.y), n: z.count })),
   };
 }
 
@@ -2788,6 +2797,112 @@ function zoneList(zones: Zone[]): string {
   );
 }
 
+// ---- El mapa en el tiempo ----
+//
+// Dos lecturas no se pueden emparejar por índice de zona (se recalculan cada
+// vez) ni por nombre (depende del idioma). Solo por posición. El centro de un
+// montaje se mueve un poco al crecer, así que se admite holgura, y se asigna
+// de más cercano a más lejano para que dos bloques vecinos no se crucen.
+const ZONE_MATCH = 6000; // unidades del juego, 60 m
+
+interface ZoneDelta {
+  zone: Zone;
+  before: number | null; // máquinas que tenía, null si no existía
+  delta: number;
+}
+
+function compareZones(
+  now: Zone[],
+  then: { x: number; y: number; n: number }[]
+): { deltas: ZoneDelta[]; gone: { x: number; y: number; n: number }[] } {
+  const pairs: { i: number; j: number; d: number }[] = [];
+  now.forEach((z, i) => {
+    then.forEach((o, j) => {
+      const d = Math.hypot(z.x - o.x, z.y - o.y);
+      if (d <= ZONE_MATCH) pairs.push({ i, j, d });
+    });
+  });
+  pairs.sort((a, b) => a.d - b.d);
+
+  const takenNow = new Set<number>();
+  const takenThen = new Set<number>();
+  const match = new Map<number, number>();
+  for (const p of pairs) {
+    if (takenNow.has(p.i) || takenThen.has(p.j)) continue;
+    takenNow.add(p.i);
+    takenThen.add(p.j);
+    match.set(p.i, p.j);
+  }
+
+  // Segunda pasada, solo con lo que ha sobrado. Un montaje que crece mucho
+  // arrastra su centro, y con la holgura normal se leería como uno nuevo más
+  // uno desaparecido: dos respuestas equivocadas en vez de una correcta. Aquí
+  // la holgura es mayor porque los emparejamientos seguros ya están hechos y
+  // lo que queda no tiene con qué confundirse.
+  const LOOSE = 15000; // 150 m
+  const leftoverPairs: { i: number; j: number; d: number }[] = [];
+  now.forEach((z, i) => {
+    if (takenNow.has(i)) return;
+    then.forEach((o, j) => {
+      if (takenThen.has(j)) return;
+      const d = Math.hypot(z.x - o.x, z.y - o.y);
+      if (d <= LOOSE) leftoverPairs.push({ i, j, d });
+    });
+  });
+  leftoverPairs.sort((a, b) => a.d - b.d);
+  for (const p of leftoverPairs) {
+    if (takenNow.has(p.i) || takenThen.has(p.j)) continue;
+    takenNow.add(p.i);
+    takenThen.add(p.j);
+    match.set(p.i, p.j);
+  }
+
+  const deltas: ZoneDelta[] = now.map((z, i) => {
+    const j = match.get(i);
+    const before = j === undefined ? null : then[j].n;
+    return { zone: z, before, delta: before === null ? z.count : z.count - before };
+  });
+  const gone = then.filter((_, j) => !takenThen.has(j));
+  return { deltas, gone };
+}
+
+// Selector de comparación. Solo aparece si hay con qué comparar: ofrecerlo
+// vacío sería prometer algo que el histórico todavía no puede dar.
+function comparePicker(): string {
+  const snaps = comparableSnaps();
+  if (snaps.length < 2) return "";
+  const now = snaps[snaps.length - 1].ts_ms;
+  const opts: { ts: number; label: string }[] = [];
+  const pick = (days: number, key: string) => {
+    const target = now - days * 86400000;
+    const c = snaps.filter((s) => s.ts_ms <= target).pop();
+    if (c && !opts.some((o) => o.ts === c.ts_ms)) opts.push({ ts: c.ts_ms, label: t(key) });
+  };
+  pick(7, "cmp.week");
+  pick(30, "cmp.month");
+  const first = snaps[0];
+  if (first.ts_ms !== now && !opts.some((o) => o.ts === first.ts_ms)) {
+    opts.push({ ts: first.ts_ms, label: t("cmp.first") });
+  }
+  if (!opts.length) return "";
+  return (
+    `<span class="cmp-pick">${t("cmp.vs")}` +
+    `<button class="map-fit${compareTs === null ? " on" : ""}" data-cmp="" type="button">${t("cmp.none")}</button>` +
+    opts
+      .map(
+        (o) =>
+          `<button class="map-fit${compareTs === o.ts ? " on" : ""}" data-cmp="${o.ts}" type="button">${o.label}</button>`
+      )
+      .join("") +
+    `</span>`
+  );
+}
+
+// Las lecturas que sirven para comparar: las que guardaron zonas.
+function comparableSnaps(): Snapshot[] {
+  return lastSnaps.filter((s) => s.metrics && s.metrics.zones && s.metrics.zones.length);
+}
+
 function renderMap(
   points: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string; floor: number; zone: number }[],
   belts: { pts: [number, number][]; z: number; z0: number; z1: number }[],
@@ -2985,6 +3100,49 @@ function renderMap(
       `</div>`;
   }
 
+  // Crecimiento: cuánto ha cambiado cada montaje desde la lectura elegida.
+  // Se dibuja encima de las formas, nunca sustituyéndolas — el mapa sigue
+  // diciendo qué hay; esto añade qué ha cambiado.
+  let growthSvg = "";
+  let growthNote = "";
+  const cmpSnap = compareTs === null ? null : lastSnaps.find((s) => s.ts_ms === compareTs);
+  if (cmpSnap && cmpSnap.metrics && cmpSnap.metrics.zones && zones.length) {
+    const { deltas, gone } = compareZones(zones, cmpSnap.metrics.zones);
+    let grew = 0;
+    let fresh = 0;
+    for (const d of deltas) {
+      if (d.before === null) fresh++;
+      else if (d.delta > 0) grew++;
+      if (d.before !== null && d.delta === 0) continue;
+      const cx = px(d.zone.x).toFixed(1);
+      const cy = py(d.zone.y).toFixed(1);
+      const isNew = d.before === null;
+      const col = isNew ? "#3f9e6a" : d.delta > 0 ? "#3f93e0" : "#c45d94";
+      const label = isNew ? t("cmp.new") : `${d.delta > 0 ? "+" : ""}${d.delta}`;
+      growthSvg +=
+        `<g class="map-growth">` +
+        `<circle class="mk" cx="${cx}" cy="${cy}" r="11" fill="none" stroke="${col}" stroke-width="1.6" stroke-opacity="0.9" vector-effect="non-scaling-stroke"/>` +
+        `<text class="gr-label" x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="${col}">${label}</text>` +
+        `<title>${escapeXml(d.zone.name)}: ${isNew ? t("cmp.new") : t("cmp.was", { n: d.before ?? 0 })}</title>` +
+        `</g>`;
+    }
+    // Lo que ya no está: se marca en su sitio, porque desmontar también es
+    // información y de otro modo desaparece sin dejar rastro.
+    for (const g of gone) {
+      growthSvg +=
+        `<g class="map-growth">` +
+        `<circle class="mk" cx="${px(g.x).toFixed(1)}" cy="${py(g.y).toFixed(1)}" r="9" fill="none" ` +
+        `stroke="#8b93a3" stroke-width="1.2" stroke-dasharray="3 2" vector-effect="non-scaling-stroke"/>` +
+        `<title>${t("cmp.gone", { n: g.n })}</title></g>`;
+    }
+    growthNote = t("cmp.summary", {
+      d: new Date(cmpSnap.ts_ms).toLocaleDateString(getLang()),
+      g: grew,
+      n: fresh,
+      x: gone.length,
+    });
+  }
+
   // Rastro: por dónde andaba uno en lecturas anteriores. Puntos sueltos y no
   // una línea, porque entre dos lecturas puede haber pasado media hora y unir
   // los puntos insinuaría un camino que nadie ha recorrido así.
@@ -3042,11 +3200,13 @@ function renderMap(
     (lastTrack.length > 1
       ? `<button id="map-track" class="map-fit${mapTrack ? " on" : ""}" type="button">${t("map.track", { n: lastTrack.length })}</button>`
       : "") +
+    comparePicker() +
     `<span class="muted map-hint">${t("map.hint")}</span></div>` +
     levelChips +
     heightFilter +
+    (growthNote ? `<p class="muted cmp-note">${growthNote}</p>` : "") +
     `<svg viewBox="0 0 ${W} ${H}" class="map2d" id="map-svg">` +
-    `<g id="map-vp">${slabSvg}${lines}${others}${shapes}${trackSvg}${playerSvg}${spotSvg}</g></svg>` +
+    `<g id="map-vp">${slabSvg}${lines}${others}${shapes}${trackSvg}${growthSvg}${playerSvg}${spotSvg}</g></svg>` +
     `<div class="map-legend">${legend}<span class="leg-item"><span style="color:#8a93a3">─</span> cintas</span>` +
     `<span class="leg-item"><span style="color:#aab0bd">·</span> resto</span></div>` +
     zoneList(zones) +
@@ -3069,6 +3229,9 @@ let highlightItem: string | null = null;
 // "llévame a este sitio".
 let highlightSpot: { x: number; y: number; label: string } | null = null;
 let mapTrack = true;
+// Lectura con la que comparar el mapa. null = no comparar.
+let compareTs: number | null = null;
+let lastSnaps: Snapshot[] = [];
 // Dónde está el pionero en la lectura abierta. Sirve para pintarlo en el mapa
 // y para decir a qué distancia queda lo que se ha parado.
 let lastPlayers: { name: string; x: number; y: number; z: number }[] = [];
@@ -3128,6 +3291,13 @@ function setupMapInteraction() {
   };
   svg.addEventListener("dblclick", reset);
   document.querySelector("#map-fit")?.addEventListener("click", reset);
+  mapEl.querySelectorAll<HTMLButtonElement>("[data-cmp]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const v = b.dataset.cmp;
+      compareTs = v ? parseInt(v, 10) : null;
+      renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
+    });
+  });
   document.querySelector("#map-track")?.addEventListener("click", () => {
     mapTrack = !mapTrack;
     renderMap(lastPoints, lastBelts, lastSlabs, lastZones);

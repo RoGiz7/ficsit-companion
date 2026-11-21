@@ -1756,3 +1756,33 @@ table.saves {
   border-color: var(--accent-dim);
   color: var(--accent);
 }
+
+/* Crecimiento sobre el mapa: anillo y cifra. Va encima de las formas, nunca
+   en su lugar — el mapa sigue diciendo qué hay, esto añade qué ha cambiado. */
+.gr-label {
+  font-size: 7px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: #131922;
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+
+.map-growth .gr-label {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(var(--mk, 1));
+}
+
+.cmp-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.cmp-note {
+  margin: 4px 0 6px;
+  font-size: 0.78rem;
+}

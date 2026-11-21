@@ -118,6 +118,29 @@ per-building icons: at close zoom there is room for them, and at far zoom it can
 simpler. Our map is a static fit-to-view plan, so it only ever has the far-zoom case. Adding
 zoom and pan is the real feature; icons as markers are a consequence of it, not a prerequisite.
 
+## The map in time: matching blocks between readings
+
+Each snapshot now stores its blocks — centre and machine count, at most forty, nothing else. Not
+the index, because indices are recomputed from scratch on every reading, and not the name, because
+names depend on the language. **Two readings can only be matched by position.**
+
+Matching runs in two passes, and the second one exists because of a specific failure. A block that
+grows drags its centre: with a single tolerance, a block that doubled and shifted eighty metres
+reads as one new block plus one that disappeared — two wrong answers instead of one right one.
+
+So: first pass at 60 m tolerance, nearest pair first, each block used once, which settles the
+confident matches without letting neighbouring blocks cross-match. Second pass at 150 m over the
+leftovers only, where the wide tolerance is safe precisely because everything confident is already
+paired and what remains has nothing to be confused with.
+
+Verified against synthetic cases: growth, birth, genuine dismantling, an eighty-metre drift, two
+neighbours fifty metres apart, and no change at all. The drift case is the one that drove the
+design; the neighbours case is the one that constrains it.
+
+The feature starts empty, by construction. Readings taken before this existed carry no blocks, so
+the comparison offers nothing until at least two new readings have accumulated. That is the cost
+of any feature that measures time, and the reason to add it early rather than when it is wanted.
+
 ## Alerts: which signal in the save can be trusted
 
 A save carries two signals about whether a machine is working, and only one of them is usable.

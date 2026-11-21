@@ -1097,6 +1097,18 @@ struct SnapshotMetrics {
     // serlo — ver docs/IDEAS.md.
     player_x: Option<f64>,
     player_y: Option<f64>,
+    // Los montajes de esta lectura: centro y cuántas máquinas. Sin nombre ni
+    // índice a propósito — los índices se recalculan en cada lectura y los
+    // nombres dependen del idioma, así que dos lecturas se emparejan por
+    // posición y por nada más.
+    zones: Option<Vec<ZoneSnap>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ZoneSnap {
+    x: f64,
+    y: f64,
+    n: u32,
 }
 
 // Una foto del estado de un mundo en un momento dado.

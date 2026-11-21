@@ -21,6 +21,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   unchanged. See `docs/ICONS.md`, which also states the terms plainly: the art is Coffee Stain's,
   this project is not affiliated with them, and the feature comes out if they ask.
 
+- **The map in time.** Each reading now records its blocks, and the map can be compared against a
+  week ago, a month ago or the first reading: blocks that grew carry their delta, new ones are
+  marked, and ones that are gone leave a dashed marker where they stood. Unchanged blocks are not
+  marked at all. Readings are matched by position — indices are recomputed every time and names
+  depend on the language — in two passes, so that a block which grew and drifted is read as growth
+  rather than as one birth plus one death. It starts empty by construction: earlier readings carry
+  no blocks, so the comparison appears once two new ones exist.
 - **Floor alerts.** The summary now opens with what has actually stopped — grouped by block and
   machine type — and clicking one takes the map straight to that spot and pins it. The signal is
   the game's own productivity measurement, not the `mIsProducing` flag, which reads as "everything
