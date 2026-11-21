@@ -1162,7 +1162,11 @@ async function inspect(name: string) {
       lastSlabs = a.slabs;
       lastZones = a.zones;
       lastPlayers = a.players;
-      lastCollect = a.collectPts;
+      lastFog = a.fog;
+      // Aquí se aplica la regla: lo que está en territorio sin explorar no se
+      // guarda con su posición. Se cuenta y ya.
+      lastCollect = a.collectPts.filter((c) => fogSeen(a.fog, c.x, c.y));
+      hiddenCollect = a.collectPts.length - lastCollect.length;
       mapLevels = a.levels;
       mapFloor = null; // al cambiar de partida, se mira todo otra vez
       mapZone = null;
@@ -1893,6 +1897,81 @@ function prettyItem(pathName: string): string {
 }
 
 // Parser COMPLETO (etothepii): producción exacta con overclock + materiales almacenados.
+// ---- La niebla: lo que ha visto de verdad ----
+//
+// REGLA DE LA CASA: la app no revela lo que el juego no le ha revelado. Ayuda
+// con lo que ya conoce, no hace de chuleta. Por eso lo que cae en territorio
+// sin pisar no se dibuja ni se sitúa: se cuenta y se dice que está ahí fuera.
+//
+// El save guarda la niebla en FGMapManager.mFogOfWarRawData: 1.048.576 bytes,
+// que son 512 × 512 celdas de 4 bytes (RGBA). El dato vive en el TERCER byte;
+// rojo y verde están a cero y el alfa siempre a 255.
+//
+// El encuadre viene de la wiki oficial — el mundo va de (-3246, -3750) a
+// (4253, 3750) en metros — y está verificado contra dos partidas reales: con
+// él, 947 de 947 edificios de una y 5.839 de 5.839 de la otra caen en celdas
+// exploradas, que es lo que tiene que pasar porque uno ha visto su propia
+// fábrica. Con el eje Y al revés da cero, así que la orientación también
+// queda fijada por los datos y no por una suposición.
+const FOG_SIDE = 512;
+const WORLD_X0 = -324600;
+const WORLD_X1 = 425300;
+const WORLD_Y0 = -375000;
+const WORLD_Y1 = 375000;
+
+function extractFog(props: any): Uint8Array | null {
+  const raw = props && props.mFogOfWarRawData;
+  const vals = raw && (raw.values || (raw.value && raw.value.values) || raw.value);
+  if (!Array.isArray(vals) || vals.length < FOG_SIDE * FOG_SIDE * 4) return null;
+  const out = new Uint8Array(FOG_SIDE * FOG_SIDE);
+  for (let i = 0, j = 2; i < out.length; i++, j += 4) out[i] = vals[j] & 255 ? 1 : 0;
+  return out;
+}
+
+function fogSeen(fog: Uint8Array | null, x: number, y: number): boolean {
+  // Sin niebla leída no se oculta nada: callarse cosas por no haber podido
+  // leer el dato sería peor que enseñarlas.
+  if (!fog) return true;
+  const c = Math.floor(((x - WORLD_X0) / (WORLD_X1 - WORLD_X0)) * FOG_SIDE);
+  const r = Math.floor(((y - WORLD_Y0) / (WORLD_Y1 - WORLD_Y0)) * FOG_SIDE);
+  if (c < 0 || c >= FOG_SIDE || r < 0 || r >= FOG_SIDE) return true;
+  return fog[r * FOG_SIDE + c] === 1;
+}
+
+// La niebla pintada, como imagen. 262.144 celdas no se dibujan una a una: se
+// vuelcan a un lienzo de 512×512 una sola vez y el mapa coloca esa imagen
+// sobre el rectángulo del mundo. Se cachea porque no cambia hasta la
+// siguiente lectura.
+let fogImgCache: { fog: Uint8Array | null; url: string } = { fog: null, url: "" };
+
+function fogImageURL(fog: Uint8Array): string {
+  if (fogImgCache.fog === fog) return fogImgCache.url;
+  const cv = document.createElement("canvas");
+  cv.width = FOG_SIDE;
+  cv.height = FOG_SIDE;
+  const ctx = cv.getContext("2d");
+  if (!ctx) return "";
+  const img = ctx.createImageData(FOG_SIDE, FOG_SIDE);
+  for (let i = 0, j = 0; i < fog.length; i++, j += 4) {
+    // Visto: transparente. Sin pisar: velo oscuro del color del tablero.
+    img.data[j] = 0x0c;
+    img.data[j + 1] = 0x0e;
+    img.data[j + 2] = 0x12;
+    img.data[j + 3] = fog[i] ? 0 : 205;
+  }
+  ctx.putImageData(img, 0, 0);
+  const url = cv.toDataURL("image/png");
+  fogImgCache = { fog, url };
+  return url;
+}
+
+function fogPercent(fog: Uint8Array | null): number | null {
+  if (!fog) return null;
+  let n = 0;
+  for (let i = 0; i < fog.length; i++) n += fog[i];
+  return Math.round((n / fog.length) * 1000) / 10;
+}
+
 // ---- Avisos: qué se ha parado y dónde ----
 //
 // El save trae dos señales de funcionamiento y solo una sirve.
@@ -2110,6 +2189,7 @@ async function analyzeWithParser(folder: string, name: string) {
   // una lista y no un punto.
   const players: { name: string; x: number; y: number; z: number }[] = [];
   const collectPts: { kind: string; x: number; y: number; z: number }[] = [];
+  let fog: Uint8Array | null = null;
   const collect: Record<string, number> = {};
   // Lo que no sabemos interpretar. El save se lee entero, pero nuestras tablas
   // de recetas solo conocen el juego base: una maquina de un mod fabrica algo
@@ -2225,6 +2305,8 @@ async function analyzeWithParser(folder: string, name: string) {
           }
         }
       }
+
+      if (!fog && /FGMapManager/.test(o.typePath || "")) fog = extractFog(o.properties);
 
       if (/Char_Player\.Char_Player_C/.test(o.typePath || "")) {
         const t = o.transform && o.transform.translation;
@@ -2418,6 +2500,7 @@ async function analyzeWithParser(folder: string, name: string) {
     dryCount,
     players,
     collectPts,
+    fog,
     powerFromDocs,
     storedByClass,
     slabs,
@@ -2673,7 +2756,11 @@ function renderBottlenecks(produced: Record<string, number>, consumed: Record<st
 }
 
 // Panel de exploración: coleccionables que quedan por recoger en el mundo.
-function renderExploration(collect: Record<string, number>) {
+function renderExploration(_collectAll: Record<string, number>) {
+  // Se cuenta sobre lo VISTO, no sobre lo que hay. Enseñar "33 cápsulas"
+  // cuando solo has encontrado 11 sería contar lo que no sabes.
+  const collect: Record<string, number> = {};
+  for (const c of lastCollect) collect[c.kind] = (collect[c.kind] || 0) + 1;
   const entries = Object.entries(collect).filter(([, n]) => n > 0);
   if (!entries.length) {
     explorationEl.innerHTML = "";
@@ -2696,9 +2783,13 @@ function renderExploration(collect: Record<string, number>) {
       );
     })
     .join("");
+  const pct = fogPercent(lastFog);
   explorationEl.innerHTML =
-    `<h3 class="inv-title">${t("expl.title")}</h3>` +
+    `<h3 class="inv-title">${t("expl.title")}${pct === null ? "" : ` · ${t("expl.explored", { n: pct })}`}</h3>` +
     `<div class="detail-grid">${cells}</div>` +
+    (hiddenCollect
+      ? `<p class="muted">${t("expl.hidden", { n: hiddenCollect })}</p>`
+      : "") +
     `<p class="muted">${lastCollect.length ? t("expl.note_map") : t("expl.note")}</p>`;
 
   explorationEl.querySelectorAll<HTMLButtonElement>(".cell-btn").forEach((b) => {
@@ -3213,6 +3304,21 @@ function renderMap(
     });
   }
 
+  // El velo de lo no explorado. Va de fondo, encima del tablero y debajo de
+  // todo lo demás: nada de lo que se dibuja cae en terreno sin pisar, así que
+  // no tapa ningún dato.
+  let fogSvg = "";
+  if (lastFog && mapFog) {
+    const url = fogImageURL(lastFog);
+    if (url) {
+      const fx = px(WORLD_X0);
+      const fy = py(WORLD_Y0);
+      const fw = px(WORLD_X1) - fx;
+      const fh = py(WORLD_Y1) - fy;
+      fogSvg = `<image href="${url}" x="${fx.toFixed(1)}" y="${fy.toFixed(1)}" width="${fw.toFixed(1)}" height="${fh.toFixed(1)}" preserveAspectRatio="none" image-rendering="pixelated"/>`;
+    }
+  }
+
   // Lo que queda por recoger. Capa aparte, no una quinta categoría: el
   // espacio de colores ya está lleno y un quinto tono no pasaba la validación
   // contra los cuatro de la fábrica. Así que el mundo va en tinta y hueco —
@@ -3296,6 +3402,9 @@ function renderMap(
     banner +
     `<div class="map-filters">${filters}` +
     `<button id="map-fit" class="map-fit" type="button">${t("map.fit")}</button>` +
+    (lastFog
+      ? `<button id="map-fog" class="map-fit${mapFog ? " on" : ""}" type="button">${t("map.fog", { n: fogPercent(lastFog) ?? 0 })}</button>`
+      : "") +
     (lastCollect.length
       ? `<button id="map-scope" class="map-fit${mapScope === "mundo" ? " on" : ""}" type="button">${t(mapScope === "mundo" ? "map.scope_world" : "map.scope_factory")}</button>`
       : "") +
@@ -3308,7 +3417,7 @@ function renderMap(
     heightFilter +
     (growthNote ? `<p class="muted cmp-note">${growthNote}</p>` : "") +
     `<svg viewBox="0 0 ${W} ${H}" class="map2d" id="map-svg">` +
-    `<g id="map-vp">${slabSvg}${lines}${others}${shapes}${collectSvg}${trackSvg}${growthSvg}${playerSvg}${spotSvg}</g></svg>` +
+    `<g id="map-vp">${fogSvg}${slabSvg}${lines}${others}${shapes}${collectSvg}${trackSvg}${growthSvg}${playerSvg}${spotSvg}</g></svg>` +
     `<div class="map-legend">${legend}<span class="leg-item"><span style="color:#8a93a3">─</span> cintas</span>` +
     `<span class="leg-item"><span style="color:#aab0bd">·</span> resto</span></div>` +
     zoneList(zones) +
@@ -3334,6 +3443,9 @@ let mapTrack = true;
 // Qué queda ahí fuera, con su sitio. null = todos los tipos.
 let lastCollect: { kind: string; x: number; y: number; z: number }[] = [];
 let collectKind: string | null = null;
+let lastFog: Uint8Array | null = null;
+let mapFog = true;
+let hiddenCollect = 0; // cuántos quedan en territorio sin pisar
 // Dos encuadres. "fabrica" ajusta a lo construido, que es lo normal. "mundo"
 // abre hasta abarcar lo que queda por recoger, que está repartido por todo el
 // planeta y a escala de fábrica cae fuera del lienzo.
@@ -3406,6 +3518,10 @@ function setupMapInteraction() {
       compareTs = v ? parseInt(v, 10) : null;
       renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
     });
+  });
+  document.querySelector("#map-fog")?.addEventListener("click", () => {
+    mapFog = !mapFog;
+    renderMap(lastPoints, lastBelts, lastSlabs, lastZones);
   });
   document.querySelector("#map-scope")?.addEventListener("click", () => {
     mapScope = mapScope === "mundo" ? "fabrica" : "mundo";

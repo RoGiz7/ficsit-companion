@@ -118,6 +118,33 @@ per-building icons: at close zoom there is room for them, and at far zoom it can
 simpler. Our map is a static fit-to-view plan, so it only ever has the far-zoom case. Adding
 zoom and pan is the real feature; icons as markers are a consequence of it, not a prerequisite.
 
+## The house rule: the app never reveals what the game has not
+
+Stated by the owner and it governs everything the app says about the world:
+**no cheating. The app helps with what you have already seen and know, with the
+tasks along the way.**
+
+The save makes this enforceable, because it carries the fog of war.
+`FGMapManager.mFogOfWarRawData` is 1,048,576 bytes: 512 × 512 cells of four bytes each. The data
+lives in the **third** byte — red and green are zero, alpha is always 255. A quarter of the array
+being non-zero is just the alpha channel, so read the byte, not the array.
+
+The grid maps onto the world rectangle the wiki gives, (-3246, -3750) to (4253, 3750) in metres,
+with **no Y flip**. That was not assumed: with those bounds, 947 of 947 buildings in one save and
+5,839 of 5,839 in another land in explored cells, which is what must happen because a pioneer has
+seen their own factory. Flipping Y gives zero percent, so the data fixes the orientation too.
+
+What it enforces today: collectables outside explored ground are **not given a position and not
+counted by type**. The panel says how many are still out there and refuses to say where. The map
+draws the unexplored ground as a veil.
+
+If the fog cannot be read, nothing is hidden. Withholding things because a parse failed would be
+worse than showing them.
+
+This rule should be applied to anything added later that knows more than the player does — resource
+nodes above all, since the save locates 1,147 of them whether or not the pioneer has ever been
+there.
+
 ## The map in time: matching blocks between readings
 
 Each snapshot now stores its blocks — centre and machine count, at most forty, nothing else. Not

@@ -120,9 +120,15 @@ export const STRINGS: Record<string, Entry> = {
     es: "Frente a la lectura del {d}: {g} montaje(s) han crecido, {n} son nuevos y {x} han desaparecido. Los que no han cambiado no se marcan.",
     en: "Against the reading of {d}: {g} block(s) grew, {n} are new and {x} are gone. Unchanged ones are not marked.",
   },
+  "map.fog": { es: "Niebla ({n}% visto)", en: "Fog ({n}% seen)" },
   "map.scope_factory": { es: "Ver el planeta", en: "Show the planet" },
   "map.scope_world": { es: "Ver solo la fábrica", en: "Show the factory only" },
   "layer.collect": { es: "Por recoger", en: "Uncollected" },
+  "expl.explored": { es: "{n}% del planeta explorado", en: "{n}% of the planet explored" },
+  "expl.hidden": {
+    es: "Hay {n} cosa(s) más ahí fuera, en terreno que no ha pisado. No le decimos dónde: esta tablet le ayuda con lo que ya conoce, no le hace el trabajo de explorar.",
+    en: "There are {n} more thing(s) out there, in ground you have not walked. We are not telling you where: this tablet helps with what you already know, it does not do your exploring for you.",
+  },
   "expl.nearest": { es: "el más cercano a {n} m", en: "nearest {n} m away" },
   "expl.note_map": {
     es: "Pulse un tipo y lo verá en el mapa, solo ese. Vuelva a pulsarlo para verlos todos. La distancia es en línea recta: los barrancos los pone el planeta, no nosotros.",
