@@ -1147,7 +1147,7 @@ async function inspect(name: string) {
 
       // Centro de mando: signos vitales + "Retoma aquí".
       const deficits = computeDeficits(a.perItem, a.consumed);
-      renderVitals(currentPowerMW, currentGenMW, deficits.length, a.points, a.stored);
+      renderVitals(currentPowerMW, currentGenMW, deficits.length, a.points, a.stored, a.dryGen, a.dryCount);
       renderCompat(savesMeta[name], a.machineCount, a.unknownRecipes, a.unknownBySource);
       renderNextMilestone(info.progression, a.storedByClass, a.perItem);
       snapMetrics = buildMetrics(a, info, deficits, currentPowerMW, currentGenMW, name);
@@ -1468,7 +1468,12 @@ function renderVitals(
   generation: number,
   deficitCount: number,
   points: { x: number; y: number }[],
-  stored: Record<string, number>
+  stored: Record<string, number>,
+  // MW instalados que no se están generando por falta de combustible, y
+  // cuántos generadores son. Sin esto el panel diría que todo va bien en una
+  // partida que está parada precisamente por eso.
+  dryGen = 0,
+  dryCount = 0
 ) {
   const margin = generation - consumption;
 
@@ -1481,6 +1486,8 @@ function renderVitals(
   } else if (consumption > 0) {
     score -= 15; // no detectamos generadores
   }
+  // Una central seca no es un detalle: es la planta parada.
+  if (dryCount > 0) score -= 25;
   score = Math.max(0, Math.min(100, Math.round(score)));
   const sColor = score >= 75 ? "#5fd38d" : score >= 40 ? "#f4c531" : "#ff6b6b";
 
@@ -1504,11 +1511,18 @@ function renderVitals(
     `<div class="detail-grid">` +
     cellColor(t("vitals.health"), `${score}/100`, sColor) +
     cell(t("vitals.draw"), `≈ ${fmt(consumption)} MW`) +
-    cell(t("vitals.gen"), generation > 0 ? `≈ ${fmt(generation)} MW` : "—") +
+    cellColor(
+      t("vitals.gen"),
+      generation > 0 ? `≈ ${fmt(generation)} MW` : dryCount > 0 ? "0 MW" : "—",
+      dryCount > 0 ? "#e8807c" : "#e9eaec"
+    ) +
     cellColor(t("vitals.margin"), generation > 0 ? `${margin >= 0 ? "+" : ""}${fmt(margin)} MW` : "—", generation > 0 ? mColor : "#8b93a3") +
     cell(t("vitals.size"), size) +
     cell(t("vitals.stored"), storedTotal.toLocaleString()) +
     `</div>` +
+    (dryCount > 0
+      ? `<p class="muted vit-dry">${t("vitals.dry", { n: dryCount, mw: fmt(dryGen) })}</p>`
+      : "") +
     `<p class="muted">${
       gameData
         ? t("vitals.note.docs")
@@ -1868,8 +1882,24 @@ function productivityOf(props: any): number | null {
   return Math.max(0, Math.min(100, Math.round((pv / dv) * 100)));
 }
 
+// ¿Tiene este generador con qué quemar? true / false / null si no lo dice.
+//
+// Confirmado contra un mundo con la respuesta conocida: en una partida cuyos
+// quemadores de biomasa se habían agotado, los diez generadores traían
+// mHasFuelCached a false; en las otras dos partidas, todos a true. Ojo con
+// mCurrentFuelAmount: sigue trayendo números grandes en los secos, así que la
+// cantidad NO es la señal. Y los generadores de manivela del principio no
+// traen la propiedad: eso es "no se sabe", no "está seco".
+function fuelStateOf(props: any): boolean | null {
+  if (!props) return null;
+  const f = props.mHasFuelCached;
+  if (f === undefined) return null;
+  const val = f.value !== undefined ? f.value : f;
+  return typeof val === "boolean" ? val : null;
+}
+
 export interface Alert {
-  level: "stopped" | "slow";
+  level: "dry" | "stopped" | "slow";
   name: string; // tipo de máquina
   count: number;
   worst: number; // la peor productividad del grupo
@@ -1894,29 +1924,31 @@ const SLOW_PCT = 60;
 // Agrupa por zona y tipo: nadie quiere una lista de 183 filas, quiere saber
 // qué montaje se le ha caído.
 function computeAlerts(
-  points: { x: number; y: number; cls: string; name: string; prod: number | null; zone: number; floor: number }[],
+  points: { x: number; y: number; cls: string; name: string; prod: number | null; dry: boolean; zone: number; floor: number }[],
   zones: Zone[]
 ): Alert[] {
-  const groups = new Map<string, { pts: typeof points; worst: number }>();
+  const groups = new Map<string, { pts: typeof points; worst: number; dry: boolean }>();
   for (const p of points) {
-    if (p.prod === null || p.prod >= SLOW_PCT) continue;
-    const key = `${p.zone}|${p.name}`;
-    const g = groups.get(key) || { pts: [], worst: 100 };
+    // Un generador seco se avisa aunque no tenga medida de productividad: es
+    // la causa, no el síntoma.
+    if (!p.dry && (p.prod === null || p.prod >= SLOW_PCT)) continue;
+    const key = `${p.dry ? "dry" : "p"}|${p.zone}|${p.name}`;
+    const g = groups.get(key) || { pts: [], worst: 100, dry: p.dry };
     g.pts.push(p);
-    g.worst = Math.min(g.worst, p.prod);
+    if (p.prod !== null) g.worst = Math.min(g.worst, p.prod);
     groups.set(key, g);
   }
 
   const out: Alert[] = [];
   for (const [key, g] of groups) {
-    const zi = parseInt(key.split("|")[0], 10);
+    const zi = parseInt(key.split("|")[1], 10);
     const z = zi >= 0 ? zones[zi] : undefined;
     // El centro del grupo, no el de la zona: lo que se busca es dónde están
     // estas máquinas, no dónde cae el montaje entero.
     const cx = g.pts.reduce((t, p) => t + p.x, 0) / g.pts.length;
     const cy = g.pts.reduce((t, p) => t + p.y, 0) / g.pts.length;
     out.push({
-      level: g.worst < STOPPED_PCT ? "stopped" : "slow",
+      level: g.dry ? "dry" : g.worst < STOPPED_PCT ? "stopped" : "slow",
       name: g.pts[0].name,
       count: g.pts.length,
       worst: g.worst,
@@ -1927,9 +1959,11 @@ function computeAlerts(
       floor: g.pts[0].floor,
     });
   }
-  // Lo parado antes que lo lento, y dentro de cada grupo lo más numeroso.
-  out.sort((a, b) =>
-    a.level !== b.level ? (a.level === "stopped" ? -1 : 1) : b.count - a.count || a.worst - b.worst
+  // Los generadores secos primero: suelen ser la causa de todo lo demás.
+  // Luego lo parado, y dentro de cada grupo lo más numeroso.
+  const rank = { dry: 0, stopped: 1, slow: 2 };
+  out.sort(
+    (a, b) => rank[a.level] - rank[b.level] || b.count - a.count || a.worst - b.worst
   );
   return out;
 }
@@ -1942,23 +1976,26 @@ function renderAlerts(alerts: Alert[]) {
   }
   // Filas solo para lo parado. Lo lento va en una línea al pie, porque es
   // contexto y no una llamada a la acción.
-  const stopped = alerts.filter((a) => a.level === "stopped");
-  const slow = alerts.length - stopped.length;
-  if (!stopped.length) {
+  const dry = alerts.filter((a) => a.level === "dry");
+  const stopped = alerts.filter((a) => a.level !== "dry" && a.level !== "slow");
+  const slow = alerts.filter((a) => a.level === "slow").length;
+  const urgent = [...dry, ...stopped];
+  if (!urgent.length) {
     alertsEl.innerHTML = slow
       ? `<p class="muted al-only-slow">${t("alert.only_slow", { n: slow })}</p>`
       : "";
     return;
   }
-  const shown = stopped.slice(0, 10);
+  const shown = urgent.slice(0, 10);
   const rows = shown
     .map((a, i) => {
       const where = a.zoneName ? escapeXml(a.zoneName) : t("alert.loose");
+      const what = a.level === "dry" ? t("alert.dry") : t("alert.at", { n: a.worst });
       return (
         `<button class="al-row al-${a.level}" data-i="${i}" type="button">` +
         `<span class="al-dot"></span>` +
         `<span class="al-main">${iconImg(a.name, 16)}<b>${a.count}× ${escapeXml(a.name)}</b>` +
-        `<span class="al-meta">${where} · ${t("alert.at", { n: a.worst })}</span></span>` +
+        `<span class="al-meta">${where} · ${what}</span></span>` +
         `<span class="al-go">${t("alert.see")}</span>` +
         `</button>`
       );
@@ -1966,11 +2003,13 @@ function renderAlerts(alerts: Alert[]) {
     .join("");
 
   alertsEl.innerHTML =
-    `<h3 class="inv-title">${t("alert.title", { n: stopped.length })}</h3>` +
-    `<p class="muted">${t("alert.note_bad")}</p>` +
+    `<h3 class="inv-title">${t("alert.title", { n: urgent.length })}</h3>` +
+    // Si hay generadores secos, decirlo: lo demás que aparece parado
+    // probablemente sea consecuencia y no un problema aparte.
+    `<p class="muted">${dry.length ? t("alert.note_dry") : t("alert.note_bad")}</p>` +
     rows +
-    (stopped.length > shown.length
-      ? `<p class="muted">${t("alert.more", { n: stopped.length - shown.length })}</p>`
+    (urgent.length > shown.length
+      ? `<p class="muted">${t("alert.more", { n: urgent.length - shown.length })}</p>`
       : "") +
     (slow ? `<p class="muted">${t("alert.plus_slow", { n: slow })}</p>` : "") +
     `<p class="muted al-foot">${t("alert.foot")}</p>`;
@@ -2013,6 +2052,7 @@ async function analyzeWithParser(folder: string, name: string) {
     item: string;
     cls: string;
     prod: number | null; // productividad 0..100 medida por el juego, null si no la mide
+    dry: boolean; // generador sin combustible
     floor: number; // índice de planta, -1 = sobre terreno
     zone: number; // índice de zona, -1 = sin zona
   }[] = [];
@@ -2026,6 +2066,8 @@ async function analyzeWithParser(folder: string, name: string) {
   // las dos, pertenece a las dos, y al aislar un piso tiene que seguir viéndose
   // porque es justo lo que explica cómo se conectan.
   const belts: { pts: [number, number][]; z: number; z0: number; z1: number }[] = [];
+  let dryGen = 0; // MW de catálogo que NO se están generando por falta de combustible
+  let dryCount = 0;
   const collect: Record<string, number> = {};
   // Lo que no sabemos interpretar. El save se lee entero, pero nuestras tablas
   // de recetas solo conocen el juego base: una maquina de un mod fabrica algo
@@ -2090,9 +2132,19 @@ async function analyzeWithParser(folder: string, name: string) {
           }
           const cls = `${leaf}_C`;
           const gb = gameData && gameData.buildings[cls];
+          const fuel = fuelStateOf(o.properties);
           if (gb) {
             powerMW += gb.power;
-            genMW += gb.generation;
+            // Un generador sin combustible no genera nada. Sumar su potencia
+            // de catálogo sería contar una central apagada como si estuviera
+            // dando energía, que es justo el dato que alguien necesitaría que
+            // fuera cierto.
+            if (gb.generation > 0 && fuel === false) {
+              dryGen += gb.generation;
+              dryCount++;
+            } else {
+              genMW += gb.generation;
+            }
             powerFromDocs = true;
           }
           points.push({
@@ -2105,6 +2157,7 @@ async function analyzeWithParser(folder: string, name: string) {
             item: prodItem,
             cls,
             prod: productivityOf(o.properties),
+            dry: fuel === false,
             floor: -1, // se asignan abajo, al conocerse plantas y zonas
             zone: -1,
           });
@@ -2304,6 +2357,8 @@ async function analyzeWithParser(folder: string, name: string) {
     unknownBySource,
     powerMW,
     genMW,
+    dryGen,
+    dryCount,
     powerFromDocs,
     storedByClass,
     slabs,

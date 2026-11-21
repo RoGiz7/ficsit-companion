@@ -144,9 +144,23 @@ line, not listed.
 Every building carries a transform, so every alert is locatable, and clicking one takes the map to
 that spot.
 
-What is **not** built, and why: `mHasFuelCached` on generators looked promising (2 of 7 lacked it
-in one world) but the sample is too small to tell a flat generator from a serialisation quirk.
-Worth revisiting with more worlds before anyone trusts a "your power plant is out of fuel" banner.
+**Generators out of fuel** are detected too, and that one was settled by ground truth rather than
+by inference. The owner said one of his worlds was stopped because its biomass burners had run dry.
+The file agreed exactly: all ten generators there carry `mHasFuelCached` as **false**, while every
+generator in the other two worlds carries it as **true**. An earlier pass had dismissed this signal
+by checking whether the property was *absent* instead of reading its *value* — the property is
+present, it is the value that matters.
+
+Two traps around it. `mCurrentFuelAmount` still reports large numbers on dry generators, so the
+amount is not the signal. And the hand-crank starter generators do not carry the property at all,
+which means "unknown", not "empty".
+
+This also fixed a place where the app was quietly lying. Generation was summed from each
+generator's catalogue rating, so a world whose entire power plant had run dry was reported as
+generating happily. Dry generators no longer count toward generation, the vitals panel says how
+many megawatts are being left out and why, and the alert panel leads with them — because when the
+generators are dry, everything else that looks stopped is a consequence rather than a separate
+problem.
 
 ## Measuring ourselves against the community tools
 

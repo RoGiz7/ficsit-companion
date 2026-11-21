@@ -97,6 +97,15 @@ export const STRINGS: Record<string, Entry> = {
     es: "Otros {n} grupo(s) van a medio gas. No se listan: por debajo del 100% se vive perfectamente.",
     en: "Another {n} group(s) run at half steam. Not listed: below 100% is a perfectly livable life.",
   },
+  "vitals.dry": {
+    es: "No se cuentan {mw} MW de {n} generador(es) sin combustible. Están puestos, pero puestos no es lo mismo que encendidos, por mucho que el catálogo diga otra cosa.",
+    en: "{mw} MW from {n} generator(s) out of fuel are not counted. They are installed, but installed is not the same as running, whatever the catalogue says.",
+  },
+  "alert.dry": { es: "sin combustible", en: "out of fuel" },
+  "alert.note_dry": {
+    es: "Hay generadores sin combustible. Lo que aparezca parado más abajo probablemente sea consecuencia de esto y no un problema aparte: sin energía, la planta entera se para. Pulse cualquier aviso y le llevamos al sitio.",
+    en: "There are generators out of fuel. Anything listed as stopped below is probably a consequence of that rather than a separate problem: with no power, the whole plant halts. Click any alert and we take you there.",
+  },
   "alert.at": { es: "al {n}% de productividad", en: "at {n}% productivity" },
   "alert.see": { es: "Ver en el mapa", en: "Show on map" },
   "alert.loose": { es: "fuera de todo montaje", en: "outside any block" },
