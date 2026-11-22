@@ -2233,3 +2233,28 @@ table.saves {
 }
 .pl-chain .pl-feed { color: var(--muted); }
 .pl-chain .pl-feed b { color: var(--text); }
+
+.pl-goal select {
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid #2a2f3a;
+  background: var(--bg);
+  color: var(--text);
+}
+.pl-chk { display: flex; align-items: center; gap: 5px; font-size: 0.82rem; color: var(--muted); }
+.pl-levels { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.pl-lv {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid #2a2f3a;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.pl-lv.on { border-color: var(--accent); color: var(--accent); }
+.pl-lv-note { font-size: 0.78rem; color: var(--muted); margin-left: 4px; }
+.pl-ghost { opacity: 0.18; pointer-events: none; }

@@ -149,10 +149,17 @@
           <span class="muted">/min</span>
           <label for="pl-depth" data-i18n="pl.depth">Niveles</label>
           <input id="pl-depth" type="number" min="1" max="5" step="1" value="2" />
+          <select id="pl-mode">
+            <option value="mixta" data-i18n="pl.m_mix">Una sala</option>
+            <option value="vertical" data-i18n="pl.m_vert">Por plantas</option>
+            <option value="lado" data-i18n="pl.m_side">Salas al lado</option>
+          </select>
+          <label class="pl-chk"><input id="pl-up" type="checkbox" checked /><span data-i18n="pl.m_up">avanzado arriba</span></label>
           <button id="pl-build" type="button" data-i18n="pl.build">Montar</button>
         </div>
         <div id="plan-chain" class="pl-chain"></div>
         <div id="plan-info" class="pl-info"></div>
+        <div id="plan-levels" class="pl-levels"></div>
         <div id="plan-legend" class="pl-legend"></div>
         <div class="pl-wrap">
           <div id="plan-palette" class="pl-palette"></div>

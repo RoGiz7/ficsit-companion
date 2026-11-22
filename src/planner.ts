@@ -26,6 +26,9 @@ export interface Placed {
   /// 0 o 90 grados. Girar intercambia ancho y fondo, que es lo único que
   /// importa para saber si cabe.
   rot: 0 | 90;
+  /// Planta. 0 es la de abajo. Dos máquinas en plantas distintas nunca chocan,
+  /// por evidente que parezca: hubo que decirlo en el código.
+  level?: number;
 }
 
 export interface Size {
@@ -154,6 +157,42 @@ export function portZones(
  * Qué está mal en la sala. Devuelve una entrada por pieza problemática; una
  * pieza puede salir dos veces si además de solapar se sale de la sala.
  */
+export function levelOf(it: Placed): number {
+  return it.level || 0;
+}
+
+/** Las plantas que tienen algo, de abajo arriba. */
+export function levels(items: Placed[]): number[] {
+  return [...new Set(items.map(levelOf))].sort((a, b) => a - b);
+}
+
+/**
+ * Altura que necesita una planta: su máquina más alta.
+ *
+ * Importa más de lo que parece. Un cimiento son ocho metros, y hay tres
+ * máquinas de producción que no caben en uno: la refinería mide 15, la
+ * envasadora 12 y el productor 11. Plantar una refinería en una nave de un
+ * cimiento de alto no se descubre planificando, se descubre construyendo.
+ */
+export function levelHeight(
+  items: Placed[],
+  level: number,
+  sizeOf: (cls: string) => Size | null
+): number {
+  let h = 0;
+  for (const it of items) {
+    if (levelOf(it) !== level) continue;
+    const s = sizeOf(it.cls);
+    if (s) h = Math.max(h, s.h);
+  }
+  return Math.round(h * 10) / 10;
+}
+
+/** Cimientos de 8 m que hacen falta para cubrir esa altura. */
+export function levelFoundations(height: number): number {
+  return Math.max(1, Math.ceil(height / FOUNDATION));
+}
+
 export function problems(
   items: Placed[],
   room: Room,
@@ -164,7 +203,7 @@ export function problems(
       const s = sizeOf(it.cls);
       if (!s) return null;
       const f = footprint(s, it.rot);
-      return { id: it.id, x: it.x, y: it.y, w: f.w, d: f.d };
+      return { id: it.id, lv: levelOf(it), x: it.x, y: it.y, w: f.w, d: f.d };
     })
     .filter((b): b is NonNullable<typeof b> => b !== null);
 
@@ -176,7 +215,7 @@ export function problems(
   }
   for (let i = 0; i < boxes.length; i++) {
     for (let j = i + 1; j < boxes.length; j++) {
-      if (overlaps(boxes[i], boxes[j])) {
+      if (boxes[i].lv === boxes[j].lv && overlaps(boxes[i], boxes[j])) {
         out.push({ id: boxes[i].id, kind: "solapa", with: boxes[j].id });
         out.push({ id: boxes[j].id, kind: "solapa", with: boxes[i].id });
       }
@@ -190,7 +229,9 @@ export function problems(
     const s = sizeOf(it.cls);
     if (!s) continue;
     for (const z of portZones(it, s)) {
-      const choca = boxes.some((b) => b.id !== it.id && overlaps(z, b));
+      const choca = boxes.some(
+        (b) => b.id !== it.id && b.lv === levelOf(it) && overlaps(z, b)
+      );
       if (choca) {
         out.push({ id: it.id, kind: "boca" });
         break;
@@ -326,27 +367,74 @@ export function solveChain(
  * con el gusto de cada uno acierta con el de nadie, y el gusto es justo lo que
  * Zigor dijo que es personal de cada pionero.
  */
+export type Arrange = "mixta" | "vertical" | "lado";
+
+/**
+ * Reparte los pasos de una cadena en salas, según cómo quieras planificar.
+ *
+ *   mixta     todo en una sala. Lo más apretado, y lo que vale para una nave
+ *             pequeña de una sola cosa.
+ *   vertical  una planta por nivel de la cadena. Por defecto lo más avanzado
+ *             arriba, que es como se piensa un árbol de producción, pero se
+ *             puede dar la vuelta: hay quien alimenta por gravedad desde
+ *             arriba y hay quien sube con elevadores. Las dos formas existen y
+ *             ninguna es la correcta.
+ *   lado      una sala por nivel, todas en la planta baja, una detrás de otra.
+ *
+ * Lo que NO hace: decidir por ti. Reparte y coloca para que tengas algo que
+ * mover, que es lo único honesto cuando el gusto es personal de cada pionero.
+ */
+export function arrangeLevels(
+  steps: { cls: string; building: string; depth: number }[],
+  modo: Arrange,
+  avanzadoArriba = true
+): Map<number, number> {
+  const prof = [...new Set(steps.map((s) => s.depth))].sort((a, b) => a - b);
+  const out = new Map<number, number>();
+  prof.forEach((d, i) => {
+    if (modo === "mixta") out.set(d, 0);
+    else if (modo === "vertical") out.set(d, avanzadoArriba ? prof.length - 1 - i : i);
+    else out.set(d, 0);
+  });
+  return out;
+}
+
 export function layout(
-  machines: { cls: string; size: Size }[],
+  machines: { cls: string; size: Size; level?: number; band?: number }[],
   room: Room,
   gap = PORT_CLEAR
 ): Placed[] {
-  const orden = [...machines].sort((a, b) => b.size.d - a.size.d || b.size.w - a.size.w);
   const out: Placed[] = [];
-  let x = 0;
-  let y = 0;
-  let filaAlta = 0;
   let id = 1;
-  for (const m of orden) {
-    const f = footprint(m.size, 0);
-    if (x + f.w > room.w) {
-      x = 0;
-      y += filaAlta + gap;
-      filaAlta = 0;
+  // Cada planta se llena por separado, y dentro de una planta cada banda
+  // (que es un nivel de la cadena cuando se planifica "al lado") empieza en
+  // su propia fila: así no se mezclan hornos y constructores en la misma
+  // tira, que es justo lo que hace ilegible un plano.
+  const porPlanta = new Map<string, typeof machines>();
+  for (const m of machines) {
+    const k = `${m.level || 0}|${m.band || 0}`;
+    (porPlanta.get(k) || porPlanta.set(k, []).get(k)!).push(m);
+  }
+  const yPorPlanta = new Map<number, number>();
+  for (const k of [...porPlanta.keys()].sort()) {
+    const lote = porPlanta.get(k)!;
+    const level = lote[0].level || 0;
+    const orden = [...lote].sort((a, b) => b.size.d - a.size.d || b.size.w - a.size.w);
+    let x = 0;
+    let y = yPorPlanta.get(level) || 0;
+    let filaAlta = 0;
+    for (const m of orden) {
+      const f = footprint(m.size, 0);
+      if (x + f.w > room.w) {
+        x = 0;
+        y += filaAlta + gap;
+        filaAlta = 0;
+      }
+      out.push({ id: id++, cls: m.cls, x, y, rot: 0, level });
+      x += f.w + gap;
+      filaAlta = Math.max(filaAlta, f.d);
     }
-    out.push({ id: id++, cls: m.cls, x, y, rot: 0 });
-    x += f.w + gap;
-    filaAlta = Math.max(filaAlta, f.d);
+    yPorPlanta.set(level, y + filaAlta + gap * 2);
   }
   return out;
 }

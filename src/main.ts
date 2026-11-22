@@ -32,7 +32,13 @@ import {
 } from "./fauna";
 import { deriveFamilies, glyphSVG } from "./glyphs";
 import {
+  arrangeLevels,
   designerFor,
+  levelFoundations,
+  levelHeight,
+  levelOf,
+  levels as plLevels,
+  type Arrange,
   layout as plLayout,
   solveChain,
   type Chain,
@@ -1181,6 +1187,7 @@ function planColorMap(items: Placed[]): Map<string, string> {
 let planItems: Placed[] = [];
 let planRoom: Room = { w: 32, d: 32 };
 let planSel: number | null = null;
+let planLevel = 0;
 let planNextId = 1;
 
 function planSize(cls: string): Size | null {
@@ -1247,7 +1254,10 @@ function planFreeSpot(size: Size): { x: number; y: number } {
   const f = footprint(size, 0);
   for (let y = 0; y + f.d <= planRoom.d; y++) {
     for (let x = 0; x + f.w <= planRoom.w; x++) {
-      const probe: Placed[] = [...planItems, { id: -1, cls: "", x, y, rot: 0 }];
+      const probe: Placed[] = [
+        ...planItems.filter((p) => levelOf(p) === planLevel),
+        { id: -1, cls: "", x, y, rot: 0, level: planLevel },
+      ];
       const sizeOf = (c: string) => (c === "" ? size : planSize(c));
       if (!problems(probe, planRoom, sizeOf).some((p) => p.id === -1)) return { x, y };
     }
@@ -1277,7 +1287,7 @@ function renderPlanPalette() {
       const size = planSize(cls);
       if (!size) return;
       const at = planFreeSpot(size);
-      planItems.push({ id: planNextId++, cls, x: at.x, y: at.y, rot: 0 });
+      planItems.push({ id: planNextId++, cls, x: at.x, y: at.y, rot: 0, level: planLevel });
       planSel = planNextId - 1;
       planSave();
       renderPlanCanvas();
@@ -1338,6 +1348,7 @@ function renderPlanCanvas() {
   // pone rojo es que ahí no entra una cinta.
   let zonas = "";
   for (const it of planItems) {
+    if (levelOf(it) !== planLevel) continue;
     const sz = planSize(it.cls);
     if (!sz) continue;
     const tapada = bocas.has(it.id);
@@ -1356,8 +1367,9 @@ function renderPlanCanvas() {
   for (let y = 0; y <= planRoom.d; y += FOUNDATION)
     grid += `<line x1="${pad}" y1="${pad + y}" x2="${pad + planRoom.w}" y2="${pad + y}" stroke="rgba(255,255,255,0.07)" stroke-width="0.12"/>`;
 
-  const piezas = planItems
-    .map((it) => {
+  const dibuja = (lista: Placed[], fantasma: boolean) =>
+    lista
+      .map((it) => {
       const sz = planSize(it.cls);
       if (!sz) return "";
       const f = footprint(sz, it.rot);
@@ -1402,16 +1414,21 @@ function renderPlanCanvas() {
         ? `<text class="pl-lbl" x="${cx}" y="${cy}" font-size="${fs.toFixed(2)}"${giro}>${escapeXml(corto)}</text>`
         : "";
       return (
-        `<g class="pl-m${sel ? " sel" : ""}" data-id="${it.id}" transform="translate(${pad + it.x},${pad + it.y})">` +
+        `<g class="pl-m${sel ? " sel" : ""}${fantasma ? " pl-ghost" : ""}"${fantasma ? "" : ` data-id="${it.id}"`} transform="translate(${pad + it.x},${pad + it.y})">` +
         `<title>${escapeXml(name)} · ${f.w}×${f.d} m</title>` +
         `<rect class="pl-box" width="${f.w}" height="${f.d}" rx="0.4" fill="${col}" fill-opacity="0.26" ` +
         `stroke="${borde}" stroke-width="${sel ? 0.5 : 0.25}"/>` +
-        portMarks(puertos[it.cls], f.w, f.d) +
-        etiqueta +
+        (fantasma ? "" : portMarks(puertos[it.cls], f.w, f.d) + etiqueta) +
         `</g>`
       );
-    })
-    .join("");
+      })
+      .join("");
+
+  const aqui = planItems.filter((it) => levelOf(it) === planLevel);
+  // La planta de debajo se ve en fantasma: sin ella colocas a ciegas encima de
+  // lo que ya hay, que es la mitad del problema de construir en vertical.
+  const debajo = planItems.filter((it) => levelOf(it) === planLevel - 1);
+  const piezas = dibuja(debajo, true) + dibuja(aqui, false);
 
   el.innerHTML =
     `<svg viewBox="0 0 ${W} ${H}" role="img">` +
@@ -1421,6 +1438,7 @@ function renderPlanCanvas() {
     piezas +
     `</svg>`;
 
+  renderPlanLevels();
   renderPlanLegend(colores);
   renderPlanInfo();
   wirePlanDrag(el);
@@ -1429,6 +1447,47 @@ function renderPlanCanvas() {
 /// La leyenda: qué es cada color, cuántas hay y cuánto miden. Es lo que de
 /// verdad quieres leer de un plano, y además sobrevive a que los nombres no
 /// quepan dentro de las cajas.
+/// Las plantas, con su altura real. La altura la marca la máquina más alta, y
+/// eso decide cuántos cimientos de ocho metros hace falta dejar.
+function renderPlanLevels() {
+  const el = document.querySelector("#plan-levels") as HTMLElement | null;
+  if (!el) return;
+  const lv = plLevels(planItems);
+  if (lv.length <= 1 && planLevel === 0) {
+    el.innerHTML = "";
+    return;
+  }
+  const todas = [...new Set([...lv, planLevel])].sort((a, b) => b - a);
+  const h = levelHeight(planItems, planLevel, planSize);
+  const nf = levelFoundations(h);
+  const alta = planItems
+    .filter((it) => levelOf(it) === planLevel)
+    .map((it) => ({ n: gdBuildingName(it.cls) || it.cls, h: planSize(it.cls)?.h || 0 }))
+    .sort((a, b) => b.h - a.h)[0];
+  const aviso =
+    alta && alta.h > FOUNDATION
+      ? `<span class="pl-lv-note pl-bad">${t("pl.tall", { m: alta.n, h: alta.h })}</span>`
+      : "";
+  el.innerHTML =
+    todas
+      .map(
+        (n) =>
+          `<button class="pl-lv${n === planLevel ? " on" : ""}" type="button" data-lv="${n}">${t("pl.level", { n })}</button>`
+      )
+      .join("") +
+    (h > 0
+      ? `<span class="pl-lv-note">${t("pl.height", { n: h })} · ${t("pl.founds", { n: nf })}</span>`
+      : "") +
+    aviso;
+  el.querySelectorAll<HTMLButtonElement>(".pl-lv").forEach((b) => {
+    b.addEventListener("click", () => {
+      planLevel = Number(b.dataset.lv) || 0;
+      planSel = null;
+      renderPlanCanvas();
+    });
+  });
+}
+
 function renderPlanLegend(colores: Map<string, string>) {
   const el = document.querySelector("#plan-legend") as HTMLElement | null;
   if (!el) return;
@@ -1549,14 +1608,21 @@ function planFromGoal() {
 
   // Cada paso se redondea por separado: tres constructores y medio son cuatro
   // constructores, y sumar antes de redondear mentiría a la baja.
-  const maquinas: { cls: string; size: Size }[] = [];
+  const modo = ((document.querySelector("#pl-mode") as HTMLSelectElement | null)?.value || "mixta") as Arrange;
+  const arriba = (document.querySelector("#pl-up") as HTMLInputElement | null)?.checked !== false;
+  const porNivel = arrangeLevels(chain.steps, modo, arriba);
+
+  const maquinas: { cls: string; size: Size; level?: number; band?: number }[] = [];
   for (const st of chain.steps) {
     const sz = planSize(st.building);
     if (!sz) continue;
-    for (let i = 0; i < Math.ceil(st.machines - 0.0001); i++) maquinas.push({ cls: st.building, size: sz });
+    const lvl = porNivel.get(st.depth) || 0;
+    for (let i = 0; i < Math.ceil(st.machines - 0.0001); i++)
+      maquinas.push({ cls: st.building, size: sz, level: lvl, band: modo === "mixta" ? 0 : st.depth });
   }
 
   planItems = plLayout(maquinas, planRoom);
+  planLevel = plLevels(planItems)[plLevels(planItems).length - 1] ?? 0;
   planNextId = planItems.length + 1;
   planSel = null;
   planSave();
@@ -1587,6 +1653,8 @@ function planFromGoal() {
 
 function setupPlanner() {
   planLoad();
+  const chk0 = document.querySelector(".pl-chk") as HTMLElement | null;
+  if (chk0) chk0.style.display = "none"; // solo aparece al elegir "Por plantas"
   const w = document.querySelector("#pl-w") as HTMLInputElement | null;
   const d = document.querySelector("#pl-d") as HTMLInputElement | null;
   if (w) w.value = String(planRoom.w);
@@ -1617,6 +1685,11 @@ function setupPlanner() {
     renderPlanCanvas();
   };
   document.querySelector("#pl-build")?.addEventListener("click", planFromGoal);
+  document.querySelector("#pl-mode")?.addEventListener("change", () => {
+    const vert = (document.querySelector("#pl-mode") as HTMLSelectElement).value === "vertical";
+    const chk = document.querySelector(".pl-chk") as HTMLElement | null;
+    if (chk) chk.style.display = vert ? "" : "none";
+  });
   (document.querySelector("#pl-item") as HTMLInputElement | null)?.addEventListener("keydown", (e) => {
     if ((e as KeyboardEvent).key === "Enter") planFromGoal();
   });
