@@ -345,6 +345,19 @@ Candidates, kept here so the thinking is not lost:
 Mira and Vela are both stars, so there is a naming system there already if the project ever grows
 more pieces, instead of inventing one name at a time.
 
+Zigor picked OTTO, and then saw the thing that makes it work: **O T T O written out is two eyes with
+a nose between them.** For an app whose whole job is watching a factory, a name that is already a
+face watching you is not a pun you have to explain.
+
+A sketch is in `branding/otto-sketch.svg`. The rule learned while drawing it: it has to still spell
+OTTO, with **both** T's. The first attempt fused them into a single T and the logo spelled OTO — a
+mark that misspells the name is not a mark, however good the face looks. The two T's sharing one
+crossbar solves it: two letters, one nose.
+
+Drawn at 196, 84 and 45 px, because small is where these either work or die. The face reads at
+large sizes; at favicon size it reads as a wordmark, which is the right way round — the joke is for
+whoever leans in, not a requirement for the icon to function.
+
 **The cost is not the name, it is the identifier.** `com.rogiz7.ficsitcompanion` decides where the
 app's data lives. Changing it orphans the history — 45 readings for Lurra bi at the time of
 writing. The displayed name is free to change; the identifier needs a deliberate migration that
