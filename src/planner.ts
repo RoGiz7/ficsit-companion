@@ -87,8 +87,57 @@ function overlaps(
 
 export interface Problem {
   id: number;
-  kind: "fuera" | "solapa";
+  kind: "fuera" | "solapa" | "boca";
   with?: number;
+}
+
+/**
+ * Hueco que hay que dejar delante y detrás de una máquina para engancharle las
+ * cintas.
+ *
+ * UN metro, no dos. Con dos, cualquier sala apretada salía roja entera y la
+ * alarma dejaba de significar nada — y además era falso: en el juego dos
+ * máquinas enfrentadas se unen con una cinta cortísima. Lo que de verdad
+ * impide conectar es que la boca quede PEGADA al cuerpo de otra, y eso es lo
+ * que mide un metro.
+ */
+export const PORT_CLEAR = 1;
+
+/**
+ * Las dos bocas de una máquina, como rectángulos del suelo que deben quedar
+ * libres.
+ *
+ * Dónde están exactamente las bocas NO está en la documentación del juego:
+ * los campos mFactoryInputConnections y mFactoryOutputConnections vienen
+ * vacíos porque las conexiones viven en la malla del edificio, no en el JSON.
+ *
+ * Lo que sí es cierto en todas las máquinas de producción es que las cintas
+ * entran y salen por las caras perpendiculares al lado LARGO: el flujo corre a
+ * lo largo. Por eso la regla que se comprueba no es "esta boca concreta está
+ * tapada" --que seria inventarse un dato-- sino "los extremos estan libres",
+ * que es verdad para todas y es el error que de verdad cuesta tiempo: colocas
+ * bien las maquinas y luego la salida de una mira al costado de la vecina.
+ *
+ * Las tuberías son otra cosa y no se comprueban: suben y van por encima, así
+ * que no dependen de que el suelo de al lado esté libre.
+ */
+export function portZones(
+  it: Placed,
+  size: Size
+): { x: number; y: number; w: number; d: number }[] {
+  const f = footprint(size, it.rot);
+  // El flujo va por el lado largo. En empate, por el fondo.
+  const alongY = f.d >= f.w;
+  if (alongY) {
+    return [
+      { x: it.x, y: it.y - PORT_CLEAR, w: f.w, d: PORT_CLEAR },
+      { x: it.x, y: it.y + f.d, w: f.w, d: PORT_CLEAR },
+    ];
+  }
+  return [
+    { x: it.x - PORT_CLEAR, y: it.y, w: PORT_CLEAR, d: f.d },
+    { x: it.x + f.w, y: it.y, w: PORT_CLEAR, d: f.d },
+  ];
 }
 
 /**
@@ -120,6 +169,21 @@ export function problems(
       if (overlaps(boxes[i], boxes[j])) {
         out.push({ id: boxes[i].id, kind: "solapa", with: boxes[j].id });
         out.push({ id: boxes[j].id, kind: "solapa", with: boxes[i].id });
+      }
+    }
+  }
+
+  // Bocas tapadas: un extremo contra otra máquina. Salirse de la sala por un
+  // extremo NO cuenta — una cinta puede entrar desde fuera por la pared, y
+  // avisar de eso convertiría el plano en un campo de rojos inútil.
+  for (const it of items) {
+    const s = sizeOf(it.cls);
+    if (!s) continue;
+    for (const z of portZones(it, s)) {
+      const choca = boxes.some((b) => b.id !== it.id && overlaps(z, b));
+      if (choca) {
+        out.push({ id: it.id, kind: "boca" });
+        break;
       }
     }
   }

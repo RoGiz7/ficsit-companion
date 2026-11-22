@@ -327,6 +327,11 @@ export const STRINGS: Record<string, Entry> = {
   },
   "pl.over": { es: "{n} fuera de la sala", en: "{n} outside the room" },
   "pl.clash": { es: "{n} solapadas", en: "{n} overlapping" },
+  "pl.blocked": { es: "{n} con la boca tapada", en: "{n} with a blocked end" },
+  "pl.ports": {
+    es: "Los triángulos son cintas y los círculos tuberías. El punteado es el hueco que hace falta para engancharlas: si se pone rojo, ahí no entra una cinta.",
+    en: "Triangles are belts, circles are pipes. The dotted margin is the room a belt needs: if it turns red, nothing can connect there.",
+  },
   "pl.ok": { es: "Todo encaja", en: "Everything fits" },
   "pl.count": { es: "{n} máquinas", en: "{n} machines" },
   "sec.career": { es: "Hecho a mano", en: "Done by hand" },

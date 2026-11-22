@@ -33,6 +33,7 @@ import {
 import { deriveFamilies, glyphSVG } from "./glyphs";
 import {
   designerFor,
+  portZones,
   floorUse,
   footprint,
   FOUNDATION,
@@ -1087,6 +1088,84 @@ const PLAN_KEY = "planRoom";
 const PLAN_COLORS = ["#cf7a2a", "#3f93e0", "#3f9e6a", "#b45fb0", "#9a8b3c"];
 const PLAN_OTHER = "#8b93a3";
 
+/// Cuántas bocas tiene cada máquina y de qué clase, deducido de SUS RECETAS:
+/// el máximo de ingredientes distintos que llega a pedir es el número de
+/// entradas, y lo mismo con la salida. Sale clavado contra el juego —
+/// constructor 1→1, ensambladora 2→1, productor 4→1, refinería una cinta y una
+/// tubería a cada lado — y sin una sola tabla escrita a mano.
+///
+/// Dónde están exactamente esas bocas no lo dice la documentación:
+/// mFactoryInputConnections viene vacío porque las conexiones están en la
+/// malla. Lo que sí es cierto en todas es que el flujo corre a lo largo del
+/// lado largo, y eso basta para dibujar por dónde entra y por dónde sale.
+interface Ports {
+  in: number;
+  out: number;
+  inFl: number;
+  outFl: number;
+}
+let portCache: { data: GameData | null; map: Record<string, Ports> } = { data: null, map: {} };
+function planPorts(): Record<string, Ports> {
+  if (portCache.data === gameData) return portCache.map;
+  const map: Record<string, Ports> = {};
+  if (gameData) {
+    const esFluido = (cls: string) => !!(gameData!.items[cls] && gameData!.items[cls].fluid);
+    for (const r of Object.values(gameData.recipes)) {
+      if (!r.building || !r.out) continue;
+      const p = map[r.building] || (map[r.building] = { in: 0, out: 0, inFl: 0, outFl: 0 });
+      const ins = r.inputs || [];
+      const sol = ins.filter((i) => !esFluido(i.item)).length;
+      p.in = Math.max(p.in, sol);
+      p.inFl = Math.max(p.inFl, ins.length - sol);
+      const oFl = esFluido(r.out) ? 1 : 0;
+      p.out = Math.max(p.out, 1 - oFl);
+      p.outFl = Math.max(p.outFl, oFl);
+    }
+  }
+  portCache = { data: gameData, map };
+  return map;
+}
+
+/// Flechas y círculos DENTRO de la caja: triángulo por cada cinta, círculo por
+/// cada tubería. Idea de Zigor, y es mejor que una leyenda: dice cuántas bocas
+/// hay y hacia dónde va el flujo sin tener que mirar a otro sitio.
+function portMarks(p: Ports | undefined, w: number, d: number): string {
+  if (!p) return "";
+  const alongY = d >= w;
+  const largo = alongY ? d : w;
+  const ancho = alongY ? w : d;
+  const r = Math.max(0.5, Math.min(1.1, ancho * 0.11));
+  const borde = Math.min(1.6, largo * 0.12) + r;
+  let out = "";
+  const marca = (n: number, fluido: boolean, entra: boolean) => {
+    if (n <= 0) return;
+    // Repartidas a lo ancho de la cara, que es donde el juego las pone.
+    for (let i = 0; i < n; i++) {
+      const t = ((i + 1) / (n + 1)) * ancho;
+      const cx = alongY ? t : entra ? borde : largo - borde;
+      const cy = alongY ? (entra ? borde : largo - borde) : t;
+      if (fluido) {
+        out += `<circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${(r * 0.7).toFixed(2)}" fill="none" stroke="#e9eaec" stroke-opacity="0.75" stroke-width="0.2"/>`;
+      } else {
+        // Los dos triángulos apuntan en el MISMO sentido, que es el del flujo:
+        // si entra por arriba y sale por abajo, los dos miran hacia abajo. Un
+        // triángulo de salida mirando hacia fuera y uno de entrada mirando
+        // hacia dentro se contradirían a la vista — parecería que la máquina
+        // escupe por los dos lados.
+        const pts = alongY
+          ? `${cx - r},${cy - r} ${cx + r},${cy - r} ${cx},${cy + r}`
+          : `${cx - r},${cy - r} ${cx - r},${cy + r} ${cx + r},${cy}`;
+        out += `<polygon points="${pts}" fill="#e9eaec" fill-opacity="0.8"/>`;
+      }
+    }
+  };
+  marca(p.in, false, true);
+  marca(p.inFl, true, true);
+  marca(p.out, false, false);
+  marca(p.outFl, true, false);
+  return out;
+}
+
 /// Qué color le toca a cada clase presente. Ordenado por clase para que el
 /// reparto no baile al añadir una máquina del mismo tipo que ya había.
 function planColorMap(items: Placed[]): Map<string, string> {
@@ -1208,15 +1287,17 @@ function renderPlanInfo() {
   const probs = problems(planItems, planRoom, planSize);
   const fuera = new Set(probs.filter((p) => p.kind === "fuera").map((p) => p.id)).size;
   const solapa = new Set(probs.filter((p) => p.kind === "solapa").map((p) => p.id)).size;
+  const tapadas = new Set(probs.filter((p) => p.kind === "boca").map((p) => p.id)).size;
   const use = floorUse(planItems, planRoom, planSize);
   const des = planDesigners();
   const fit = designerFor(planRoom, des);
   const over = fit ? null : overBy(planRoom, des);
 
-  const estado = fuera || solapa
+  const estado = fuera || solapa || tapadas
     ? `<span class="pl-bad">${[
         fuera ? t("pl.over", { n: fuera }) : "",
         solapa ? t("pl.clash", { n: solapa }) : "",
+        tapadas ? t("pl.blocked", { n: tapadas }) : "",
       ]
         .filter(Boolean)
         .join(" · ")}</span>`
@@ -1246,6 +1327,23 @@ function renderPlanCanvas() {
   const probs = problems(planItems, planRoom, planSize);
   const malos = new Set(probs.map((p) => p.id));
   const colores = planColorMap(planItems);
+  const bocas = new Set(probs.filter((p) => p.kind === "boca").map((p) => p.id));
+  const puertos = planPorts();
+
+  // El hueco que hay que dejar delante y detrás, dibujado en punteado: si se
+  // pone rojo es que ahí no entra una cinta.
+  let zonas = "";
+  for (const it of planItems) {
+    const sz = planSize(it.cls);
+    if (!sz) continue;
+    const tapada = bocas.has(it.id);
+    for (const z of portZones(it, sz)) {
+      zonas +=
+        `<rect x="${pad + z.x}" y="${pad + z.y}" width="${z.w}" height="${z.d}" rx="0.2" ` +
+        `fill="none" stroke="${tapada ? "#d9534f" : "rgba(255,255,255,0.16)"}" ` +
+        `stroke-width="0.12" stroke-dasharray="0.6 0.5"/>`;
+    }
+  }
 
   // Rejilla de cimientos: cada ocho metros, que es como cuenta el juego.
   let grid = "";
@@ -1282,9 +1380,14 @@ function renderPlanCanvas() {
       const largo = vert ? f.d : f.w;
       const ancho = vert ? f.w : f.d;
       const fs = Math.max(0.9, Math.min(2, ancho * 0.26));
+      // El nombre solo dispone del hueco ENTRE las dos bocas. Sin esto el
+      // texto se repartía por todo el largo y cruzaba por encima de su propia
+      // flecha de salida: legible, pero sucio.
+      const margen = Math.min(1.6, largo * 0.12) + Math.max(0.5, Math.min(1.1, ancho * 0.11)) * 2;
       // 0.55 es el ancho medio de un carácter respecto a su altura en las
       // tipografías de sistema. Medido a ojo no, probado contra el render.
-      const caben = Math.max(0, Math.floor((largo * 0.88) / (fs * 0.55)));
+      const util = puertos[it.cls] ? Math.max(0, largo - margen * 2) : largo * 0.88;
+      const caben = Math.max(0, Math.floor(util / (fs * 0.55)));
       // O cabe entero o no se escribe. Truncar da "Const…" repetido, que es
       // ruido: para eso ya está el color y la leyenda.
       const corto = name.length <= caben ? name : "";
@@ -1299,6 +1402,7 @@ function renderPlanCanvas() {
         `<title>${escapeXml(name)} · ${f.w}×${f.d} m</title>` +
         `<rect class="pl-box" width="${f.w}" height="${f.d}" rx="0.4" fill="${col}" fill-opacity="0.26" ` +
         `stroke="${borde}" stroke-width="${sel ? 0.5 : 0.25}"/>` +
+        portMarks(puertos[it.cls], f.w, f.d) +
         etiqueta +
         `</g>`
       );
@@ -1309,6 +1413,7 @@ function renderPlanCanvas() {
     `<svg viewBox="0 0 ${W} ${H}" role="img">` +
     `<rect x="${pad}" y="${pad}" width="${planRoom.w}" height="${planRoom.d}" fill="#0f1218" stroke="#2a2f3a" stroke-width="0.2"/>` +
     grid +
+    zonas +
     piezas +
     `</svg>`;
 
