@@ -1030,9 +1030,12 @@ async function checkForUpdate() {
         go.textContent = t("upd.working");
       }
       try {
+        // En Windows el instalador NSIS cierra la app, instala y la vuelve a
+        // abrir él solo, así que aquí no hace falta relanzar nada. Llegamos a
+        // tener @tauri-apps/plugin-process para eso y se quitó: era una
+        // dependencia más que mantener sincronizada entre JavaScript y Rust
+        // para un trabajo que el instalador ya hace.
         await up.downloadAndInstall();
-        const { relaunch } = await import("@tauri-apps/plugin-process");
-        await relaunch();
       } catch (e) {
         console.error("Actualizador:", e);
         bar.innerHTML = `<span class="ub-msg">${t("upd.failed")}</span>`;

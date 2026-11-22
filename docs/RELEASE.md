@@ -93,6 +93,33 @@ El archivo se puede validar sin arrancar nada:
 python -c "import json,jsonschema;jsonschema.Draft7Validator(json.load(open('node_modules/@tauri-apps/cli/config.schema.json'))).validate(json.load(open('src-tauri/tauri.conf.json')))"
 ```
 
+## Las dos mitades del actualizador tienen que ir a la par
+
+El actualizador son dos piezas con el mismo número de versión: el paquete de
+npm `@tauri-apps/plugin-updater` y el crate de Rust `tauri-plugin-updater`. Si
+se separan, Tauri avisa de un desajuste al arrancar.
+
+Y se separan solas, porque npm coge siempre la última y Cargo no puede. La
+versión 2.14.1 del crate exige `tauri ^2.12`, y este proyecto va con `tauri`
+2.11.2, así que Cargo se queda en la 2.12.0 del plugin mientras npm instala la
+2.14.1 tan tranquilo.
+
+Por eso el paquete de npm está **clavado sin `^`** a la versión que Cargo
+resuelve de verdad. Si algún día se sube el crate `tauri`, hay que subir las
+dos a la vez y volver a clavarlo.
+
+Para comprobar que siguen a la par:
+
+```
+npm ls @tauri-apps/plugin-updater
+findstr /C:"tauri-plugin-updater" src-tauri\Cargo.lock
+```
+
+Por lo mismo ya no está `@tauri-apps/plugin-process`. Se uso para relanzar la
+app tras instalar, pero en Windows el instalador NSIS la cierra, instala y la
+vuelve a abrir él solo. Era una segunda pareja de versiones que mantener
+sincronizada a cambio de nada.
+
 ## Lo que puede salir mal
 
 **`tauri build` en local falla pidiendo una clave.** Es esperado:
