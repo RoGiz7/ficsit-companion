@@ -87,8 +87,8 @@ export const STRINGS: Record<string, Entry> = {
     en: "Game data is required first: without it we do not know which icon belongs to which part.",
   },
   "ico.credit": {
-    es: "Los iconos son obra de Coffee Stain Studios. FICSIT Companion no está afiliado a Coffee Stain y retiraría esta función si lo pidieran.",
-    en: "The icons are the work of Coffee Stain Studios. FICSIT Companion is not affiliated with Coffee Stain and would remove this feature if asked.",
+    es: "Los iconos son obra de Coffee Stain Studios. OttO no está afiliado a Coffee Stain y retiraría esta función si lo pidieran.",
+    en: "The icons are the work of Coffee Stain Studios. OttO is not affiliated with Coffee Stain and would remove this feature if asked.",
   },
   "alert.title": { es: "Avisos de planta · {n}", en: "Floor alerts · {n}" },
   "alert.note_bad": {

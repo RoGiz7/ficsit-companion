@@ -24,7 +24,7 @@ registros. Si alguna vez se filtra, se genera otra y se vuelve a publicar.
 En el escritorio, dentro de la carpeta del proyecto:
 
 ```
-npm run tauri signer generate -- -w %USERPROFILE%\.tauri\ficsit-companion.key
+npm run tauri signer generate -- -w %USERPROFILE%\.tauri\otto.key
 ```
 
 Te pide una contraseña. Ponle una y **guárdala donde guardes las demás**, que
@@ -53,7 +53,7 @@ En `Settings` → `Secrets and variables` → `Actions` → `New repository secr
 | `TAURI_SIGNING_PRIVATE_KEY` | el **contenido** del archivo `.key`, no la ruta |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | la contraseña del paso 1 |
 
-Para ver el contenido del archivo: `type %USERPROFILE%\.tauri\ficsit-companion.key`
+Para ver el contenido del archivo: `type %USERPROFILE%\.tauri\otto.key`
 
 ### 3.5. Comprobar antes de etiquetar
 

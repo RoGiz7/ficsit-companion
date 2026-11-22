@@ -477,6 +477,62 @@ fn read_docs_lang(folder: String, lang: String) -> Result<tauri::ipc::Response, 
 // Los JSON del juego son 10 MB por idioma. Se leen una vez, se extrae lo que
 // usamos y se guarda compacto aqui.
 
+// ---- Mudanza desde el identificador viejo ----
+//
+// La app se llamaba FICSIT Companion y su identificador era
+// com.rogiz7.ficsitcompanion. Al pasar a OttO cambia el identificador, y con
+// el cambia la carpeta donde Tauri guarda los datos. Sin esto, al abrir la
+// version nueva el usuario se encuentra la casa vacia: historico, notas,
+// planes y copias, todo "perdido" aunque siga en el disco.
+//
+// Se COPIA, no se mueve, y la carpeta vieja se deja intacta. Este proyecto ya
+// perdio un historico una vez por una escritura a medias; si la mudanza sale
+// mal, el original tiene que seguir ahi.
+//
+// Solo corre una vez: si la carpeta nueva ya tiene historico, no se toca nada.
+const OLD_IDENTIFIER: &str = "com.rogiz7.ficsitcompanion";
+
+fn copy_dir(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<u32> {
+    std::fs::create_dir_all(to)?;
+    let mut n = 0;
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        let destino = to.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            n += copy_dir(&entry.path(), &destino)?;
+        } else if !destino.exists() {
+            // Nunca se pisa un archivo que ya este en la carpeta nueva.
+            std::fs::copy(entry.path(), &destino)?;
+            n += 1;
+        }
+    }
+    Ok(n)
+}
+
+fn migrate_old_data(app: &AppHandle) -> Result<Option<u32>, String> {
+    let nueva = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("No se encontró la carpeta de datos: {e}"))?;
+    if nueva.join("history.json").exists() {
+        return Ok(None); // ya hay datos aqui: nada que mudar
+    }
+    let Some(padre) = nueva.parent() else {
+        return Ok(None);
+    };
+    let vieja = padre.join(OLD_IDENTIFIER);
+    if !vieja.is_dir() || !vieja.join("history.json").exists() {
+        return Ok(None);
+    }
+    let n = copy_dir(&vieja, &nueva).map_err(|e| format!("No se pudo copiar: {e}"))?;
+    Ok(Some(n))
+}
+
+#[tauri::command]
+fn migrated_files(app: AppHandle) -> Result<Option<u32>, String> {
+    migrate_old_data(&app)
+}
+
 fn game_data_file(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
@@ -1632,6 +1688,12 @@ pub fn run() {
             #[cfg(desktop)]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
+            // La mudanza, antes de que nada lea la carpeta de datos.
+            match migrate_old_data(&app.handle().clone()) {
+                Ok(Some(n)) => eprintln!("Mudanza desde {OLD_IDENTIFIER}: {n} archivo(s)."),
+                Ok(None) => {}
+                Err(e) => eprintln!("Mudanza no realizada: {e}"),
+            }
             let _ = app;
             Ok(())
         })
@@ -1655,6 +1717,7 @@ pub fn run() {
             default_icon_folder,
             open_icons_folder,
             get_game_data,
+            migrated_files,
             set_game_data,
             export_backup,
             auto_backup,

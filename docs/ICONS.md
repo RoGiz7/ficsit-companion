@@ -28,7 +28,7 @@ the honest answer is not the comfortable one.
 
 ## The rule
 
-**The icons never ship with FICSIT Companion.** Not in the repository, not in the installer, not
+**The icons never ship with OttO.** Not in the repository, not in the installer, not
 fetched from a server of ours. They are read from a folder on your own disk, which you fill from
 your own copy of the game. If the folder is empty, the app works exactly as before — the icons
 decorate, they do not hold anything up.
@@ -48,7 +48,7 @@ icons do so with a notice saying the art is Coffee Stain's and will be removed o
 So the practice is widespread, and it rests on tolerance rather than on a licence. That is a real
 distinction and this project does not paper over it.
 
-What FICSIT Companion commits to:
+What OttO commits to:
 
 - The art is **© Coffee Stain Studios**. It is credited in the app and in the README.
 - The app is **not affiliated with, nor endorsed by, Coffee Stain Studios**.

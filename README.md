@@ -1,4 +1,4 @@
-<h1 align="center">FICSIT Companion</h1>
+<h1 align="center">OttO</h1>
 
 <p align="center">
   🇬🇧 <strong>English</strong> ·
@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/RoGiz7/ficsit-companion/releases">⬇️ Releases</a> ·
+  <a href="https://github.com/RoGiz7/otto-satisfactory/releases">⬇️ Releases</a> ·
   <a href="https://ko-fi.com/rogiz7">☕ Buy me a coffee</a> ·
   <a href="https://github.com/RoGiz7/FICSIT-Factory-Manager">🌐 Sister project (web)</a>
 </p>
@@ -25,7 +25,7 @@
 
 > Built for the community: free, non-commercial, and not trying to compete with anyone.
 
-FICSIT Companion runs on Windows, and the whole interface is available in **English and Spanish** —
+OttO runs on Windows, and the whole interface is available in **English and Spanish** —
 switch language from the top bar, no restart needed.
 
 ## 🎯 What makes it different
@@ -82,8 +82,8 @@ No installer is published yet — the first release is still being prepared. For
 yourself:
 
 ```bash
-git clone https://github.com/RoGiz7/ficsit-companion.git
-cd ficsit-companion
+git clone https://github.com/RoGiz7/otto-satisfactory.git
+cd otto-satisfactory
 npm install
 npm run tauri dev      # run it
 npm run tauri build    # build an installer

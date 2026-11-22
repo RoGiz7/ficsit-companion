@@ -17,7 +17,7 @@ large one, however safe it looks today.
 | Part glyphs (default) | **Ours** | None | — |
 | Part icons (optional) | Coffee Stain | Tolerated, not licensed | **Trivial** — the app ships none; an empty folder is already the "off" state |
 | Game data (`Docs.json`) | Coffee Stain | Published by them for the community | **Trivial** — read from the user's install, never bundled |
-| The name "FICSIT Companion" | Coffee Stain's fiction | Well precedented (see below) | **Low for the display name, high for the identifier** |
+| The name "OttO" | Coffee Stain's fiction | Well precedented (see below) | **Low for the display name, high for the identifier** |
 | The map | Ours | None | — |
 | The logo | Ours | None | — |
 
@@ -93,7 +93,7 @@ project seems to have asked, an actual answer in writing would be worth more tha
 
 ## The decision that is expensive, and how we made it cheap
 
-The display name is a string. The **bundle identifier** (`com.rogiz7.ficsitcompanion`) is not: it is
+The display name is a string. The **bundle identifier** (`com.rogiz7.otto`) is not: it is
 what the installer, the updater and the user's data folder key off. Changing it after a release
 does not rename the app — installed users get a second, separate app and lose their history, notes,
 plans and backups.

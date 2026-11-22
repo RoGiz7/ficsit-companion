@@ -324,7 +324,7 @@ Trying to out-map them would be a losing race; being the thing that remembers is
 
 ## The name
 
-The app is called FICSIT Companion. FICSIT is Coffee Stain's fictional company, so the name leans
+The app is called OttO. FICSIT is Coffee Stain's fictional company, so the name leans
 on something that is clearly theirs — a bigger borrow than the icons ever were, and it sits in the
 repository title, the window title and every screenshot. This is on the list to ask them about,
 alongside the icons.
@@ -393,7 +393,7 @@ permission we do not have, for a gain we do not need. The mark already sounds li
 because it uses the genre's grammar, not because it copies a specific asset. That is the stronger
 position, not the weaker one.
 
-**The cost is not the name, it is the identifier.** `com.rogiz7.ficsitcompanion` decides where the
+**The cost is not the name, it is the identifier.** `com.rogiz7.otto` decides where the
 app's data lives. Changing it orphans the history — 45 readings for Lurra bi at the time of
 writing. The displayed name is free to change; the identifier needs a deliberate migration that
 moves the folder first and verifies the readings survived, or it must simply stay as it is. Those

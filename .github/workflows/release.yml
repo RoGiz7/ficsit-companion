@@ -53,7 +53,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "FICSIT Companion ${{ github.ref_name }}"
+          releaseName: "OttO ${{ github.ref_name }}"
           releaseBody: "Instalador para Windows. La app actualiza sola a partir de aquí."
           releaseDraft: true
           prerelease: false

@@ -1,10 +1,10 @@
 [package]
-name = "ficsit-companion"
-version = "0.1.0"
-description = "Local-first desktop companion for Satisfactory: reads your saves and shows what you built, how it grew and what is missing."
+name = "otto"
+version = "0.2.0"
+description = "OttO: local-first desktop companion for Satisfactory: reads your saves and shows what you built, how it grew and what is missing."
 authors = ["RoGiz7"]
 license = "MIT"
-repository = "https://github.com/RoGiz7/ficsit-companion"
+repository = "https://github.com/RoGiz7/otto-satisfactory"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -13,7 +13,7 @@ edition = "2021"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "ficsit_companion_lib"
+name = "otto_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
