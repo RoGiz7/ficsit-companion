@@ -415,10 +415,112 @@ table.saves {
   margin: 2px 0 0;
 }
 
-/* Ajustes: se tocan una vez. Que no ocupen como una sección. */
-.settings > summary {
-  padding: 6px 10px;
+/* La tuerca de la cabecera. Mismo alto que el selector de idiomas de al lado:
+   1px de borde + 4px de relleno + 17px de icono. */
+.icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.icon-btn svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+}
+
+.icon-btn:hover,
+.icon-btn:focus-visible {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Aviso de que algo ha cambiado ahí dentro. Un punto, no una ventana: lo de los
+   datos del juego es informativo y no merece interrumpir a nadie. El borde del
+   color del fondo lo separa del icono para que no se lean como una sola forma. */
+.icon-dot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+}
+
+.icon-dot[hidden] {
+  display: none;
+}
+
+/* Ajustes: se tocan una vez y estorban el resto del tiempo, así que ya no viven
+   bajo la cabecera sino en un panel que se abre con la tuerca. */
+.dlg {
+  width: min(560px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.dlg::backdrop {
+  background: rgba(6, 8, 11, 0.72);
+}
+
+.dlg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dlg-title {
+  margin: 0;
   font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.dlg-x {
+  display: inline-flex;
+  padding: 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.dlg-x svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.dlg-x:hover,
+.dlg-x:focus-visible {
+  color: var(--accent);
+}
+
+/* El cuerpo se desplaza solo si hace falta: el panel no debe crecer mas que la
+   ventana cuando haya muchas copias de seguridad listadas. */
+.dlg .settings-body {
+  padding: 16px;
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
 }
 
 .world-bar {

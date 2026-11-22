@@ -19,6 +19,17 @@
           </div>
         </div>
         <div class="head-right">
+          <!-- Tuerca hexagonal, no engranaje: el hexagono es la forma del juego.
+               Se probo tambien la llave Allen que pidio Zigor, pero una varilla
+               doblada a 16 px es una linea doblada y se lee como una letra L. -->
+          <button type="button" id="btn-settings" class="icon-btn" data-i18n-at="settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"
+                 fill="none" stroke="currentColor" stroke-linejoin="round">
+              <path d="M12 2.8l7 4v8.4l-7 4-7-4V6.8z" stroke-width="1.9"/>
+              <path d="M12 8.4l3.2 1.8v3.6L12 15.6l-3.2-1.8v-3.6z" stroke-width="1.6"/>
+            </svg>
+            <span class="icon-dot" id="settings-dot" hidden></span>
+          </button>
           <div class="lang-switch" role="group" aria-label="Idioma">
             <button type="button" class="lang-btn" data-lang="es">ES</button>
             <button type="button" class="lang-btn" data-lang="en">EN</button>
@@ -27,10 +38,21 @@
         </div>
       </header>
 
-      <!-- Ajustes: se tocan una vez y estorban el resto del tiempo, así que
-           van en una sola barra plegada en lugar de dos. -->
-      <details class="acc settings" id="acc-settings">
-        <summary><span class="acc-title" data-i18n="settings">Ajustes</span></summary>
+      <!-- Ajustes. Antes era un desplegable fijo bajo la cabecera, pero se
+           tocan una vez y estorbaban el resto del tiempo. Ahora se abren
+           con la tuerca de la cabecera.
+           Los identificadores de dentro NO se tocan: todo el cableado de
+           main.ts los busca por id. -->
+      <dialog id="dlg-settings" class="dlg">
+        <form method="dialog" class="dlg-head">
+          <h2 class="dlg-title" data-i18n="settings">Ajustes</h2>
+          <button type="submit" class="dlg-x" data-i18n-at="settings.close">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M6 6l12 12M18 6L6 18"/>
+            </svg>
+          </button>
+        </form>
         <div class="settings-body">
           <div class="set-block">
             <h4 class="set-title" data-i18n="settings.folder">Carpeta de partidas</h4>
@@ -52,7 +74,7 @@
             <div id="backups" class="backups"></div>
           </div>
         </div>
-      </details>
+      </dialog>
 
       <!-- Barra de contexto: qué mundo, qué partida y cómo va, todo en una
            línea. Antes esto ocupaba cinco bloques apilados y había que pasar

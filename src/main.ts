@@ -230,6 +230,36 @@ function syncAccordion(acc: HTMLDetailsElement) {
   if (title && label && title.textContent) label.textContent = title.textContent;
 }
 
+// --- Ajustes -------------------------------------------------------------
+// Viven en un panel que abre la tuerca de la cabecera. Hay tres sitios del
+// codigo que lo reclaman por su cuenta, y no todos por lo mismo:
+//   - no hay carpeta de partidas configurada (primer arranque)
+//   - la carpeta configurada no vale
+//     En los dos la app no puede hacer nada hasta que se arregle, asi que se
+//     abre el panel entero.
+//   - los datos del juego han cambiado: eso es informativo. Un punto naranja en
+//     la tuerca y listo. Plantarle una ventana delante a alguien para contarle
+//     algo que no le impide seguir es de mala educacion.
+function openSettings() {
+  const dlg = document.querySelector<HTMLDialogElement>("#dlg-settings");
+  if (!dlg) return;
+  markSettings(false);
+  if (!dlg.open) dlg.showModal();
+}
+
+function markSettings(hay: boolean) {
+  const dot = document.querySelector<HTMLElement>("#settings-dot");
+  if (dot) dot.hidden = !hay;
+  const btn = document.querySelector<HTMLElement>("#btn-settings");
+  if (!btn) return;
+  // Cambiamos la CLAVE, no el texto: asi el aviso sobrevive a cambiar de
+  // idioma, porque applyStaticI18n relee data-i18n-at.
+  btn.dataset.i18nAt = hay ? "settings.news" : "settings";
+  const texto = t(btn.dataset.i18nAt);
+  btn.setAttribute("aria-label", texto);
+  btn.setAttribute("title", texto);
+}
+
 function setupAccordions() {
   // Los que se rellenan por render: vigilamos su contenido para mantener el
   // título y la visibilidad al día sin tener que llamar a nada desde fuera.
@@ -1889,8 +1919,7 @@ async function initGameData(force = false) {
     );
     // Si algo cambió, que no pase desapercibido aunque la sección esté plegada.
     if (changed) {
-      const acc = document.querySelector<HTMLDetailsElement>("#acc-settings");
-      if (acc) acc.open = true;
+      markSettings(true);
     }
   } catch (e) {
     console.error("Datos del juego:", e);
@@ -5305,8 +5334,7 @@ async function refresh() {
     statusEl.textContent = String(e);
     // Si la carpeta no vale, de poco sirve tenerla plegada: la abrimos para
     // que se pueda corregir sin ir a buscarla.
-    const folderAcc = document.querySelector<HTMLDetailsElement>("#acc-settings");
-    if (folderAcc) folderAcc.open = true;
+    openSettings();
   }
 }
 
@@ -5424,6 +5452,9 @@ window.addEventListener("DOMContentLoaded", async () => {
       b.classList.toggle("active", b.dataset.lang === getLang());
     });
   markLang();
+  document
+    .querySelector<HTMLButtonElement>("#btn-settings")
+    ?.addEventListener("click", openSettings);
   document.querySelectorAll<HTMLButtonElement>(".lang-btn").forEach((b) => {
     b.addEventListener("click", async () => {
       const l = b.dataset.lang as Lang;
@@ -5512,8 +5543,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     statusEl.className = "status err";
     statusEl.textContent =
       t("folder.notFound");
-    const folderAcc = document.querySelector<HTMLDetailsElement>("#acc-settings");
-    if (folderAcc) folderAcc.open = true;
+    openSettings();
     return;
   }
 

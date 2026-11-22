@@ -21,6 +21,8 @@ export const STRINGS: Record<string, Entry> = {
   // ---- Cabecera y ajustes (etiquetas: planas) ----
   "brand.sub": { es: "Asistente de Pionero", en: "Pioneer Assistant" },
   "settings": { es: "Ajustes", en: "Settings" },
+  "settings.close": { es: "Cerrar", en: "Close" },
+  "settings.news": { es: "Ajustes · hay novedades", en: "Settings · something new" },
   "settings.folder": { es: "Carpeta de partidas", en: "Save folder" },
   "settings.gamedata": { es: "Datos del juego", en: "Game data" },
   "settings.watch": { es: "Vigilar", en: "Watch" },
@@ -668,5 +670,13 @@ export function applyStaticI18n() {
   });
   document.querySelectorAll<HTMLElement>("[data-i18n-ph]").forEach((el) => {
     (el as HTMLTextAreaElement | HTMLInputElement).placeholder = t(el.dataset.i18nPh!);
+  });
+  // Botones que son solo un icono: sin texto dentro, el nombre accesible y el
+  // globo de ayuda son lo unico que dice que hacen, y los dos hay que
+  // traducirlos como cualquier otro texto.
+  document.querySelectorAll<HTMLElement>("[data-i18n-at]").forEach((el) => {
+    const s = t(el.dataset.i18nAt!);
+    el.setAttribute("aria-label", s);
+    el.setAttribute("title", s);
   });
 }
