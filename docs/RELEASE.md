@@ -49,6 +49,21 @@ En `Settings` → `Secrets and variables` → `Actions` → `New repository secr
 
 Para ver el contenido del archivo: `type %USERPROFILE%\.tauri\ficsit-companion.key`
 
+### 3.5. Comprobar antes de etiquetar
+
+```
+npm run check-release
+```
+
+No compila ni arranca nada: lee los archivos y dice lo que no cuadra. Comprueba
+que las tres versiones coinciden (`package.json`, `tauri.conf.json` y
+`Cargo.toml` — desincronizadas, el instalador diría una cosa y la app otra),
+que la clave pública ya no es el marcador, que el endpoint apunta a este mismo
+repositorio, que las dos mitades del plugin llevan el mismo número y que el
+flujo firma y genera el `latest.json`.
+
+Hasta que no pegues la clave pública dará un fallo, y es el correcto.
+
 ### 4. Publicar
 
 Sube el número de versión en `src-tauri/tauri.conf.json` y en `package.json`
