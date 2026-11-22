@@ -373,6 +373,26 @@ file itself: fusing the t's spelled OTO, joining them at the foot spelled OtJO, 
 second crossbar spelled O#O. The moment the letters stop being letters it does not matter how good
 the face looks.
 
+### Why the name fits the game, and where to stop
+
+The game's own vehicles are named flatly and functionally — Tractor, Truck, Explorer, Factory Cart,
+Cyber Wagon — and then the pioneers hang nicknames on them. The Truck is "The Unit". The Tractor is
+"Sugarcube", which the wiki explains as a double joke: it is "pretty sweet, y'know?" and the frame
+is a cube. The in-game copy runs the same way; the Explorer is sold as designed by "our best Vehicle
+Designers™ … *Wifi hotspot not included". Plain name, mischief in the small print.
+
+That is the same rule Zigor set for the acronym, and it is why OttO sits inside the game's culture
+rather than next to it: a blunt short name carrying a second meaning in its shape. The pattern is
+borrowed, which is fine. Patterns are not owned.
+
+**Where to stop: do not tune the mark against their vehicles.** Two round headlights with a grille
+between them is a universal industrial shape — tractors, lorries, locomotives, a Land Rover. Nobody
+owns it, and that is exactly why it is safe to use and why it reads instantly. Matching the
+Satisfactory Truck's actual front would put the logo back where the icons were: depending on a
+permission we do not have, for a gain we do not need. The mark already sounds like that world
+because it uses the genre's grammar, not because it copies a specific asset. That is the stronger
+position, not the weaker one.
+
 **The cost is not the name, it is the identifier.** `com.rogiz7.ficsitcompanion` decides where the
 app's data lives. Changing it orphans the history — 45 readings for Lurra bi at the time of
 writing. The displayed name is free to change; the identifier needs a deliberate migration that
