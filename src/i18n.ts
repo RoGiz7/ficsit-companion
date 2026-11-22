@@ -316,6 +316,7 @@ export const STRINGS: Record<string, Entry> = {
   "car.consumed": { es: "Consumido", en: "Consumed" },
   "car.killed": { es: "Bajas", en: "Kills" },
   "car.types": { es: "{n} tipos", en: "{n} kinds" },
+  "car.types_one": { es: "1 tipo", en: "1 kind" },
   "car.note": {
     es: "Lo que has hecho tú, no tus máquinas. El juego lleva esta cuenta desde el primer día.",
     en: "What you did yourself, not your machines. The game has counted this since day one.",

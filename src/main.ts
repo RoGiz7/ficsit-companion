@@ -548,7 +548,9 @@ function renderCareer(stats: WorldStats) {
         `<div class="car-block"><div class="car-head">` +
         `<span class="car-what">${t(key)}</span>` +
         `<span class="car-total">${total.toLocaleString()}</span>` +
-        `<span class="car-kinds">${t("car.types", { n: rows.length })}</span>` +
+        `<span class="car-kinds">${
+          rows.length === 1 ? t("car.types_one") : t("car.types", { n: rows.length })
+        }</span>` +
         `</div>${bars}</div>`
       );
     })
