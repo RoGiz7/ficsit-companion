@@ -438,3 +438,75 @@ export function layout(
   }
   return out;
 }
+
+/**
+ * Centra lo que hay en una planta dentro de la sala.
+ *
+ * Porque es lo que hace todo el mundo al construir: ajustar y alinear hasta
+ * que queda ordenado. Un plano pegado a la esquina superior izquierda es
+ * correcto y parece un borrador.
+ *
+ * Se centra en múltiplos de la rejilla, no al milímetro: medio metro de
+ * descuadre con la rejilla de cimientos molesta más que dos metros de margen
+ * desigual.
+ */
+export function centreLevel(
+  items: Placed[],
+  room: Room,
+  level: number,
+  sizeOf: (cls: string) => Size | null,
+  grid = 1
+): Placed[] {
+  const aqui = items.filter((it) => levelOf(it) === level);
+  if (!aqui.length) return items;
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const it of aqui) {
+    const s = sizeOf(it.cls);
+    if (!s) continue;
+    const f = footprint(s, it.rot);
+    x0 = Math.min(x0, it.x);
+    y0 = Math.min(y0, it.y);
+    x1 = Math.max(x1, it.x + f.w);
+    y1 = Math.max(y1, it.y + f.d);
+  }
+  if (!Number.isFinite(x0)) return items;
+  const dx = snap((room.w - (x1 - x0)) / 2 - x0, grid);
+  const dy = snap((room.d - (y1 - y0)) / 2 - y0, grid);
+  return items.map((it) =>
+    levelOf(it) === level ? { ...it, x: it.x + dx, y: it.y + dy } : it
+  );
+}
+
+/**
+ * La sala más pequeña donde cabría todo, probando tamaños crecientes con el
+ * MISMO colocador que se usa de verdad.
+ *
+ * No es la sala mínima teórica — empaquetar rectángulos óptimamente es un
+ * problema duro y la respuesta exacta no le sirve a nadie. Es la respuesta
+ * honesta a la pregunta que de verdad se hace: "¿de qué tamaño la pongo para
+ * que esto entre?". Prometer el mínimo absoluto y que luego no entre sería
+ * peor que no proponer nada.
+ */
+export function suggestRoom(
+  machines: { cls: string; size: Size; level?: number; band?: number }[],
+  room: Room,
+  sizeOf: (cls: string) => Size | null,
+  max = 200
+): Room | null {
+  if (!machines.length) return null;
+  const paso = FOUNDATION;
+  // Crece manteniendo la proporción de la sala actual, que es la que el
+  // usuario ha elegido: si la quiere alargada, se le devuelve alargada.
+  const prop = room.d / room.w || 1;
+  for (let w = Math.ceil(room.w / paso) * paso; w <= max; w += paso) {
+    const d = Math.min(max, Math.ceil((w * prop) / paso) * paso);
+    const probe: Room = { w, d };
+    const puesto = layout(machines, probe);
+    const mal = problems(puesto, probe, sizeOf).some((p) => p.kind === "fuera");
+    if (!mal) return probe;
+  }
+  return null;
+}

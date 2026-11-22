@@ -2258,3 +2258,15 @@ table.saves {
 .pl-lv.on { border-color: var(--accent); color: var(--accent); }
 .pl-lv-note { font-size: 0.78rem; color: var(--muted); margin-left: 4px; }
 .pl-ghost { opacity: 0.18; pointer-events: none; }
+
+.pl-fix {
+  font: inherit;
+  font-size: 0.78rem;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}

@@ -329,6 +329,12 @@ export const STRINGS: Record<string, Entry> = {
   "pl.clash": { es: "{n} solapadas", en: "{n} overlapping" },
   "pl.blocked": { es: "{n} con la boca tapada", en: "{n} with a blocked end" },
   "pl.want": { es: "Quiero", en: "I want" },
+  "pl.align": { es: "Centrar", en: "Centre" },
+  "pl.fix": { es: "ponla de {w}×{d}", en: "make it {w}×{d}" },
+  "pl.toobig": {
+    es: "Ni agrandando la sala: baja el objetivo o los niveles.",
+    en: "No room size fits it: lower the target or the levels.",
+  },
   "pl.m_mix": { es: "Una sala", en: "One room" },
   "pl.m_vert": { es: "Por plantas", en: "By floors" },
   "pl.m_side": { es: "Salas al lado", en: "Rooms side by side" },

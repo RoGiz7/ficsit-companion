@@ -33,6 +33,8 @@ import {
 import { deriveFamilies, glyphSVG } from "./glyphs";
 import {
   arrangeLevels,
+  centreLevel,
+  suggestRoom,
   designerFor,
   levelFoundations,
   levelHeight,
@@ -1622,6 +1624,10 @@ function planFromGoal() {
   }
 
   planItems = plLayout(maquinas, planRoom);
+  // Centrado desde el primer momento. Pegar el plano a la esquina es correcto
+  // y parece un borrador; lo primero que hace cualquiera al construir es
+  // ajustar y alinear.
+  for (const lv of plLevels(planItems)) planItems = centreLevel(planItems, planRoom, lv, planSize);
   planLevel = plLevels(planItems)[plLevels(planItems).length - 1] ?? 0;
   planNextId = planItems.length + 1;
   planSel = null;
@@ -1647,8 +1653,25 @@ function planFromGoal() {
   // Si el colocador se sale de la sala, se dice. Es mejor que enseñar un plano
   // bonito que no cabe.
   const fuera = problems(planItems, planRoom, planSize).filter((p) => p.kind === "fuera").length;
-  const aviso = fuera ? `<span class="pl-bad">${t("pl.tight", { n: fuera })}</span>` : "";
+  // Si no entra, decir de qué tamaño entraría. Detectar el problema y callarse
+  // la salida deja el trabajo a medias.
+  let aviso = "";
+  if (fuera) {
+    const sug = suggestRoom(maquinas, planRoom, planSize);
+    aviso = sug
+      ? `<span class="pl-bad">${t("pl.tight", { n: fuera })} <button class="pl-fix" type="button" data-w="${sug.w}" data-d="${sug.d}">${t("pl.fix", { w: sug.w, d: sug.d })}</button></span>`
+      : `<span class="pl-bad">${t("pl.tight", { n: fuera })} ${t("pl.toobig")}</span>`;
+  }
   chainEl.innerHTML = pasos + traer + aviso;
+  chainEl.querySelector<HTMLButtonElement>(".pl-fix")?.addEventListener("click", (e) => {
+    const b = e.currentTarget as HTMLButtonElement;
+    planRoom = { w: Number(b.dataset.w) || planRoom.w, d: Number(b.dataset.d) || planRoom.d };
+    const wi = document.querySelector("#pl-w") as HTMLInputElement | null;
+    const di = document.querySelector("#pl-d") as HTMLInputElement | null;
+    if (wi) wi.value = String(planRoom.w);
+    if (di) di.value = String(planRoom.d);
+    planFromGoal();
+  });
 }
 
 function setupPlanner() {
@@ -1695,6 +1718,11 @@ function setupPlanner() {
   });
   document.querySelector("#pl-rot")?.addEventListener("click", rotar);
   document.querySelector("#pl-del")?.addEventListener("click", quitar);
+  document.querySelector("#pl-align")?.addEventListener("click", () => {
+    planItems = centreLevel(planItems, planRoom, planLevel, planSize);
+    planSave();
+    renderPlanCanvas();
+  });
   document.querySelector("#pl-clear")?.addEventListener("click", () => {
     planItems = [];
     planSel = null;
