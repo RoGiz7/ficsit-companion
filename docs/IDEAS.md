@@ -358,6 +358,21 @@ Drawn at 196, 84 and 45 px, because small is where these either work or die. The
 large sizes; at favicon size it reads as a wordmark, which is the right way round — the joke is for
 whoever leans in, not a requirement for the icon to function.
 
+Then Zigor spotted the better version: **OttO**, capital O and lowercase t. It is not a cosmetic
+change. A lowercase t is shorter and carries its crossbar halfway down, so the eyes dominate and the
+nose stays small in the middle; two capital T's put so much weight in the centre that the face
+disappears. He also noticed the same shape reads as the front of a truck — two headlights and a
+grille — and that people seeing different things in it is the point, not a flaw: they are looking
+with their own eyes.
+
+The sketch now uses lowercase t's with curved feet, which is what makes them read as typography
+rather than two posts.
+
+That rule has now failed three times, in three different ways, which is why it is written in the
+file itself: fusing the t's spelled OTO, joining them at the foot spelled OtJO, and giving them a
+second crossbar spelled O#O. The moment the letters stop being letters it does not matter how good
+the face looks.
+
 **The cost is not the name, it is the identifier.** `com.rogiz7.ficsitcompanion` decides where the
 app's data lives. Changing it orphans the history — 45 readings for Lurra bi at the time of
 writing. The displayed name is free to change; the identifier needs a deliberate migration that
