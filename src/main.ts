@@ -169,6 +169,7 @@ let gameDataEl: HTMLElement;
 let iconsEl: HTMLElement;
 let backupsEl: HTMLElement;
 let achievementsEl: HTMLElement;
+let careerEl: HTMLElement;
 let dangerEl: HTMLElement;
 let bestiaryEl: HTMLElement;
 let alertsEl: HTMLElement;
@@ -505,6 +506,56 @@ function medalRow(ms: MonthScore["medals"][number], showNext: boolean): string {
     `<span class="md-val">${val.toLocaleString()} <span class="muted">${escapeXml(def.unit[lang])}</span></span>` +
     `<span class="md-grade">${escapeXml(grade)}</span>${next}</div>`
   );
+}
+
+// Lo que ha hecho el pionero con sus propias manos. El juego lo lleva contando
+// desde el primer día en FGStatisticsSubsystem y hasta ahora lo tirábamos.
+//
+// No es lo mismo que la producción: la producción es lo que hacen las máquinas
+// cada minuto. Esto es lo que has recogido agachándote y lo que has fabricado
+// pieza a pieza antes de tener una constructora. Son las horas que no salen en
+// ninguna gráfica de ritmo.
+//
+// mActorsBuiltCount se queda fuera a propósito: el juego declara el contador
+// pero no lo rellena — cero entradas en una partida de 157 horas. Enseñar un
+// cero ahí sería decir que no has construido nada, que es justo lo contrario.
+function renderCareer(stats: WorldStats) {
+  if (!careerEl) return;
+  const blocks: [string, Record<string, number>][] = [
+    ["car.picked", stats.picked],
+    ["car.crafted", stats.hand],
+    ["car.consumed", stats.consumed],
+  ];
+  const html = blocks
+    .map(([key, data]) => {
+      const rows = Object.entries(data || {}).sort((a, b) => b[1] - a[1]);
+      if (!rows.length) return "";
+      const total = rows.reduce((acc, r) => acc + r[1], 0);
+      const top = rows.slice(0, 6);
+      const max = top[0][1] || 1;
+      const bars = top
+        .map(([cls, n]) => {
+          const name = gdItemName(cls) || prettyItem(cls.replace(/_C$/, ""));
+          const pct = Math.max(4, Math.round((n / max) * 100));
+          return (
+            `<div class="inv-row"><span class="inv-name">${iconGlyph(cls, name, 16)}${escapeXml(name)}</span>` +
+            `<span class="inv-bar"><span class="inv-fill" style="width:${pct}%"></span></span>` +
+            `<span class="inv-count">${n.toLocaleString()}</span></div>`
+          );
+        })
+        .join("");
+      return (
+        `<div class="car-block"><div class="car-head">` +
+        `<span class="car-what">${t(key)}</span>` +
+        `<span class="car-total">${total.toLocaleString()}</span>` +
+        `<span class="car-kinds">${t("car.types", { n: rows.length })}</span>` +
+        `</div>${bars}</div>`
+      );
+    })
+    .join("");
+  careerEl.innerHTML = html
+    ? html + `<p class="muted">${t("car.note")}</p>`
+    : `<p class="muted">${t("car.none")}</p>`;
 }
 
 function renderAchievements(snaps: Snapshot[]) {
@@ -1413,6 +1464,7 @@ async function inspect(name: string) {
       lastFauna = a.fauna;
       lastHunted = a.hunted;
       lastStats = a.stats;
+      renderCareer(a.stats);
 
       // Centro de mando: signos vitales + "Retoma aquí".
       const deficits = computeDeficits(a.perItem, a.consumed);
@@ -2218,6 +2270,8 @@ export interface WorldStats {
   consumed: Record<string, number>;
   picked: Record<string, number>;
   built: Record<string, number>;
+  /// Fabricado a mano, pieza a pieza, sin máquina de por medio.
+  hand: Record<string, number>;
 }
 
 function readStats(props: any): WorldStats {
@@ -2226,6 +2280,7 @@ function readStats(props: any): WorldStats {
     consumed: flatMap(props.mConsumablesConsumedCount),
     picked: flatMap(props.mItemsPickedUp),
     built: flatMap(props.mActorsBuiltCount),
+    hand: flatMap(props.mItemsManuallyCraftedCount),
   };
 }
 
@@ -2682,7 +2737,7 @@ async function analyzeWithParser(folder: string, name: string) {
   // Familias de las que hay restos en algún inventario: prueba de que las has
   // cazado, aunque el bicho ya no exista en el mundo.
   const hunted = new Set<string>();
-  let stats: WorldStats = { kills: {}, consumed: {}, picked: {}, built: {} };
+  let stats: WorldStats = { kills: {}, consumed: {}, picked: {}, built: {}, hand: {} };
   const collect: Record<string, number> = {};
   // Lo que no sabemos interpretar. El save se lee entero, pero nuestras tablas
   // de recetas solo conocen el juego base: una maquina de un mod fabrica algo
@@ -4034,7 +4089,7 @@ let daysSinceDeath: number | null = null;
 let mapNests = true;
 let lastFauna: FaunaEntry[] = [];
 let lastHunted: string[] = [];
-let lastStats: WorldStats = { kills: {}, consumed: {}, picked: {}, built: {} };
+let lastStats: WorldStats = { kills: {}, consumed: {}, picked: {}, built: {}, hand: {} };
 
 // Distancia del nido a lo construido más cercano. Lo calculamos nosotros en
 // vez de fiarnos de mCachedIsNearBase, que solo aparece en el archivo cuando
@@ -4547,6 +4602,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   achievementsEl = document.querySelector("#achievements") as HTMLElement;
   dangerEl = document.querySelector("#danger") as HTMLElement;
   bestiaryEl = document.querySelector("#bestiary") as HTMLElement;
+  careerEl = document.querySelector("#career") as HTMLElement;
   alertsEl = document.querySelector("#alerts") as HTMLElement;
   milestoneEl = document.querySelector("#milestone") as HTMLElement;
   productionEl = document.querySelector("#production") as HTMLElement;

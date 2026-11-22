@@ -321,3 +321,32 @@ Trying to out-map them would be a losing race; being the thing that remembers is
 - **Supporting modded recipes properly.** What a modded machine produces lives in the mod, not in
   the save. Counting them and saying where they come from, which the app already does, is the
   honest limit.
+
+## The name
+
+The app is called FICSIT Companion. FICSIT is Coffee Stain's fictional company, so the name leans
+on something that is clearly theirs — a bigger borrow than the icons ever were, and it sits in the
+repository title, the window title and every screenshot. This is on the list to ask them about,
+alongside the icons.
+
+If it has to change, the brief Zigor set is a good one: **the short form should sound like serious
+industrial software, and the expansion should be the joke.** That is exactly how the game does it —
+FICSIT sounds like a real contractor until you read what the letters stand for.
+
+Candidates, kept here so the thinking is not lost:
+
+| Short | Expansion (ES) | Expansion (EN) | Why |
+|---|---|---|---|
+| **MIRA** | Módulo de Inventario, Rendimiento y Almacén | Machine Inventory & Resource Analytics | *Mira* means "look". A whole department that exists to look at things. Also a famous variable star. |
+| **VELA** | Vigilancia de Energía, Logística y Almacén | Vigilance, Energy, Logistics & Assets | *Velar* is to stay awake watching over something, which is what it does while you sleep. A southern constellation. |
+| **OTTO** | Observatorio de Tasas, Transporte y Operaciones | Observatory of Throughput, Transport & Operations | Palindrome, sounds like a foreman, brushes against *auto*. An entire observatory to count conveyor belts is the kind of excess FICSIT would fund. |
+| **EVA** | Evaluación de Vigilancia y Alrededores | Extravehicular Analytics | Started as a joke about ADA being Adam — ADA is female, so that does not land. But EVA means Extra-Vehicular Activity, which is what a pioneer does every time they leave the HUB. |
+
+Mira and Vela are both stars, so there is a naming system there already if the project ever grows
+more pieces, instead of inventing one name at a time.
+
+**The cost is not the name, it is the identifier.** `com.rogiz7.ficsitcompanion` decides where the
+app's data lives. Changing it orphans the history — 45 readings for Lurra bi at the time of
+writing. The displayed name is free to change; the identifier needs a deliberate migration that
+moves the folder first and verifies the readings survived, or it must simply stay as it is. Those
+are two separate decisions and should not be made in the same breath.

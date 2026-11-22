@@ -306,6 +306,20 @@ export const STRINGS: Record<string, Entry> = {
     en: "Without the official data I fall back on my own tables, which lag behind the patches.",
   },
   "gd.cached": { es: "Usando datos guardados del juego.", en: "Using cached game data." },
+  "sec.career": { es: "Hecho a mano", en: "Done by hand" },
+  "car.none": {
+    es: "El guardado no trae estos contadores todavía.",
+    en: "The save doesn't carry these counters yet.",
+  },
+  "car.picked": { es: "Recogido del suelo", en: "Picked up" },
+  "car.crafted": { es: "Fabricado a mano", en: "Hand-crafted" },
+  "car.consumed": { es: "Consumido", en: "Consumed" },
+  "car.killed": { es: "Bajas", en: "Kills" },
+  "car.types": { es: "{n} tipos", en: "{n} kinds" },
+  "car.note": {
+    es: "Lo que has hecho tú, no tus máquinas. El juego lleva esta cuenta desde el primer día.",
+    en: "What you did yourself, not your machines. The game has counted this since day one.",
+  },
   "upd.found": {
     es: "Hay una versión nueva: {v}.",
     en: "A new version is available: {v}.",

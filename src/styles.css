@@ -2099,3 +2099,19 @@ table.saves {
 .update-bar button:hover { background: rgba(255, 158, 61, 0.15); }
 .update-bar button.ub-ghost { border-color: rgba(139, 147, 163, 0.5); color: var(--muted); }
 .update-bar button:disabled { opacity: 0.55; cursor: default; }
+
+/* Hecho a mano. Tres bloques, cada uno con su total grande delante: lo primero
+   que quieres saber es cuántas, y solo después cuáles. */
+.car-block { margin-bottom: 14px; }
+.car-block:last-of-type { margin-bottom: 8px; }
+.car-head {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(42, 47, 58, 0.7);
+  margin-bottom: 5px;
+}
+.car-what { font-size: 0.82rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.car-total { font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.car-kinds { font-size: 0.74rem; color: var(--muted); margin-left: auto; }
