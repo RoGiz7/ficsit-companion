@@ -2115,3 +2115,107 @@ table.saves {
 .car-what { font-size: 0.82rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 .car-total { font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .car-kinds { font-size: 0.74rem; color: var(--muted); margin-left: auto; }
+
+/* ---- Plano: colocar la fábrica antes de construirla ---- */
+.pl-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.pl-bar input[type="number"] {
+  width: 64px;
+  font: inherit;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid #2a2f3a;
+  background: var(--bg);
+  color: var(--text);
+}
+.pl-bar .pl-x { color: var(--muted); }
+.pl-bar button {
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 4px 11px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+.pl-bar button:hover { background: rgba(255, 158, 61, 0.14); }
+.pl-bar button.ghost { border-color: rgba(139, 147, 163, 0.5); color: var(--muted); }
+
+.pl-info {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  font-size: 0.84rem;
+  padding: 7px 11px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background: var(--panel);
+}
+.pl-info b { font-variant-numeric: tabular-nums; }
+.pl-bad { color: #d9534f; }
+.pl-good { color: #3f9e6a; }
+
+.pl-wrap { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.pl-palette {
+  flex: 0 0 182px;
+  max-height: 520px;
+  overflow-y: auto;
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 6px;
+}
+.pl-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 5px 7px;
+  cursor: pointer;
+}
+.pl-item:hover { background: rgba(255, 158, 61, 0.12); }
+.pl-item .pl-dim { margin-left: auto; color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
+
+.pl-canvas { flex: 1 1 360px; min-width: 300px; }
+.pl-canvas svg { width: 100%; height: auto; display: block; border-radius: 8px; background: #141821; }
+.pl-m { cursor: grab; }
+.pl-m.sel .pl-box { stroke-width: 0.5; }
+.pl-m.dragging { cursor: grabbing; }
+.pl-box { stroke-width: 0.25; }
+.pl-lbl {
+  fill: #e9eaec;
+  pointer-events: none;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.pl-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 9px;
+  font-size: 0.8rem;
+}
+.pl-key { display: flex; align-items: center; gap: 6px; }
+.pl-sw {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  flex: none;
+  opacity: 0.85;
+}
+.pl-legend .pl-dim { color: var(--muted); font-size: 0.72rem; }

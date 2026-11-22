@@ -84,6 +84,7 @@
         <button class="tab active" data-tab="ahora" type="button" data-i18n="tab.now">Ahora</button>
         <button class="tab" data-tab="fabrica" type="button" data-i18n="tab.factory">Fábrica</button>
         <button class="tab" data-tab="planeta" type="button" data-i18n="tab.planet">Planeta</button>
+        <button class="tab" data-tab="plano" type="button" data-i18n="tab.plan">Plano</button>
         <button class="tab" data-tab="historia" type="button" data-i18n="tab.history">Historia</button>
         <button class="tab" data-tab="bitacora" type="button" data-i18n="tab.log">Bitácora</button>
         <button class="tab" data-tab="guardados" type="button" data-i18n="tab.saves">Guardados</button>
@@ -126,6 +127,30 @@
           <summary><span class="acc-title" data-i18n="sec.stored">Materiales almacenados</span></summary>
           <div id="stored" class="inventory"></div>
         </details>
+      </section>
+
+      <!-- PLANO: colocar la fábrica antes de construirla. -->
+      <section class="tab-panel hidden" id="tab-plano">
+        <div class="pl-bar">
+          <label for="pl-w" data-i18n="pl.room">Sala</label>
+          <input id="pl-w" type="number" min="8" max="200" step="1" value="32" />
+          <span class="pl-x">×</span>
+          <input id="pl-d" type="number" min="8" max="200" step="1" value="32" />
+          <span class="muted" data-i18n="pl.metres">m</span>
+          <button id="pl-rot" type="button" data-i18n="pl.rotate">Girar</button>
+          <button id="pl-del" type="button" data-i18n="pl.remove">Quitar</button>
+          <button id="pl-clear" type="button" class="ghost" data-i18n="pl.clear">Vaciar</button>
+        </div>
+        <div id="plan-info" class="pl-info"></div>
+        <div id="plan-legend" class="pl-legend"></div>
+        <div class="pl-wrap">
+          <div id="plan-palette" class="pl-palette"></div>
+          <div id="plan-canvas" class="pl-canvas"></div>
+        </div>
+        <p class="muted" data-i18n="pl.note">
+          Mide si cabe y cuánto suelo sobra, con las medidas reales del juego. Las cintas las pones
+          tú en el juego: de eso sabe él, que tiene física.
+        </p>
       </section>
 
       <!-- PLANETA: dónde está todo. El mapa y lo que queda ahí fuera. -->

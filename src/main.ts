@@ -31,6 +31,18 @@ import {
   type FaunaEntry,
 } from "./fauna";
 import { deriveFamilies, glyphSVG } from "./glyphs";
+import {
+  designerFor,
+  floorUse,
+  footprint,
+  FOUNDATION,
+  overBy,
+  problems,
+  snap as plSnap,
+  type Placed,
+  type Room,
+  type Size,
+} from "./planner";
 import { medalIcon } from "./medalicons";
 import { applyStaticI18n, detectLang, getLang, setLang, t, type Lang } from "./i18n";
 import {
@@ -1045,6 +1057,391 @@ async function checkForUpdate() {
     // Sin red, sin releases todavía, o sin clave pública configurada.
     console.debug("Sin comprobación de versión:", e);
   }
+}
+
+// ---------------------------------------------------------------------------
+// PLANO
+//
+// Colocar la fábrica antes de construirla. Lo que promete: si cabe, cuánto
+// suelo sobra y en qué diseñador de planos entra. Lo que no promete, a
+// propósito: las cintas. De eso se encarga el juego, que tiene física.
+// ---------------------------------------------------------------------------
+
+const PLAN_KEY = "planRoom";
+
+// Color por TIPO de máquina, no por nombre escrito dentro. Escribir el nombre
+// en la caja no funciona: "Constructor" no cabe en ocho metros y truncado a
+// "Const…" tres veces seguidas no dice nada que no diga ya la forma.
+//
+// En una sala no hay quince tipos de máquina, hay tres o cuatro, así que el
+// color se reparte entre los que DE VERDAD hay en esta sala y la leyenda los
+// nombra. Idea de Zigor.
+//
+// Cinco colores y ni uno más: con seis, el validador de paletas tumba el suelo
+// de croma (el sexto candidato se lee gris). Del sexto tipo en adelante van al
+// gris de "otras", que es la regla de siempre — un color nuevo no se inventa,
+// se agrupa.
+//
+//   node scripts/validate_palette.js "#cf7a2a,#3f93e0,#3f9e6a,#b45fb0,#9a8b3c" \
+//     --mode dark --surface "#141821"   -> ALL CHECKS PASS
+const PLAN_COLORS = ["#cf7a2a", "#3f93e0", "#3f9e6a", "#b45fb0", "#9a8b3c"];
+const PLAN_OTHER = "#8b93a3";
+
+/// Qué color le toca a cada clase presente. Ordenado por clase para que el
+/// reparto no baile al añadir una máquina del mismo tipo que ya había.
+function planColorMap(items: Placed[]): Map<string, string> {
+  const tipos = [...new Set(items.map((i) => i.cls))].sort();
+  const m = new Map<string, string>();
+  tipos.forEach((c, i) => m.set(c, PLAN_COLORS[i] ?? PLAN_OTHER));
+  return m;
+}
+let planItems: Placed[] = [];
+let planRoom: Room = { w: 32, d: 32 };
+let planSel: number | null = null;
+let planNextId = 1;
+
+function planSize(cls: string): Size | null {
+  const b = gameData && gameData.buildings[cls];
+  return (b && b.size) || null;
+}
+
+/// Las máquinas que fabrican algo, sacadas de las propias recetas, más los
+/// almacenes. No una lista escrita a mano: si el juego añade una máquina,
+/// aparece sola.
+function planCatalogue(): { cls: string; name: string; size: Size }[] {
+  if (!gameData) return [];
+  const used = new Set<string>();
+  for (const r of Object.values(gameData.recipes)) if (r.building) used.add(r.building);
+  for (const cls of Object.keys(gameData.buildings)) {
+    if (/^Build_StorageContainer/.test(cls)) used.add(cls);
+  }
+  const out: { cls: string; name: string; size: Size }[] = [];
+  for (const cls of used) {
+    const b = gameData.buildings[cls];
+    if (!b || !b.size) continue;
+    out.push({ cls, name: gdBuildingName(cls) || prettyItem(cls.replace(/^Build_|_C$/g, "")), size: b.size });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function planDesigners(): { cls: string; name: string; side: number }[] {
+  if (!gameData) return [];
+  const out: { cls: string; name: string; side: number }[] = [];
+  for (const [cls, b] of Object.entries(gameData.buildings)) {
+    if (b.designer) out.push({ cls, name: gdBuildingName(cls) || cls, side: b.designer });
+  }
+  return out.sort((a, b) => a.side - b.side);
+}
+
+function planSave() {
+  try {
+    localStorage.setItem(PLAN_KEY, JSON.stringify({ room: planRoom, items: planItems }));
+  } catch {
+    // Sin almacenamiento se trabaja igual; solo no sobrevive al cierre.
+  }
+}
+
+function planLoad() {
+  try {
+    const raw = localStorage.getItem(PLAN_KEY);
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if (d && typeof d === "object") {
+      if (d.room && d.room.w > 0 && d.room.d > 0) planRoom = { w: d.room.w, d: d.room.d };
+      if (Array.isArray(d.items)) {
+        planItems = d.items.filter((i: Placed) => i && typeof i.cls === "string");
+        planNextId = planItems.reduce((m, i) => Math.max(m, i.id), 0) + 1;
+      }
+    }
+  } catch {
+    // Un plano roto no debe impedir abrir la app.
+  }
+}
+
+/// Un hueco donde quepa, buscando por filas. Si no hay, la esquina: se verá en
+/// rojo, que es más honesto que negarse a colocarla.
+function planFreeSpot(size: Size): { x: number; y: number } {
+  const f = footprint(size, 0);
+  for (let y = 0; y + f.d <= planRoom.d; y++) {
+    for (let x = 0; x + f.w <= planRoom.w; x++) {
+      const probe: Placed[] = [...planItems, { id: -1, cls: "", x, y, rot: 0 }];
+      const sizeOf = (c: string) => (c === "" ? size : planSize(c));
+      if (!problems(probe, planRoom, sizeOf).some((p) => p.id === -1)) return { x, y };
+    }
+  }
+  return { x: 0, y: 0 };
+}
+
+function renderPlanPalette() {
+  const el = document.querySelector("#plan-palette") as HTMLElement | null;
+  if (!el) return;
+  const cat = planCatalogue();
+  if (!cat.length) {
+    el.innerHTML = `<p class="muted" style="padding:8px">${t("pl.need")}</p>`;
+    return;
+  }
+  el.innerHTML = cat
+    .map(
+      (c) =>
+        `<button class="pl-item" type="button" data-cls="${escapeAttr(c.cls)}">` +
+        `${iconGlyph(c.cls, c.name, 14)}<span>${escapeXml(c.name)}</span>` +
+        `<span class="pl-dim">${c.size.w}×${c.size.d}</span></button>`
+    )
+    .join("");
+  el.querySelectorAll<HTMLButtonElement>(".pl-item").forEach((b) => {
+    b.addEventListener("click", () => {
+      const cls = b.dataset.cls || "";
+      const size = planSize(cls);
+      if (!size) return;
+      const at = planFreeSpot(size);
+      planItems.push({ id: planNextId++, cls, x: at.x, y: at.y, rot: 0 });
+      planSel = planNextId - 1;
+      planSave();
+      renderPlanCanvas();
+    });
+  });
+}
+
+function renderPlanInfo() {
+  const el = document.querySelector("#plan-info") as HTMLElement | null;
+  if (!el) return;
+  const probs = problems(planItems, planRoom, planSize);
+  const fuera = new Set(probs.filter((p) => p.kind === "fuera").map((p) => p.id)).size;
+  const solapa = new Set(probs.filter((p) => p.kind === "solapa").map((p) => p.id)).size;
+  const use = floorUse(planItems, planRoom, planSize);
+  const des = planDesigners();
+  const fit = designerFor(planRoom, des);
+  const over = fit ? null : overBy(planRoom, des);
+
+  const estado = fuera || solapa
+    ? `<span class="pl-bad">${[
+        fuera ? t("pl.over", { n: fuera }) : "",
+        solapa ? t("pl.clash", { n: solapa }) : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")}</span>`
+    : planItems.length
+      ? `<span class="pl-good">${t("pl.ok")}</span>`
+      : `<span class="muted">${t("pl.empty")}</span>`;
+
+  const designer = fit
+    ? `<span>${t("pl.fits", { d: fit.name })} <span class="muted">(${fit.metres}×${fit.metres} m)</span></span>`
+    : over
+      ? `<span class="pl-bad">${t("pl.nofit", { w: over.w, d: over.d })}</span>`
+      : "";
+
+  el.innerHTML =
+    `<span>${t("pl.count", { n: planItems.length })}</span>` +
+    `<span>${t("pl.floor")} <b>${use.pct}%</b> <span class="muted">· ${t("pl.free", { n: use.free.toLocaleString() })}</span></span>` +
+    designer +
+    estado;
+}
+
+function renderPlanCanvas() {
+  const el = document.querySelector("#plan-canvas") as HTMLElement | null;
+  if (!el) return;
+  const pad = 2;
+  const W = planRoom.w + pad * 2;
+  const H = planRoom.d + pad * 2;
+  const probs = problems(planItems, planRoom, planSize);
+  const malos = new Set(probs.map((p) => p.id));
+  const colores = planColorMap(planItems);
+
+  // Rejilla de cimientos: cada ocho metros, que es como cuenta el juego.
+  let grid = "";
+  for (let x = 0; x <= planRoom.w; x += FOUNDATION)
+    grid += `<line x1="${pad + x}" y1="${pad}" x2="${pad + x}" y2="${pad + planRoom.d}" stroke="rgba(255,255,255,0.07)" stroke-width="0.12"/>`;
+  for (let y = 0; y <= planRoom.d; y += FOUNDATION)
+    grid += `<line x1="${pad}" y1="${pad + y}" x2="${pad + planRoom.w}" y2="${pad + y}" stroke="rgba(255,255,255,0.07)" stroke-width="0.12"/>`;
+
+  const piezas = planItems
+    .map((it) => {
+      const sz = planSize(it.cls);
+      if (!sz) return "";
+      const f = footprint(sz, it.rot);
+      const bad = malos.has(it.id);
+      const sel = planSel === it.id;
+      // El rojo del problema gana al color del tipo: la alarma manda. Lo
+      // seleccionado NO cambia de relleno, solo de borde, para que el color
+      // siga diciendo de qué tipo es.
+      const col = bad ? "#d9534f" : colores.get(it.cls) || PLAN_OTHER;
+      // Lo seleccionado se marca en BLANCO, no en el naranja de la app: ese
+      // naranja es también el primer color de la paleta de tipos, y al mirar
+      // rápido no distinguías "esta está elegida" de "esta es de otro tipo".
+      // El blanco no es de ningún tipo, así que no puede confundirse.
+      const borde = sel ? "#e9eaec" : col;
+      const name = gdBuildingName(it.cls) || it.cls;
+      // La etiqueta se escribe DENTRO de su caja o no se escribe. El primer
+      // intento usaba un tamaño fijo en metros y "Constructor" ocupaba el
+      // triple que la máquina, invadiendo las vecinas: un plano donde los
+      // nombres se pisan no sirve para juzgar un plano.
+      //
+      // Se escribe a lo largo del lado más largo, que en una máquina estrecha
+      // y profunda es el vertical, y se recorta a lo que quepa de verdad.
+      const vert = f.d > f.w * 1.3;
+      const largo = vert ? f.d : f.w;
+      const ancho = vert ? f.w : f.d;
+      const fs = Math.max(0.9, Math.min(2, ancho * 0.26));
+      // 0.55 es el ancho medio de un carácter respecto a su altura en las
+      // tipografías de sistema. Medido a ojo no, probado contra el render.
+      const caben = Math.max(0, Math.floor((largo * 0.88) / (fs * 0.55)));
+      // O cabe entero o no se escribe. Truncar da "Const…" repetido, que es
+      // ruido: para eso ya está el color y la leyenda.
+      const corto = name.length <= caben ? name : "";
+      const cx = f.w / 2;
+      const cy = f.d / 2;
+      const giro = vert ? ` transform="rotate(-90 ${cx} ${cy})"` : "";
+      const etiqueta = corto
+        ? `<text class="pl-lbl" x="${cx}" y="${cy}" font-size="${fs.toFixed(2)}"${giro}>${escapeXml(corto)}</text>`
+        : "";
+      return (
+        `<g class="pl-m${sel ? " sel" : ""}" data-id="${it.id}" transform="translate(${pad + it.x},${pad + it.y})">` +
+        `<title>${escapeXml(name)} · ${f.w}×${f.d} m</title>` +
+        `<rect class="pl-box" width="${f.w}" height="${f.d}" rx="0.4" fill="${col}" fill-opacity="0.26" ` +
+        `stroke="${borde}" stroke-width="${sel ? 0.5 : 0.25}"/>` +
+        etiqueta +
+        `</g>`
+      );
+    })
+    .join("");
+
+  el.innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" role="img">` +
+    `<rect x="${pad}" y="${pad}" width="${planRoom.w}" height="${planRoom.d}" fill="#0f1218" stroke="#2a2f3a" stroke-width="0.2"/>` +
+    grid +
+    piezas +
+    `</svg>`;
+
+  renderPlanLegend(colores);
+  renderPlanInfo();
+  wirePlanDrag(el);
+}
+
+/// La leyenda: qué es cada color, cuántas hay y cuánto miden. Es lo que de
+/// verdad quieres leer de un plano, y además sobrevive a que los nombres no
+/// quepan dentro de las cajas.
+function renderPlanLegend(colores: Map<string, string>) {
+  const el = document.querySelector("#plan-legend") as HTMLElement | null;
+  if (!el) return;
+  const cuenta = new Map<string, number>();
+  for (const it of planItems) cuenta.set(it.cls, (cuenta.get(it.cls) || 0) + 1);
+  if (!cuenta.size) {
+    el.innerHTML = "";
+    return;
+  }
+  el.innerHTML = [...cuenta.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([cls, n]) => {
+      const sz = planSize(cls);
+      const name = gdBuildingName(cls) || cls;
+      const dim = sz ? `<span class="pl-dim">${sz.w}×${sz.d}</span>` : "";
+      return (
+        `<span class="pl-key"><span class="pl-sw" style="background:${colores.get(cls) || PLAN_OTHER}"></span>` +
+        `<b>${n}×</b> ${escapeXml(name)} ${dim}</span>`
+      );
+    })
+    .join("");
+}
+
+function wirePlanDrag(host: HTMLElement) {
+  const svg = host.querySelector("svg");
+  if (!svg) return;
+  const pad = 2;
+  host.querySelectorAll<SVGGElement>(".pl-m").forEach((g) => {
+    g.addEventListener("pointerdown", (ev) => {
+      const id = Number(g.dataset.id);
+      const it = planItems.find((p) => p.id === id);
+      if (!it) return;
+      planSel = id;
+      renderPlanCanvas();
+      const box = svg.getBoundingClientRect();
+      // Metros por píxel: el viewBox está en metros, así que el factor sale
+      // del ancho real del lienzo.
+      const k = (planRoom.w + pad * 2) / box.width;
+      const x0 = ev.clientX;
+      const y0 = ev.clientY;
+      const ix = it.x;
+      const iy = it.y;
+      const move = (m: PointerEvent) => {
+        it.x = plSnap(ix + (m.clientX - x0) * k);
+        it.y = plSnap(iy + (m.clientY - y0) * k);
+        renderPlanCanvas();
+      };
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        planSave();
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      ev.preventDefault();
+    });
+  });
+}
+
+function setupPlanner() {
+  planLoad();
+  const w = document.querySelector("#pl-w") as HTMLInputElement | null;
+  const d = document.querySelector("#pl-d") as HTMLInputElement | null;
+  if (w) w.value = String(planRoom.w);
+  if (d) d.value = String(planRoom.d);
+  const resize = () => {
+    planRoom = {
+      w: Math.max(8, Math.min(200, Number(w?.value) || 32)),
+      d: Math.max(8, Math.min(200, Number(d?.value) || 32)),
+    };
+    planSave();
+    renderPlanCanvas();
+  };
+  w?.addEventListener("change", resize);
+  d?.addEventListener("change", resize);
+
+  const rotar = () => {
+    const it = planItems.find((p) => p.id === planSel);
+    if (!it) return;
+    it.rot = it.rot === 0 ? 90 : 0;
+    planSave();
+    renderPlanCanvas();
+  };
+  const quitar = () => {
+    if (planSel === null) return;
+    planItems = planItems.filter((p) => p.id !== planSel);
+    planSel = null;
+    planSave();
+    renderPlanCanvas();
+  };
+  document.querySelector("#pl-rot")?.addEventListener("click", rotar);
+  document.querySelector("#pl-del")?.addEventListener("click", quitar);
+  document.querySelector("#pl-clear")?.addEventListener("click", () => {
+    planItems = [];
+    planSel = null;
+    planSave();
+    renderPlanCanvas();
+  });
+
+  // Teclado: girar, quitar y empujar de metro en metro. Mover con el ratón es
+  // para colocar; las flechas son para afinar, que es donde se pelea de verdad.
+  window.addEventListener("keydown", (e) => {
+    if (document.querySelector("#tab-plano")?.classList.contains("hidden")) return;
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    if (e.key === "r" || e.key === "R") return rotar();
+    if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      return quitar();
+    }
+    const it = planItems.find((p) => p.id === planSel);
+    if (!it) return;
+    const paso = e.shiftKey ? FOUNDATION : 1;
+    if (e.key === "ArrowLeft") it.x -= paso;
+    else if (e.key === "ArrowRight") it.x += paso;
+    else if (e.key === "ArrowUp") it.y -= paso;
+    else if (e.key === "ArrowDown") it.y += paso;
+    else return;
+    e.preventDefault();
+    planSave();
+    renderPlanCanvas();
+  });
 }
 
 async function initGameData(force = false) {
@@ -4730,6 +5127,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
   await startWatching();
 
+  setupPlanner();
+  renderPlanCanvas();
+
   // Mirar si hay versión nueva. Silencioso si no la hay y silencioso si falla:
   // nadie quiere un error de red al arrancar un visor de estadísticas.
   checkForUpdate();
@@ -4746,6 +5146,10 @@ window.addEventListener("DOMContentLoaded", async () => {
   initGameData()
     .finally(() => initIcons())
     .finally(() => {
+      // El catálogo del plano sale de las recetas y de las medidas, así que
+      // hasta aquí no hay nada que listar.
+      renderPlanPalette();
+      renderPlanCanvas();
       const w = selectedWorld && currentWorlds[selectedWorld];
       if (w && w.length) inspect(w[0].name).catch((e) => console.error("Repintado:", e));
     });

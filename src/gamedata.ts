@@ -31,10 +31,46 @@ export interface GameItem {
   fluid: boolean;
 }
 
+// La caja de despeje, tal cual viene en la documentación:
+//
+//   ((ClearanceBox=(Min=(X=-400,Y=-500,Z=0),Max=(X=400,Y=500,Z=600),...)),(Type=CT_Soft,...))
+//
+// Nos quedamos con la PRIMERA, que es la dura — la que el juego usa para
+// impedir que dos cosas se solapen. Las que llevan Type=CT_Soft son holguras
+// blandas y no sirven para saber si algo cabe.
+//
+// Viene en centímetros. Dividimos entre cien para hablar en metros, que es
+// como se piensa una fábrica.
+const CLEARANCE =
+  /ClearanceBox=\(Min=\(X=(-?[\d.]+),Y=(-?[\d.]+),Z=(-?[\d.]+)\),Max=\(X=(-?[\d.]+),Y=(-?[\d.]+),Z=(-?[\d.]+)\)/;
+
+function parseClearance(raw: unknown): { w: number; d: number; h: number } | null {
+  if (typeof raw !== "string" || !raw) return null;
+  const m = CLEARANCE.exec(raw);
+  if (!m) return null;
+  const n = m.slice(1).map(Number);
+  if (n.some((v) => !Number.isFinite(v))) return null;
+  const r = (v: number) => Math.round((v / 100) * 10) / 10;
+  const w = r(n[3] - n[0]);
+  const d = r(n[4] - n[1]);
+  const h = r(n[5] - n[2]);
+  return w > 0 && d > 0 ? { w, d, h } : null;
+}
+
 export interface GameBuilding {
   name: Record<string, string>;
   power: number; // MW que consume
   generation: number; // MW que genera
+  /// Huella real en metros, de la caja de despeje del propio juego. Es lo que
+  /// el juego usa para no dejarte solapar dos máquinas, así que es la medida
+  /// honesta para planificar. Ausente en lo que no tiene caja: las cintas son
+  /// curvas, no cajas.
+  size?: { w: number; d: number; h: number };
+  /// Objetos por minuto que mueve, para cintas y elevadores. En la
+  /// documentación viene como cm/min, que es el doble.
+  speed?: number;
+  /// Lado del diseñador de planos, en cimientos de 8 m. Solo los diseñadores.
+  designer?: number;
 }
 
 // Un hito del HUB o una investigación del MAM: lo que cuesta, cuánto tarda y
@@ -66,7 +102,10 @@ export interface GameData {
   icons: Record<string, string>;
 }
 
-export const GAMEDATA_SCHEMA = 2;
+// 3: los edificios llevan medidas (size), velocidad de cinta (speed) y lado
+// del diseñador de planos (designer). Subir el número obliga a releer la
+// documentación, que es lo que queremos: sin medidas no hay planificador.
+export const GAMEDATA_SCHEMA = 3;
 
 // Los idiomas que nos interesan, en orden de preferencia. El primero que
 // exista de cada pareja es el que se usa.
@@ -153,6 +192,18 @@ function absorb(
         if (primary) {
           if (c.mPowerConsumption !== undefined) buildings[cls].power = num(c.mPowerConsumption);
           if (c.mPowerProduction !== undefined) buildings[cls].generation = num(c.mPowerProduction);
+          const size = parseClearance(c.mClearanceData);
+          if (size) buildings[cls].size = size;
+          // mSpeed de una cinta son centímetros por minuto y cada objeto ocupa
+          // dos, así que la mitad son objetos por minuto. Coincide con el
+          // juego: 60, 120, 270, 480, 780 y 1200 de Mk1 a Mk6.
+          if (typeof c.mSpeed === "string" || typeof c.mSpeed === "number") {
+            const sp = num(c.mSpeed) / 2;
+            if (sp > 0) buildings[cls].speed = sp;
+          }
+          // Lado del diseñador de planos, en cimientos: (X=4,Y=4,Z=4).
+          const dim = /X=(\d+)/.exec(String(c.mDimensions || ""));
+          if (dim) buildings[cls].designer = Number(dim[1]);
         }
       } else if (cls.startsWith("Recipe_")) {
         if (primary) {
