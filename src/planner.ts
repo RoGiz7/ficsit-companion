@@ -23,9 +23,13 @@ export interface Placed {
   /// Esquina superior izquierda, en metros desde la esquina de la sala.
   x: number;
   y: number;
-  /// 0 o 90 grados. Girar intercambia ancho y fondo, que es lo único que
-  /// importa para saber si cabe.
-  rot: 0 | 90;
+  /// Giro en grados, en sentido horario.
+  ///
+  /// Los cuatro cuartos, no dos. Para saber si CABE bastaban 0 y 90 —180 tiene
+  /// la misma huella que 0—, pero las bocas sí cambian de lado, y eso es lo
+  /// que decide si las salidas miran al centro o hacia fuera. Fue lo primero
+  /// que echó en falta Zigor al colocar con el ratón.
+  rot: Rot;
   /// Planta. 0 es la de abajo. Dos máquinas en plantas distintas nunca chocan,
   /// por evidente que parezca: hubo que decirlo en el código.
   level?: number;
@@ -37,9 +41,36 @@ export interface Size {
   h: number;
 }
 
-/** Huella efectiva de una pieza ya girada. */
-export function footprint(size: Size, rot: 0 | 90): { w: number; d: number } {
-  return rot === 90 ? { w: size.d, d: size.w } : { w: size.w, d: size.d };
+export type Rot = 0 | 90 | 180 | 270;
+
+export const ROTS: Rot[] = [0, 90, 180, 270];
+
+/** El siguiente cuarto de vuelta. */
+export function nextRot(r: Rot): Rot {
+  return ROTS[(ROTS.indexOf(r) + 1) % 4];
+}
+
+/** Huella efectiva de una pieza ya girada. 180 no cambia la huella; 90 y 270 sí. */
+export function footprint(size: Size, rot: Rot): { w: number; d: number } {
+  const cruzado = rot === 90 || rot === 270;
+  return cruzado ? { w: size.d, d: size.w } : { w: size.w, d: size.d };
+}
+
+/**
+ * Por dónde corre el flujo de una máquina ya girada.
+ *
+ * El eje sale del lado largo de la máquina SIN girar, y el giro lo cruza o no.
+ * Mirar el lado largo de la huella ya girada parece equivalente y no lo es:
+ * en una máquina cuadrada (la fundición es 10×10) daría siempre el mismo eje
+ * y girarla no cambiaría nada en pantalla.
+ *
+ * `flip` dice si la entrada está en el extremo lejano en vez de en el cercano:
+ * es lo que convierte un giro de 180° en algo que se ve.
+ */
+export function flow(size: Size, rot: Rot): { alongY: boolean; flip: boolean } {
+  const largoEnY = size.d >= size.w;
+  const cruzado = rot === 90 || rot === 270;
+  return { alongY: largoEnY !== cruzado, flip: rot >= 180 };
 }
 
 export interface Room {
@@ -139,8 +170,9 @@ export function portZones(
   size: Size
 ): { x: number; y: number; w: number; d: number }[] {
   const f = footprint(size, it.rot);
-  // El flujo va por el lado largo. En empate, por el fondo.
-  const alongY = f.d >= f.w;
+  // Mismo criterio de eje que las flechas: sale del lado largo de la máquina
+  // SIN girar. Mirar la huella ya girada fallaba en las máquinas cuadradas.
+  const { alongY } = flow(size, it.rot);
   if (alongY) {
     return [
       { x: it.x, y: it.y - PORT_CLEAR, w: f.w, d: PORT_CLEAR },

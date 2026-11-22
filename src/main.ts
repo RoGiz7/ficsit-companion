@@ -34,6 +34,8 @@ import { deriveFamilies, glyphSVG } from "./glyphs";
 import {
   arrangeLevels,
   buildCost,
+  flow as plFlow,
+  nextRot,
   centreLevel,
   suggestRoom,
   designerFor,
@@ -55,6 +57,7 @@ import {
   snap as plSnap,
   type Placed,
   type Room,
+  type Rot,
   type Size,
 } from "./planner";
 import { medalIcon } from "./medalicons";
@@ -1143,16 +1146,19 @@ function planPorts(): Record<string, Ports> {
 /// Flechas y círculos DENTRO de la caja: triángulo por cada cinta, círculo por
 /// cada tubería. Idea de Zigor, y es mejor que una leyenda: dice cuántas bocas
 /// hay y hacia dónde va el flujo sin tener que mirar a otro sitio.
-function portMarks(p: Ports | undefined, w: number, d: number): string {
+function portMarks(p: Ports | undefined, size: Size, rot: Rot, w: number, d: number): string {
   if (!p) return "";
-  const alongY = d >= w;
+  const { alongY, flip } = plFlow(size, rot);
   const largo = alongY ? d : w;
   const ancho = alongY ? w : d;
   const r = Math.max(0.5, Math.min(1.1, ancho * 0.11));
   const borde = Math.min(1.6, largo * 0.12) + r;
   let out = "";
-  const marca = (n: number, fluido: boolean, entra: boolean) => {
+  const marca = (n: number, fluido: boolean, esEntrada: boolean) => {
     if (n <= 0) return;
+    // Con la máquina girada media vuelta, la entrada pasa al extremo lejano y
+    // los triángulos miran al revés: el flujo corre en el otro sentido.
+    const entra = flip ? !esEntrada : esEntrada;
     // Repartidas a lo ancho de la cara, que es donde el juego las pone.
     for (let i = 0; i < n; i++) {
       const t = ((i + 1) / (n + 1)) * ancho;
@@ -1166,9 +1172,11 @@ function portMarks(p: Ports | undefined, w: number, d: number): string {
         // triángulo de salida mirando hacia fuera y uno de entrada mirando
         // hacia dentro se contradirían a la vista — parecería que la máquina
         // escupe por los dos lados.
+        // El triángulo apunta en el sentido del flujo, que `flip` invierte.
+        const sg = flip ? -1 : 1;
         const pts = alongY
-          ? `${cx - r},${cy - r} ${cx + r},${cy - r} ${cx},${cy + r}`
-          : `${cx - r},${cy - r} ${cx - r},${cy + r} ${cx + r},${cy}`;
+          ? `${cx - r},${cy - r * sg} ${cx + r},${cy - r * sg} ${cx},${cy + r * sg}`
+          : `${cx - r * sg},${cy - r} ${cx - r * sg},${cy + r} ${cx + r * sg},${cy}`;
         out += `<polygon points="${pts}" fill="#e9eaec" fill-opacity="0.8"/>`;
       }
     }
@@ -1422,7 +1430,7 @@ function renderPlanCanvas() {
         `<title>${escapeXml(name)} · ${f.w}×${f.d} m</title>` +
         `<rect class="pl-box" width="${f.w}" height="${f.d}" rx="0.4" fill="${col}" fill-opacity="0.26" ` +
         `stroke="${borde}" stroke-width="${sel ? 0.5 : 0.25}"/>` +
-        (fantasma ? "" : portMarks(puertos[it.cls], f.w, f.d) + etiqueta) +
+        (fantasma ? "" : portMarks(puertos[it.cls], sz, it.rot, f.w, f.d) + etiqueta) +
         `</g>`
       );
       })
@@ -1773,7 +1781,7 @@ function setupPlanner() {
   const rotar = () => {
     const it = planItems.find((p) => p.id === planSel);
     if (!it) return;
-    it.rot = it.rot === 0 ? 90 : 0;
+    it.rot = nextRot(it.rot);
     planSave();
     renderPlanCanvas();
   };

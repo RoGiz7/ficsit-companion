@@ -1042,20 +1042,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ficsit-companion"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "notify",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
- "tauri-plugin-updater",
-]
-
-[[package]]
 name = "field-offset"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2670,6 +2656,20 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "otto"
+version = "0.2.0"
+dependencies = [
+ "flate2",
+ "notify",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "tauri-plugin-updater",
 ]
 
 [[package]]
