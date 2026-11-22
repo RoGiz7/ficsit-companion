@@ -73,6 +73,26 @@ ignorar.
 
 Para la siguiente versión solo repites el paso 4. Las claves ya están puestas.
 
+## Un detalle de la configuración, por si se vuelve a tocar
+
+Hay dos `installMode` distintos en Tauri y no significan lo mismo:
+
+- `bundle.windows.nsis.installMode` decide **para quién** se instala la app:
+  `currentUser`, `perMachine` o `both`. Nada que ver con el actualizador.
+- `plugins.updater.windows.installMode` decide **cómo** se relanza el
+  instalador al actualizar: `passive`, `basicUi` o `quiet`. Este es el nuestro,
+  y está en `passive`.
+
+Poner el segundo valor en el primer sitio rompe el arranque, porque `passive`
+no está entre los valores que admite. Es el error que dio la primera versión de
+esto.
+
+El archivo se puede validar sin arrancar nada:
+
+```
+python -c "import json,jsonschema;jsonschema.Draft7Validator(json.load(open('node_modules/@tauri-apps/cli/config.schema.json'))).validate(json.load(open('src-tauri/tauri.conf.json')))"
+```
+
 ## Lo que puede salir mal
 
 **`tauri build` en local falla pidiendo una clave.** Es esperado:
