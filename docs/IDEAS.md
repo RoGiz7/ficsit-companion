@@ -363,3 +363,30 @@ app's data lives. Changing it orphans the history — 45 readings for Lurra bi a
 writing. The displayed name is free to change; the identifier needs a deliberate migration that
 moves the folder first and verifies the readings survived, or it must simply stay as it is. Those
 are two separate decisions and should not be made in the same breath.
+
+## Seeing it while you play
+
+Zigor plays fullscreen, so the app is behind the game while the factory is actually running. Two
+very different ways to fix that, and they should not be confused with each other.
+
+**A floating window.** Tauri can make a window always-on-top, borderless and remembered in size and
+position, and the app can have a compact mode that shows only what you picked — alerts, power, one
+chart. That is a weekend of work, breaks nothing, and keeps every rule the project has: it still
+only reads the `.sav` file, it still never touches the game. The catch is that an overlay only
+survives **borderless** fullscreen, not exclusive fullscreen, where Windows hands the whole screen
+to the game and nothing else is allowed to draw. That is a setting in the game's own options, not
+something the app can work around, and it has to be said plainly rather than discovered.
+
+**A mod.** Rendering inside the game means Satisfactory Mod Loader, Unreal, C++ and Blueprints,
+distribution through ficsit.app, and a rebuild every time the game updates. It is a different
+codebase and a different skill, not an extension of this one.
+
+It also costs the project its central promise. Right now the honest pitch is *it reads the file the
+game already wrote, and it cannot break your save because it never writes anything and never
+touches the running game*. A mod loads code into the game process. Live data would be better data —
+no waiting for an autosave — but the thing that makes this app safe to recommend to a stranger
+would be gone, and every mod-related crash report would land here first.
+
+So: the floating window is a real feature of this app. The mod is a different project that happens
+to share an author. If both ever exist, they should be two things, and the one that cannot break
+anything should stay the one that carries the name.
