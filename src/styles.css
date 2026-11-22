@@ -2219,3 +2219,17 @@ table.saves {
   opacity: 0.85;
 }
 .pl-legend .pl-dim { color: var(--muted); font-size: 0.72rem; }
+
+.pl-goal input[list], .pl-goal input#pl-item { width: 180px; }
+.pl-goal input#pl-rate { width: 76px; }
+.pl-goal input#pl-depth { width: 52px; }
+.pl-chain {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  font-size: 0.82rem;
+  margin-bottom: 9px;
+}
+.pl-chain .pl-feed { color: var(--muted); }
+.pl-chain .pl-feed b { color: var(--text); }

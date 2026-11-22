@@ -328,6 +328,16 @@ export const STRINGS: Record<string, Entry> = {
   "pl.over": { es: "{n} fuera de la sala", en: "{n} outside the room" },
   "pl.clash": { es: "{n} solapadas", en: "{n} overlapping" },
   "pl.blocked": { es: "{n} con la boca tapada", en: "{n} with a blocked end" },
+  "pl.want": { es: "Quiero", en: "I want" },
+  "pl.depth": { es: "Niveles", en: "Levels" },
+  "pl.build": { es: "Montar", en: "Lay out" },
+  "pl.unknown": { es: "No conozco esa pieza.", en: "I don't know that part." },
+  "pl.noRecipe": { es: "Esa pieza no se fabrica en ninguna máquina.", en: "Nothing manufactures that part." },
+  "pl.feed": { es: "Hay que traer:", en: "Bring in:" },
+  "pl.tight": {
+    es: "{n} máquinas no caben en la sala. Agrándala o baja el objetivo.",
+    en: "{n} machines don't fit. Make the room bigger or lower the target.",
+  },
   "pl.ports": {
     es: "Los triángulos son cintas y los círculos tuberías. El punteado es el hueco que hace falta para engancharlas: si se pone rojo, ahí no entra una cinta.",
     en: "Triangles are belts, circles are pipes. The dotted margin is the room a belt needs: if it turns red, nothing can connect there.",

@@ -33,6 +33,10 @@ import {
 import { deriveFamilies, glyphSVG } from "./glyphs";
 import {
   designerFor,
+  layout as plLayout,
+  solveChain,
+  type Chain,
+  type ChainRecipe,
   portZones,
   floorUse,
   footprint,
@@ -1484,6 +1488,103 @@ function wirePlanDrag(host: HTMLElement) {
   });
 }
 
+/// La receta canónica de una pieza: la que NO es alternativa y se fabrica en
+/// una máquina. Las alternativas cambian los materiales según lo que lleves
+/// desbloqueado, y un plano no debería depender de eso.
+let chainCache: { data: GameData | null; map: Record<string, ChainRecipe> } = { data: null, map: {} };
+function canonRecipe(): Record<string, ChainRecipe> {
+  if (chainCache.data === gameData) return chainCache.map;
+  const map: Record<string, ChainRecipe> = {};
+  if (gameData) {
+    for (const [rc, r] of Object.entries(gameData.recipes)) {
+      if (!r.out || !r.building || /Alternate/i.test(rc)) continue;
+      // El convertidor fuera, por segunda vez en este proyecto. Fabrica
+      // mineral de hierro a partir de caliza y MAR, y como es la ÚNICA receta
+      // que "produce" mineral, el resolutor decidía que para hacer planchas
+      // hay que montar un transformador. El mineral no se fabrica: se pica, y
+      // por eso tiene que caer en "hay que traer".
+      //
+      // Es el mismo fallo que ya apareció derivando los tiers. Dos veces la
+      // misma trampa: si algo vuelve a tratar una materia prima como pieza
+      // fabricada, mirar aquí primero.
+      if (r.building === "Build_Converter_C") continue;
+      if (!map[r.out]) map[r.out] = { out: r.out, rate: r.rate, building: r.building, inputs: r.inputs };
+    }
+  }
+  chainCache = { data: gameData, map };
+  return map;
+}
+
+function renderPlanItems() {
+  const dl = document.querySelector("#pl-items") as HTMLDataListElement | null;
+  if (!dl || !gameData) return;
+  const canon = canonRecipe();
+  const nombres = Object.keys(canon)
+    .map((cls) => gdItemName(cls))
+    .filter((n): n is string => !!n)
+    .sort((a, b) => a.localeCompare(b));
+  dl.innerHTML = nombres.map((n) => `<option value="${escapeAttr(n)}"></option>`).join("");
+}
+
+/// Del objetivo a la sala: resuelve la cadena, redondea cada paso hacia arriba
+/// —media máquina no existe— y las coloca.
+function planFromGoal() {
+  const chainEl = document.querySelector("#plan-chain") as HTMLElement | null;
+  const nombre = (document.querySelector("#pl-item") as HTMLInputElement | null)?.value?.trim() || "";
+  const rate = Number((document.querySelector("#pl-rate") as HTMLInputElement | null)?.value) || 0;
+  const depth = Math.max(1, Math.min(5, Number((document.querySelector("#pl-depth") as HTMLInputElement | null)?.value) || 2));
+  if (!chainEl) return;
+  const cls = nameIndex().get(nombre.toLowerCase());
+  if (!cls) {
+    chainEl.innerHTML = `<span class="pl-bad">${t("pl.unknown")}</span>`;
+    return;
+  }
+  const canon = canonRecipe();
+  if (!canon[cls]) {
+    chainEl.innerHTML = `<span class="pl-bad">${t("pl.noRecipe")}</span>`;
+    return;
+  }
+
+  const chain: Chain = solveChain(cls, rate, (c) => canon[c] || null, depth);
+
+  // Cada paso se redondea por separado: tres constructores y medio son cuatro
+  // constructores, y sumar antes de redondear mentiría a la baja.
+  const maquinas: { cls: string; size: Size }[] = [];
+  for (const st of chain.steps) {
+    const sz = planSize(st.building);
+    if (!sz) continue;
+    for (let i = 0; i < Math.ceil(st.machines - 0.0001); i++) maquinas.push({ cls: st.building, size: sz });
+  }
+
+  planItems = plLayout(maquinas, planRoom);
+  planNextId = planItems.length + 1;
+  planSel = null;
+  planSave();
+  renderPlanCanvas();
+
+  const pasos = chain.steps
+    .map((st) => {
+      const n = Math.ceil(st.machines - 0.0001);
+      const bn = gdBuildingName(st.building) || st.building;
+      const inm = gdItemName(st.cls) || st.cls;
+      return `<span><b>${n}×</b> ${escapeXml(bn)} <span class="muted">→ ${escapeXml(inm)}</span></span>`;
+    })
+    .join("");
+  const traer = chain.feed.length
+    ? `<span class="pl-feed">${t("pl.feed")} ` +
+      chain.feed
+        .slice(0, 6)
+        .map((f) => `<b>${fmt(f.rate)}</b>/min ${escapeXml(gdItemName(f.cls) || f.cls)}`)
+        .join(" · ") +
+      `</span>`
+    : "";
+  // Si el colocador se sale de la sala, se dice. Es mejor que enseñar un plano
+  // bonito que no cabe.
+  const fuera = problems(planItems, planRoom, planSize).filter((p) => p.kind === "fuera").length;
+  const aviso = fuera ? `<span class="pl-bad">${t("pl.tight", { n: fuera })}</span>` : "";
+  chainEl.innerHTML = pasos + traer + aviso;
+}
+
 function setupPlanner() {
   planLoad();
   const w = document.querySelector("#pl-w") as HTMLInputElement | null;
@@ -1515,6 +1616,10 @@ function setupPlanner() {
     planSave();
     renderPlanCanvas();
   };
+  document.querySelector("#pl-build")?.addEventListener("click", planFromGoal);
+  (document.querySelector("#pl-item") as HTMLInputElement | null)?.addEventListener("keydown", (e) => {
+    if ((e as KeyboardEvent).key === "Enter") planFromGoal();
+  });
   document.querySelector("#pl-rot")?.addEventListener("click", rotar);
   document.querySelector("#pl-del")?.addEventListener("click", quitar);
   document.querySelector("#pl-clear")?.addEventListener("click", () => {
@@ -5254,6 +5359,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       // El catálogo del plano sale de las recetas y de las medidas, así que
       // hasta aquí no hay nada que listar.
       renderPlanPalette();
+      renderPlanItems();
       renderPlanCanvas();
       const w = selectedWorld && currentWorlds[selectedWorld];
       if (w && w.length) inspect(w[0].name).catch((e) => console.error("Repintado:", e));

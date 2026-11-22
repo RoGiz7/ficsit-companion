@@ -231,3 +231,122 @@ export function floorUse(
 export function snap(v: number, grid = 1): number {
   return Math.round(v / grid) * grid;
 }
+
+// ---------------------------------------------------------------------------
+// Del objetivo a las máquinas
+//
+// "Quiero 60 planchas de hierro por minuto" -> cuántos constructores, cuántos
+// hornos, y colocados en la sala. Es la otra mitad de la idea: sin esto el
+// plano es una herramienta de dibujo; con esto es una de decisión.
+//
+// Se resuelve contra las recetas del juego, no contra la tabla a mano de la
+// calculadora. Esa tabla tiene veinticinco piezas; el juego tiene setecientas.
+// ---------------------------------------------------------------------------
+
+export interface ChainRecipe {
+  out: string;
+  rate: number;
+  building: string | null;
+  inputs: { item: string; rate: number }[];
+}
+
+export interface ChainStep {
+  cls: string;
+  building: string;
+  /// Máquinas exactas, sin redondear. La vista redondea hacia arriba; el
+  /// número crudo hace falta para saber si vas sobrado o justísimo.
+  machines: number;
+  depth: number;
+}
+
+export interface Chain {
+  steps: ChainStep[];
+  /// Lo que hay que meter desde fuera: materia prima, o piezas cuya cadena se
+  /// cortó por el límite de profundidad.
+  feed: { cls: string; rate: number }[];
+}
+
+/**
+ * Despliega la cadena de producción hacia atrás desde una pieza y un ritmo.
+ *
+ * `maxDepth` existe porque sin él pedir un ordenador te devuelve la fábrica
+ * entera hasta el mineral: cientos de máquinas que no caben en ninguna sala y
+ * que nadie quiere ver de golpe. Lo que la gente construye es una nave de
+ * planchas o una de rotores, no la cadena completa.
+ *
+ * Lo que se corta por profundidad no desaparece: sale en `feed`, que es lo que
+ * tendrás que traer con cintas desde otro sitio. Esconderlo sería mentir sobre
+ * lo que hace falta.
+ */
+export function solveChain(
+  cls: string,
+  perMinute: number,
+  recipeFor: (cls: string) => ChainRecipe | null,
+  maxDepth = 2
+): Chain {
+  const steps: ChainStep[] = [];
+  const feed = new Map<string, number>();
+  const visto = new Set<string>();
+
+  const walk = (item: string, rate: number, depth: number) => {
+    if (rate <= 0) return;
+    const r = depth >= maxDepth ? null : recipeFor(item);
+    if (!r || !r.building || r.rate <= 0) {
+      feed.set(item, (feed.get(item) || 0) + rate);
+      return;
+    }
+    // Una receta circular (chatarra de aluminio y similares) colgaría esto.
+    const clave = `${item}@${depth}`;
+    if (visto.has(clave)) {
+      feed.set(item, (feed.get(item) || 0) + rate);
+      return;
+    }
+    visto.add(clave);
+
+    const machines = rate / r.rate;
+    steps.push({ cls: item, building: r.building, machines, depth });
+    for (const i of r.inputs) walk(i.item, i.rate * machines, depth + 1);
+  };
+
+  walk(cls, perMinute, 0);
+  return {
+    steps,
+    feed: [...feed.entries()]
+      .map(([c, rate]) => ({ cls: c, rate: Math.round(rate * 100) / 100 }))
+      .sort((a, b) => b.rate - a.rate),
+  };
+}
+
+/**
+ * Coloca una lista de máquinas en la sala, en filas, de la más honda a la más
+ * baja para que las filas queden parejas.
+ *
+ * No intenta ser un buen diseño de fábrica: intenta meterlas todas donde se
+ * vean para que TÚ las muevas. Un colocador automático que pretenda acertar
+ * con el gusto de cada uno acierta con el de nadie, y el gusto es justo lo que
+ * Zigor dijo que es personal de cada pionero.
+ */
+export function layout(
+  machines: { cls: string; size: Size }[],
+  room: Room,
+  gap = PORT_CLEAR
+): Placed[] {
+  const orden = [...machines].sort((a, b) => b.size.d - a.size.d || b.size.w - a.size.w);
+  const out: Placed[] = [];
+  let x = 0;
+  let y = 0;
+  let filaAlta = 0;
+  let id = 1;
+  for (const m of orden) {
+    const f = footprint(m.size, 0);
+    if (x + f.w > room.w) {
+      x = 0;
+      y += filaAlta + gap;
+      filaAlta = 0;
+    }
+    out.push({ id: id++, cls: m.cls, x, y, rot: 0 });
+    x += f.w + gap;
+    filaAlta = Math.max(filaAlta, f.d);
+  }
+  return out;
+}
