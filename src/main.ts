@@ -180,6 +180,7 @@ let folderInput: HTMLInputElement;
 let statusEl: HTMLElement;
 let tableBody: HTMLElement;
 let detailTitle: HTMLElement;
+let detailWhen: HTMLElement;
 let detailStatus: HTMLElement;
 let detailGrid: HTMLElement;
 let resumeEl: HTMLElement;
@@ -2208,6 +2209,38 @@ function render(saves: SaveEntry[]) {
   }
 }
 
+// El nombre del archivo no sirve de titulo. "Lurra bi_autosave_2.sav" repite el
+// mundo, que ya esta en el hexagono de arriba, y "autosave_2" no responde a lo
+// unico que se pregunta mirando ahi: cual es y de cuando.
+// Un guardado con nombre propio SI se muestra entero: si el jugador lo llamo
+// "antes del tren", eso es exactamente lo que quiere leer.
+function etiquetaGuardado(entrada: SaveEntry | undefined, nombre: string): string {
+  const base = nombre.replace(/\.sav$/i, "");
+  const auto = base.match(/^.*_autosave_(\d+)$/i);
+  if (auto) return t("save.auto", { n: auto[1] });
+  const mundo = (entrada?.header?.session_name || "").trim();
+  if (mundo && base.trim() === mundo) return t("save.manual");
+  return base;
+}
+
+// Tiempo relativo. Lo que se quiere saber de una partida abierta es si es de
+// hace un rato o de la semana pasada; la fecha exacta va debajo, para cuando
+// de verdad haga falta.
+function haceCuanto(ms: number): string {
+  const d = Date.now() - ms;
+  // Un futuro de unos minutos sale de relojes desajustados, no de un error:
+  // decir "ahora mismo" es mas util que un numero negativo.
+  if (d < 60000) return t("when.now");
+  const min = Math.round(d / 60000);
+  if (min < 60) return min === 1 ? t("when.min1") : t("when.minN", { n: min });
+  const horas = Math.round(min / 60);
+  if (horas < 24) return horas === 1 ? t("when.hour1") : t("when.hourN", { n: horas });
+  const dias = Math.round(horas / 24);
+  if (dias < 30) return dias === 1 ? t("when.day1") : t("when.dayN", { n: dias });
+  const meses = Math.round(dias / 30);
+  return meses === 1 ? t("when.month1") : t("when.monthN", { n: meses });
+}
+
 // Al hacer clic en una partida: mostramos sus notas y descomprimimos su cuerpo.
 async function inspect(name: string) {
   const folder = folderInput.value.trim();
@@ -2218,7 +2251,16 @@ async function inspect(name: string) {
   highlightItem = null; // al cambiar de partida, quitamos el resaltado del mapa
 
   openSaveName = name;
-  detailTitle.textContent = name;
+  detailTitle.textContent = etiquetaGuardado(entry, name);
+  // La fecha de la cabecera manda sobre la del archivo: copiar o mover un .sav
+  // cambia la del archivo y no la de la partida.
+  const cuando = entry?.header?.save_date_ms || entry?.modified_ms || 0;
+  const jugado = entry?.header
+    ? t("save.played", { t: formatDuration(entry.header.play_duration_seconds) })
+    : "";
+  detailWhen.textContent = cuando
+    ? [haceCuanto(cuando), jugado, formatDate(cuando)].filter(Boolean).join(" · ")
+    : jugado;
 
   // Notas: se cargan al instante desde la caché, sin esperar a la descompresión.
   noteText.value = notesCache[key] || "";
@@ -5435,6 +5477,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   tableBody = document.querySelector("#saves-body") as HTMLElement;
   worldTiles = document.querySelector("#world-tiles") as HTMLElement;
   detailTitle = document.querySelector("#detail-title") as HTMLElement;
+  detailWhen = document.querySelector("#detail-when") as HTMLElement;
   detailStatus = document.querySelector("#detail-status") as HTMLElement;
   detailGrid = document.querySelector("#detail-grid") as HTMLElement;
   resumeEl = document.querySelector("#resume") as HTMLElement;

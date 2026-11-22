@@ -430,6 +430,14 @@ table.saves {
   font-size: 1.25rem;
 }
 
+/* Lo fresca que es la partida abierta y cuanto se ha jugado. Va debajo del
+   titulo y mas apagado: es contexto, no encabezado. */
+.ctx-when {
+  margin: 3px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 .ctx-save .detail-status {
   margin: 2px 0 0;
 }

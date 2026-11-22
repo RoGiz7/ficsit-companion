@@ -506,6 +506,24 @@ export const STRINGS: Record<string, Entry> = {
     es: "Importadas {n} partidas ({r} con datos completos) ✓",
     en: "{n} saves imported ({r} with full data) ✓",
   },
+  // Etiquetas de la partida abierta. El nombre del archivo
+  // ("Lurra bi_autosave_2.sav") no dice nada util: repite el mundo, que ya
+  // esta en el hexagono de arriba, y "autosave_2" no responde a lo unico que
+  // se pregunta ahi, que es cual es y de cuando.
+  "save.auto": { es: "Autoguardado {n}", en: "Autosave {n}" },
+  "save.manual": { es: "Guardado manual", en: "Manual save" },
+  "save.played": { es: "{t} jugadas", en: "{t} played" },
+  // Plurales aparte en vez de "{n} minuto(s)": los dos idiomas los distinguen
+  // y la funcion de traduccion solo sustituye, no conjuga.
+  "when.now": { es: "ahora mismo", en: "just now" },
+  "when.min1": { es: "hace 1 minuto", en: "1 minute ago" },
+  "when.minN": { es: "hace {n} minutos", en: "{n} minutes ago" },
+  "when.hour1": { es: "hace 1 hora", en: "1 hour ago" },
+  "when.hourN": { es: "hace {n} horas", en: "{n} hours ago" },
+  "when.day1": { es: "ayer", en: "yesterday" },
+  "when.dayN": { es: "hace {n} días", en: "{n} days ago" },
+  "when.month1": { es: "hace 1 mes", en: "1 month ago" },
+  "when.monthN": { es: "hace {n} meses", en: "{n} months ago" },
   "detail.reading": { es: "Leyendo el interior de la partida…", en: "Reading inside the save…" },
   "detail.builds": { es: "Construcciones", en: "Buildings" },
   "detail.types": { es: "Tipos distintos", en: "Distinct types" },
