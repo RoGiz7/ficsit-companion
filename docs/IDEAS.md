@@ -425,3 +425,60 @@ would be gone, and every mod-related crash report would land here first.
 So: the floating window is a real feature of this app. The mod is a different project that happens
 to share an author. If both ever exist, they should be two things, and the one that cannot break
 anything should stay the one that carries the name.
+
+## The planner: laying a factory out before you build it
+
+Zigor's idea, and the strongest one the project has had. Not a calculator — those exist, SCIM has a
+good one and so do we. A **layout**: pick a room size, drop machines into it, snap them to a grid,
+see whether they fit and how much space is left, with the production target driving how many of each
+you need.
+
+The pain he named is specific and real: *tearing down something you did not like costs as much time
+as building it, or more.* Nobody is solving that. The game's own blueprint designer is deliberately
+limited to a small box. SCIM computes ratios but has nowhere to put them. Between those two there is
+nothing.
+
+**The foundation checks out.** `mClearanceData` in the game's own documentation carries the real
+bounding box of every building, in centimetres. Measured against a real install:
+
+| Building | w × d × h (m) |
+|---|---|
+| Constructor | 8 × 10 × 6 |
+| Smelter | 5 × 10 × 4.5 |
+| Assembler | 9 × 16 × 3 |
+| Manufacturer | 18 × 12 × 11 |
+| Foundry | 10 × 10 × 4.5 |
+| Refinery | 10 × 22 × 15 |
+| Miner Mk1 | 6 × 14 × 4 |
+| Coal generator | 10 × 26 × 9 |
+
+11 of 12 tested have a box. The exception is the conveyor belt, which has none — belts are splines,
+not boxes. That exception is the whole shape of the hard part (below).
+
+So we already hold: real footprints, a map in world metres, official recipes and rates, fog of war
+so you only plan where you have actually been, and **every machine you have already built, with its
+position and its recipe**. That last one is the part no website can match. A site gives you a blank
+page; this can open the plan on top of the factory that already exists.
+
+### Why it is still risky
+
+Not the data. Two other things.
+
+**Drawing tools live or die on feel.** Drag, snap, undo, nudge one metre with an arrow key. If that
+is rough, nobody uses the tool no matter how right the numbers are. It is a lot of interface work
+and it cannot be done halfway.
+
+**Belts are the actual hard problem**, and the fact that they are the one thing without a clearance
+box says why. Placing machines and drawing which feeds which is tractable. Answering "will the belts
+physically route through here" is a different and much harder question, and promising it before it
+works would be the worst thing this feature could do.
+
+### Where to start
+
+Not the map. Zigor did not describe a world-scale planner — he described *a ten by ten room where
+you put machines and then comes the madness of connecting them.* So: **one room**. Give it a size,
+drop machines, snap to grid, say whether they fit and how much floor is left, with the production
+target setting the counts.
+
+That is small enough to find out whether the feel is right before committing to a spatial editor,
+and it answers the real complaint — "do I like this before I build it" — on its own.
