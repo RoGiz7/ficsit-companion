@@ -482,3 +482,31 @@ target setting the counts.
 
 That is small enough to find out whether the feel is right before committing to a spatial editor,
 and it answers the real complaint — "do I like this before I build it" — on its own.
+
+### The belt problem, solved by not solving it
+
+Zigor's answer to the hard part, and it is the right division of labour: the planner does the
+arithmetic and the fitting, the **game** does the belts — it is the thing with real physics and real
+snapping — and the pioneer finishes it by hand, which he wants anyway because layouts are personal.
+
+Both halves of that check out against the game's own data.
+
+**Belt tier is computable exactly.** `mSpeed` divided by two is items per minute, and it matches the
+game: Mk1 60, Mk2 120, Mk3 270, Mk4 480, Mk5 780, Mk6 1200. Lifts carry the same table. Combined
+with the recipe rates and the tier derivation we already have, the planner can say *this line is
+540/min, you need Mk4, and you only have Mk3 unlocked — run two Mk3 lines or research Mk4.*
+
+**The blueprint designer has a hard limit, and it is in `mDimensions`,** counted in 8-metre
+foundations: Mk1 is 4×4×4 (32 m cube), Mk2 5×5×5 (40 m), Mk3 6×6×6 (48 m). So the planner can say
+*this fits in a Mk1* or *you are four metres over, split it here* **before** anything is built. That
+is precisely the demolition the whole feature exists to prevent.
+
+**What not to build: a `.sbp` exporter.** The blueprint format is binary and undocumented; it would
+have to be reverse-engineered by trial and error, and a malformed blueprint could break the designer
+or worse. It also breaks the rule that makes this app safe to recommend — we do not write anything
+the game reads.
+
+And it is not needed. The handoff is not a file, it is **a plan you can follow**: each machine with
+its position and facing, the total footprint, which designer tier it needs, and the belt tier each
+line requires. The pioneer builds it in the game, where belts behave properly, and the design stays
+his.
