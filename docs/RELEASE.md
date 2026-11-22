@@ -38,6 +38,12 @@ en pantalla, que es la **pública**.
 En `src-tauri/tauri.conf.json`, cambia el texto `PEGAR_AQUI_LA_CLAVE_PUBLICA`
 por esa cadena larga. Esta sí va al repositorio: para eso es pública.
 
+> **Si el prompt de la contraseña falla** con `stream did not contain valid UTF-8`, no es tu
+> contraseña: el CLI lee la entrada esperando UTF-8 y la consola de PowerShell se la da en otra
+> codificación. Usa una contraseña **solo alfanumérica** —a 40 caracteres los símbolos no aportan
+> seguridad real— o pon antes `[Console]::InputEncoding = [System.Text.Encoding]::UTF8`. Añade
+> `-f` al comando si un intento fallido dejó el archivo a medias.
+
 ### 3. Poner los dos secretos en GitHub
 
 En `Settings` → `Secrets and variables` → `Actions` → `New repository secret`:
