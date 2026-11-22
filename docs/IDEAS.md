@@ -510,3 +510,35 @@ And it is not needed. The handoff is not a file, it is **a plan you can follow**
 its position and facing, the total footprint, which designer tier it needs, and the belt tier each
 line requires. The pioneer builds it in the game, where belts behave properly, and the design stays
 his.
+
+### A medal for finishing your own plans
+
+Zigor again, and it closes the loop: plan it here, build it in the game, and **the app notices and
+gives you a medal for it**. His reasoning is the part worth keeping: *the point is always to play the
+game*, so the app should push you back into it rather than hold you here.
+
+It measures something no tool in this space measures. Every calculator tells you what to produce.
+None of them tell you whether you **finish what you start**.
+
+And it needs nothing new to detect. The save already carries every machine with its class and
+position. The trick is to **match composition inside a zone, not coordinates**: you planned three
+smelters and two constructors, and somewhere in the world a cluster now contains at least that. It
+will be rotated and twenty metres off from the plan, and it is still the same plan. Zone clustering
+already exists and has been running for months.
+
+What not to do: require the pioneer to tick a box saying "I built it". If the app can see it, the
+app should see it.
+
+### Truck or train, for factories far apart
+
+Also Zigor's. Half of it is already certain and half needs checking, and the two should not be
+promised together.
+
+**Certain:** distances between zones are already computed in metres, and belt throughput per tier
+is now extracted from the game's own data. So *this line needs 540/min over 1,200 m, and Mk3 does
+not carry it* is answerable today.
+
+**Not checked:** the economics. Material cost of a belt per metre, cost of a train station, fuel a
+truck burns over a route. That is probably in the documentation, but it has not been looked at, and
+until it has, the comparison should not be offered. Saying "a train pays off here" on unverified
+numbers would be worse than saying nothing.
