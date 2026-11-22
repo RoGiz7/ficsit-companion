@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 100" width="140" height="100" role="img" aria-label="OttO">
+  <title>OttO</title>
+  <!-- OttO. Las dos O son los ojos y las dos t comparten travesano para hacer
+       de nariz: la palabra ES la cara. La misma forma se lee tambien como el
+       frontal de un camion, dos faros y una parrilla, y que cada cual vea una
+       cosa distinta es parte del acierto. Idea de Zigor.
+
+       LA REGLA: tienen que seguir siendo DOS t. Fundirlas escribe OTO, unirlas
+       por abajo escribe OtJO y ponerles doble travesano escribe O#O. Las tres
+       se probaron y las tres estan mal: un logo que deletrea mal la marca no es
+       un logo, por bien que quede la cara. -->
+
+  <!-- VERSION DE UN SOLO COLOR, que hereda el de donde se use (currentColor).
+       Para la interfaz, el favicon y cualquier sitio donde el degradado se
+       convierta en barro o no se sepa de que color sera el fondo. -->
+  <g fill="none" stroke="currentColor" stroke-width="7"><circle cx="24" cy="50" r="18"/><circle cx="116" cy="50" r="18"/></g>
+  <g fill="currentColor"><circle cx="24" cy="50" r="6.5"/><circle cx="116" cy="50" r="6.5"/></g>
+  <g fill="none" stroke="currentColor" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M52 40h36"/><path d="M62 30v26a5 5 0 0 0 5 5"/><path d="M78 30v26a5 5 0 0 0 5 5"/>
+  </g>
+</svg>

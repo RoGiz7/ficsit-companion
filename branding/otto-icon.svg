@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="OttO">
+  <title>OttO</title>
+  <!-- ICONO DE APLICACION. Los dos ojos de OttO, sin las t.
+       OJO: esto es lo UNICO que no deletrea el nombre, y es a proposito.
+       El logotipo (otto.svg) tiene que decir OttO con sus dos t siempre; un
+       icono de aplicacion tiene otras restricciones: cuadrado y legible a 32
+       pixeles, que es donde la palabra entera se vuelve un borron y deja el
+       cuadrado medio vacio por ser ancha. Ademas el icono nunca va solo: en la
+       barra de tareas, el menu de inicio y el instalador lleva el nombre
+       escrito al lado.
+       Probadas tres variantes a 128, 64, 48 y 32 px antes de elegir. Un solo
+       ojo tambien se leia, pero un circulo con un punto es un boton de
+       encendido, un disco o una diana. Dos ojos son una cara.
+       El degradado plata -> naranja se mantiene y sigue distinguiendose a 32.
+       Regenerar los iconos con:  npm run tauri icon branding/otto-icon.svg -->
+  <defs>
+    <linearGradient id="ottoIcon" gradientUnits="userSpaceOnUse" x1="200" y1="0" x2="824" y2="0">
+      <stop offset="0" stop-color="#c9ced8"/>
+      <stop offset="0.28" stop-color="#c9ced8"/>
+      <stop offset="0.72" stop-color="#ff9e3d"/>
+      <stop offset="1" stop-color="#ff9e3d"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1024" height="1024" rx="180" fill="#15181e"/>
+  <g fill="none" stroke="url(#ottoIcon)" stroke-width="78">
+    <circle cx="330" cy="512" r="150"/>
+    <circle cx="694" cy="512" r="150"/>
+  </g>
+  <g fill="url(#ottoIcon)">
+    <circle cx="330" cy="512" r="56"/>
+    <circle cx="694" cy="512" r="56"/>
+  </g>
+</svg>
