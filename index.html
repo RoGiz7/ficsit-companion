@@ -81,8 +81,9 @@
            por delante de ellos para llegar al primer dato útil, que es justo
            lo contrario de para lo que se abre esta app. -->
       <section class="ctx">
-        <label for="world-select" class="ctx-label" data-i18n="world">Mundo</label>
-        <select id="world-select"></select>
+        <!-- Cada mundo se elige por su propia huella, no por una linea de texto.
+             El contenido lo pinta renderWorldTiles; ver src/worldtiles.ts. -->
+        <div id="world-tiles" class="wtiles" role="radiogroup"></div>
         <span id="status" class="status" data-i18n="loading">Cargando…</span>
       </section>
 

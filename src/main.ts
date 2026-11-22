@@ -3,6 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Parser, SatisfactorySaveHeader, SaveReader } from "@etothepii/satisfactory-file-parser";
+import { huellaDe, huellaGuardar, huellasLeer, teselaSVG } from "./worldtiles";
 import {
   certifications,
   GRADES,
@@ -210,7 +211,7 @@ let noteSave: HTMLButtonElement;
 let noteStatus: HTMLElement;
 let noteLabel: HTMLElement;
 
-let worldSelect: HTMLSelectElement;
+let worldTiles: HTMLElement;
 
 // ---- Secciones plegables ----
 // Cada render escribe su propio <h3 class="inv-title"> dentro del bloque. En
@@ -2115,7 +2116,10 @@ function buildWorlds(saves: SaveEntry[]): Record<string, SaveEntry[]> {
   return map;
 }
 
-// Llena el desplegable de mundos (ordenados por actividad más reciente).
+// Pinta una tesela por mundo, ordenadas por actividad más reciente. La huella
+// de cada una sale de la última vez que se abrió ese mundo; uno que no se haya
+// abierto nunca sale como un hexágono vacío, que es lo honesto: significa "no
+// lo he mirado todavía", no "está vacío".
 function populateWorldSelect() {
   const worlds = Object.keys(currentWorlds).sort(
     (a, b) => currentWorlds[b][0].modified_ms - currentWorlds[a][0].modified_ms
@@ -2123,11 +2127,18 @@ function populateWorldSelect() {
   if (!worlds.includes(selectedWorld)) {
     selectedWorld = worlds[0] || "";
   }
-  worldSelect.innerHTML = worlds
+  const huellas = huellasLeer();
+  worldTiles.setAttribute("aria-label", t("world"));
+  worldTiles.innerHTML = worlds
     .map((w) => {
+      const sel = w === selectedWorld;
       const n = currentWorlds[w].length;
-      const sel = w === selectedWorld ? " selected" : "";
-      return `<option value="${w}"${sel}>${t("worlds.option", { w, n })}</option>`;
+      return (
+        `<button type="button" class="wt" role="radio" aria-checked="${sel}"` +
+        ` data-world="${escapeAttr(w)}" title="${escapeAttr(t("worlds.option", { w, n }))}">` +
+        teselaSVG(w, huellas[w] || null, sel) +
+        `<span class="wt-nm">${escapeXml(w)}</span></button>`
+      );
     })
     .join("");
 }
@@ -2270,6 +2281,17 @@ async function inspect(name: string) {
       renderStored(a.storedByClass);
       renderExploration(a.collect);
       lastPoints = a.points;
+      // La huella del mundo para su tesela. Se calcula aquí porque es el único
+      // momento en que las posiciones están en memoria: el histórico guarda
+      // agregados, no coordenadas, y volver a leer las partidas sólo para
+      // dibujar tres hexágonos haría la app lenta de abrir a cambio de nada.
+      if (selectedWorld) {
+        const hu = huellaDe(a.points, a.points.length);
+        if (hu) {
+          huellaGuardar(selectedWorld, hu);
+          populateWorldSelect();
+        }
+      }
       lastBelts = a.belts;
       lastSlabs = a.slabs;
       lastZones = a.zones;
@@ -5338,9 +5360,11 @@ async function refresh() {
   }
 }
 
-// Al elegir un mundo en el desplegable: mostramos sus guardados y abrimos el más reciente.
-async function onWorldChange() {
-  selectedWorld = worldSelect.value;
+// Al elegir un mundo: mostramos sus guardados y abrimos el más reciente.
+async function onWorldChange(mundo: string) {
+  if (!mundo || !currentWorlds[mundo]) return;
+  selectedWorld = mundo;
+  populateWorldSelect(); // que el anillo naranja salte ya, sin esperar a leer
   const list = currentWorlds[selectedWorld] || [];
   render(list);
   if (list.length) {
@@ -5409,7 +5433,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   folderInput = document.querySelector("#folder") as HTMLInputElement;
   statusEl = document.querySelector("#status") as HTMLElement;
   tableBody = document.querySelector("#saves-body") as HTMLElement;
-  worldSelect = document.querySelector("#world-select") as HTMLSelectElement;
+  worldTiles = document.querySelector("#world-tiles") as HTMLElement;
   detailTitle = document.querySelector("#detail-title") as HTMLElement;
   detailStatus = document.querySelector("#detail-status") as HTMLElement;
   detailGrid = document.querySelector("#detail-grid") as HTMLElement;
@@ -5488,7 +5512,12 @@ window.addEventListener("DOMContentLoaded", async () => {
     startWatching();
   });
 
-  worldSelect.addEventListener("change", onWorldChange);
+  // Delegado: las teselas se repintan enteras cada vez, así que enganchar cada
+  // botón por separado dejaría oyentes colgando.
+  worldTiles.addEventListener("click", (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>(".wt");
+    if (b && b.dataset.world) void onWorldChange(b.dataset.world);
+  });
   document.querySelectorAll<HTMLElement>(".tab").forEach((t) => {
     t.addEventListener("click", () => showTab(t.dataset.tab as string));
   });

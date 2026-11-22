@@ -209,6 +209,25 @@ button:hover {
   background: #ffb061;
 }
 
+/* Botones "fantasma": icono o texto suelto, sin pastilla naranja. La regla de
+   arriba les pinta el fondo al pasar el cursor, que no es lo que quiere ninguno
+   de ellos. Hace falta esta regla porque button:hover (0,1,1) le gana a .clase
+   (0,1,0), asi que declarar el fondo en la clase base NO basta: hay que
+   declararlo tambien en el :hover. Si se anade otro boton de este tipo, va
+   aqui, o saldra naranja.
+   El del idioma llevaba el fallo desde que la interfaz es bilingue. */
+.wt:hover,
+.icon-btn:hover,
+.dlg-x:hover,
+.lang-btn:not(.active):hover {
+  background: transparent;
+}
+
+/* El idioma activo conserva su tinte tambien al pasar por encima. */
+.lang-btn.active:hover {
+  background: rgba(255, 158, 61, 0.15);
+}
+
 .status {
   font-size: 0.85rem;
   margin: 16px 0;
@@ -534,21 +553,73 @@ table.saves {
   margin-bottom: 6px;
 }
 
-#world-select {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid #3a3e47;
-  background: #15171b;
-  color: #e9e9ec;
-  font-family: inherit;
-  font-size: 0.95rem;
+/* Teselas de mundos. El alto es fijo a proposito: el hexagono activo crece, y
+   sin alto fijo la fila entera daria un salto cada vez que se cambia de mundo. */
+.wtiles {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.wt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 88px;
+  height: 100px;
+  padding: 0;
+  border: none;
+  background: transparent;
   cursor: pointer;
 }
 
-#world-select:focus {
-  outline: none;
-  border-color: #ff9e3d;
+.wt svg {
+  display: block;
+  width: 62px;
+  height: 62px;
+  transition: width 0.18s ease, height 0.18s ease, filter 0.18s ease;
+}
+
+/* El contraste viene de los dos lados: el activo sube y los demas bajan. Asi no
+   hace falta cargar el seleccionado y sus puntos se quedan en plata, que es
+   donde se leen. El brillo es el mismo que el del punto que late en la cabecera. */
+.wt[aria-checked="true"] svg {
+  width: 76px;
+  height: 76px;
+  filter: drop-shadow(0 0 5px rgba(255, 158, 61, 0.35));
+}
+
+.wt-nm {
+  max-width: 88px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* El nombre esta fijo en el activo y al vuelo en los demas: con el nombre solo
+   al pasar el cursor habria que pasearlos todos para saber cual es cual. */
+.wt[aria-checked="true"] .wt-nm {
+  color: var(--accent);
+  font-weight: 600;
+  opacity: 1;
+}
+
+.wt:hover .wt-nm,
+.wt:focus-visible .wt-nm {
+  opacity: 1;
+}
+
+.wt:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 10px;
 }
 
 .import-bar {
