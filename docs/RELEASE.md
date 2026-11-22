@@ -95,18 +95,24 @@ python -c "import json,jsonschema;jsonschema.Draft7Validator(json.load(open('nod
 
 ## Las dos mitades del actualizador tienen que ir a la par
 
-El actualizador son dos piezas con el mismo número de versión: el paquete de
-npm `@tauri-apps/plugin-updater` y el crate de Rust `tauri-plugin-updater`. Si
-se separan, Tauri avisa de un desajuste al arrancar.
+El actualizador son dos piezas con el mismo número de versión: el paquete de npm
+`@tauri-apps/plugin-updater` y el crate de Rust `tauri-plugin-updater`. Si se
+separan, Tauri avisa de un desajuste en cada arranque.
 
-Y se separan solas, porque npm coge siempre la última y Cargo no puede. La
-versión 2.14.1 del crate exige `tauri ^2.12`, y este proyecto va con `tauri`
-2.11.2, así que Cargo se queda en la 2.12.0 del plugin mientras npm instala la
-2.14.1 tan tranquilo.
+Y se separan solas, porque npm coge siempre la última y Cargo no puede si algo
+se lo impide. Eso es justo lo que pasó: el crate 2.14 exige `tauri ^2.12`, el
+proyecto iba con `tauri` 2.11.2, Cargo se quedaba en el 2.12.0 del plugin y npm
+instalaba el 2.14.1 tan tranquilo.
 
-Por eso el paquete de npm está **clavado sin `^`** a la versión que Cargo
-resuelve de verdad. Si algún día se sube el crate `tauri`, hay que subir las
-dos a la vez y volver a clavarlo.
+Se podía arreglar de dos maneras y se eligió la de subir, no la de bajar. El
+actualizador es la pieza que va a instalar software en el ordenador de otra
+gente, y ese es el peor sitio donde ir atrasado. Así que `tauri` pasó a `2.12`
+como mínimo, `tauri-build` a `2.7` (que es lo que pide el plugin por dentro) y
+el paquete de npm quedó **clavado sin `^`** a `2.14.1`.
+
+Clavado a propósito: sin el `^`, un `npm update` no puede adelantar la mitad de
+JavaScript y dejar atrás la de Rust. Cuando haya que subir, se suben las dos a
+la vez y se vuelve a clavar.
 
 Para comprobar que siguen a la par:
 
@@ -115,10 +121,23 @@ npm ls @tauri-apps/plugin-updater
 findstr /C:"tauri-plugin-updater" src-tauri\Cargo.lock
 ```
 
-Por lo mismo ya no está `@tauri-apps/plugin-process`. Se uso para relanzar la
-app tras instalar, pero en Windows el instalador NSIS la cierra, instala y la
-vuelve a abrir él solo. Era una segunda pareja de versiones que mantener
-sincronizada a cambio de nada.
+### Una trampa del TOML que ya nos mordió
+
+En un `Cargo.toml`, una cabecera de tabla se lleva **todo lo que viene detrás**
+hasta la siguiente cabecera. El bloque de dependencias solo-de-escritorio se
+escribió una vez en medio del archivo y se tragó `serde`, `serde_json`, `notify`
+y `flate2`, que pasaron a ser dependencias de escritorio sin que nadie lo
+notara, porque en Windows la condición se cumple y compila exactamente igual.
+
+Ese bloque va el último del archivo, y hay un comentario encima diciéndolo.
+
+### Y por qué ya no está `@tauri-apps/plugin-process`
+
+Se usó para relanzar la app tras instalar. En Windows el instalador NSIS la
+cierra, instala y la vuelve a abrir él solo, así que era una segunda pareja de
+versiones que mantener sincronizada a cambio de nada. Peor: estaba en
+JavaScript y no tenía contraparte en Rust, así que el relanzado habría fallado
+en el único momento en que importa.
 
 ## Lo que puede salir mal
 

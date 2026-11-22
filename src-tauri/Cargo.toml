@@ -17,20 +17,32 @@ name = "ficsit_companion_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+# 2.7 como minimo: tauri-plugin-updater 2.14 pide tauri-plugin ^2.7.1, que
+# entra por aqui.
+tauri-build = { version = "2.7", features = [] }
 
 [dependencies]
 # protocol-asset: deja que el webview pinte imagenes de una carpeta concreta
 # del disco del usuario (los iconos que el extrae de su propia copia del juego).
-tauri = { version = "2", features = ["protocol-asset"] }
+#
+# 2.12 como minimo, y no es por estar al dia: tauri-plugin-updater 2.14 exige
+# tauri ^2.12, y la mitad de JavaScript del actualizador tiene que llevar el
+# mismo numero que la de Rust. Con tauri 2.11 las dos se separaban y Tauri
+# avisaba del desajuste en cada arranque. Ver docs/RELEASE.md.
+tauri = { version = "2.12", features = ["protocol-asset"] }
 tauri-plugin-opener = "2"
-
-# El actualizador solo existe en escritorio. En movil no hay target y el
-# build fallaria, de ahi la condicion.
-[target."cfg(not(any(target_os = \"android\", target_os = \"ios\")))".dependencies]
-tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 notify = "6"
 flate2 = "1"
 
+# El actualizador solo existe en escritorio: en movil no hay target y el build
+# fallaria, de ahi la condicion.
+#
+# OJO con el orden: en TOML, una tabla se come todo lo que viene detras hasta
+# la siguiente cabecera. Este bloque estuvo antes de serde y se llevo por
+# delante serde, serde_json, notify y flate2, que pasaron a ser dependencias
+# solo-de-escritorio sin que nadie lo notara, porque en Windows la condicion se
+# cumple y compila igual. Este bloque va el ULTIMO del archivo.
+[target."cfg(not(any(target_os = \"android\", target_os = \"ios\")))".dependencies]
+tauri-plugin-updater = "2.14"
