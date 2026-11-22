@@ -1578,25 +1578,46 @@ function wirePlanDrag(host: HTMLElement) {
       const id = Number(g.dataset.id);
       const it = planItems.find((p) => p.id === id);
       if (!it) return;
+      // MEDIR ANTES DE REPINTAR. renderPlanCanvas hace innerHTML y destruye
+      // este mismo svg; medir un elemento ya fuera del documento devuelve
+      // ancho cero, el factor de escala sale infinito y la máquina se va a una
+      // coordenada imposible. Eso hacía que al pinchar saltara a la esquina y
+      // no se pudiera mover de ahí.
+      const box = svg.getBoundingClientRect();
+      if (!box.width) return;
+      // Metros por píxel: el viewBox está en metros.
+      const k = (planRoom.w + pad * 2) / box.width;
+
       planSel = id;
       renderPlanCanvas();
-      const box = svg.getBoundingClientRect();
-      // Metros por píxel: el viewBox está en metros, así que el factor sale
-      // del ancho real del lienzo.
-      const k = (planRoom.w + pad * 2) / box.width;
       const x0 = ev.clientX;
       const y0 = ev.clientY;
       const ix = it.x;
       const iy = it.y;
+
+      // Durante el arrastre NO se repinta el lienzo entero: solo se mueve este
+      // grupo con un transform. Repintar treinta máquinas en cada movimiento
+      // del ratón va a tirones, y el tacto es lo que decide si esta
+      // herramienta se usa o se abandona.
+      const vivo = host.querySelector<SVGGElement>(`.pl-m[data-id="${id}"]`) || g;
+      let movido = false;
+
       const move = (m: PointerEvent) => {
-        it.x = plSnap(ix + (m.clientX - x0) * k);
-        it.y = plSnap(iy + (m.clientY - y0) * k);
-        renderPlanCanvas();
+        const nx = plSnap(ix + (m.clientX - x0) * k);
+        const ny = plSnap(iy + (m.clientY - y0) * k);
+        if (nx === it.x && ny === it.y) return;
+        it.x = nx;
+        it.y = ny;
+        movido = true;
+        vivo.setAttribute("transform", `translate(${pad + nx},${pad + ny})`);
       };
       const up = () => {
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
+        if (!movido) return;
         planSave();
+        // Ahora sí: repinta para recalcular solapes, bocas tapadas y suelo.
+        renderPlanCanvas();
       };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
