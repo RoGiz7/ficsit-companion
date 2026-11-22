@@ -95,11 +95,21 @@ export interface Problem {
  * Hueco que hay que dejar delante y detrás de una máquina para engancharle las
  * cintas.
  *
- * UN metro, no dos. Con dos, cualquier sala apretada salía roja entera y la
- * alarma dejaba de significar nada — y además era falso: en el juego dos
- * máquinas enfrentadas se unen con una cinta cortísima. Lo que de verdad
- * impide conectar es que la boca quede PEGADA al cuerpo de otra, y eso es lo
- * que mide un metro.
+ * ESTE NÚMERO ES UN CRITERIO NUESTRO, NO UN DATO DEL JUEGO. Conviene que quede
+ * dicho, porque el resto del planificador sí sale de la documentación y sería
+ * fácil darlo por derivado.
+ *
+ * Lo que la documentación sí dice: la cinta se construye en trozos de malla de
+ * 200 cm (`mMeshLength`), o sea dos metros, y la tubería tiene 65 cm de radio
+ * (`mRadius`), o sea 1,3 m de ancho. Lo que NO dice: ni longitud mínima ni
+ * máxima de una tirada. Ese tope vive en el código del juego, no en el JSON, y
+ * no nos lo vamos a inventar.
+ *
+ * Un metro, no dos. Con dos, cualquier sala apretada salía roja entera y la
+ * alarma dejaba de significar nada, que es la peor forma de romper una alarma.
+ * Y además era falso: en el juego dos máquinas enfrentadas se unen con una
+ * cinta cortísima. Lo que de verdad impide conectar es que la boca quede
+ * PEGADA al cuerpo de otra, y eso es lo que mide un metro.
  */
 export const PORT_CLEAR = 1;
 
