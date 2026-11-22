@@ -108,12 +108,44 @@ h1 {
   margin: 0;
   font-weight: 700;
   letter-spacing: 0.12em;
-  text-transform: uppercase;
+  /* NUNCA poner uppercase aqui. Las dos t son minusculas a proposito: son
+     lo que convierte la palabra en una cara, las O son los ojos y el
+     travesano de las t hace de nariz. En mayusculas pone OTTO y se pierde
+     el motivo entero de llamarse asi. */
+  text-transform: none;
   color: var(--text);
 }
 
 h1 span {
   color: var(--accent);
+}
+
+/* El degradado del logotipo, igual que branding/otto.svg: plata a naranja
+   con las paradas en 28% y 72%, que es lo que deja la primera O en plata
+   maciza, la ultima en naranja macizo y el cambio ocurriendo justo encima
+   de las dos t.
+   inline-block es obligatorio: sin el, el fondo se estira a todo el ancho
+   del contenedor y el degradado deja de caer sobre la palabra.
+   Va dentro de @supports porque si background-clip no estuviese soportado,
+   el color transparente dejaria el titulo invisible. */
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+  h1 {
+    display: inline-block;
+    background: linear-gradient(
+      90deg,
+      var(--text) 0%,
+      var(--text) 28%,
+      var(--accent) 72%,
+      var(--accent) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  h1 span {
+    color: inherit;
+  }
 }
 
 .brand-sub {
