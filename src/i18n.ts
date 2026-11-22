@@ -330,6 +330,11 @@ export const STRINGS: Record<string, Entry> = {
   "pl.blocked": { es: "{n} con la boca tapada", en: "{n} with a blocked end" },
   "pl.want": { es: "Quiero", en: "I want" },
   "pl.align": { es: "Centrar", en: "Centre" },
+  "pl.cost": { es: "Llevar encima:", en: "Take with you:" },
+  "pl.costNote": {
+    es: "incluye {n} cimientos · sin cintas ni tuberías",
+    en: "includes {n} foundations · belts and pipes not counted",
+  },
   "pl.fix": { es: "ponla de {w}×{d}", en: "make it {w}×{d}" },
   "pl.toobig": {
     es: "Ni agrandando la sala: baja el objetivo o los niveles.",

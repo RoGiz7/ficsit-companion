@@ -510,3 +510,62 @@ export function suggestRoom(
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Lo que cuesta montarlo
+//
+// Las recetas de construcción están en la documentación como cualquier otra, y
+// las cantidades vienen en por-minuto: hay que dividir entre el ritmo para
+// sacar el coste de UNA. El constructor sale a 2 planchas reforzadas y 8
+// cables, que es exactamente lo que cuesta en el juego.
+//
+// Los cimientos, 5 de hormigón cada uno. Y los tres acabados -- hormigón,
+// asfalto y hormigón pulido -- cuestan EXACTAMENTE lo mismo: la elección es
+// estética, no económica. Por eso no hay selector de acabado: no cambiaría
+// ningún número y daría a entender que sí.
+//
+// Lo que NO se cuenta, y es deliberado: cintas y tuberías. No sabemos por
+// dónde van a ir -- esa parte la resuelve el pionero en el juego -- y poner un
+// número inventado al lado de los reales los contaminaría a todos.
+// ---------------------------------------------------------------------------
+
+/** Metros cuadrados que cubre un cimiento. */
+export const FOUNDATION_AREA = FOUNDATION * FOUNDATION;
+
+/** Hormigón que cuesta un cimiento, sea cual sea el acabado. */
+export const FOUNDATION_COST = 5;
+
+export interface Cost {
+  /// Clase -> unidades. Redondeado hacia arriba al final, nunca antes.
+  items: Record<string, number>;
+  foundations: number;
+}
+
+/**
+ * Lo que hay que llevar encima para construir este plano.
+ *
+ * `costOf` devuelve el coste de UNA unidad del edificio, ya dividido. Se pasa
+ * desde fuera para no atar este módulo a la forma de los datos del juego.
+ */
+export function buildCost(
+  items: Placed[],
+  room: Room,
+  costOf: (cls: string) => { item: string; amount: number }[] | null,
+  concreteClass = "Desc_Cement_C"
+): Cost {
+  const total: Record<string, number> = {};
+  for (const it of items) {
+    const c = costOf(it.cls);
+    if (!c) continue;
+    for (const { item, amount } of c) total[item] = (total[item] || 0) + amount;
+  }
+  // Cimientos: el suelo de cada planta que tenga algo encima.
+  const porPlanta = Math.ceil(room.w / FOUNDATION) * Math.ceil(room.d / FOUNDATION);
+  const plantas = levels(items).length || (items.length ? 1 : 0);
+  const foundations = porPlanta * plantas;
+  if (foundations > 0) {
+    total[concreteClass] = (total[concreteClass] || 0) + foundations * FOUNDATION_COST;
+  }
+  for (const k of Object.keys(total)) total[k] = Math.ceil(total[k] - 0.0001);
+  return { items: total, foundations };
+}

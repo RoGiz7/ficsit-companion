@@ -33,6 +33,7 @@ import {
 import { deriveFamilies, glyphSVG } from "./glyphs";
 import {
   arrangeLevels,
+  buildCost,
   centreLevel,
   suggestRoom,
   designerFor,
@@ -67,6 +68,7 @@ import {
   iconAssetFor,
   type DocsFolder,
   type GameData,
+  type GameRecipe,
 } from "./gamedata";
 
 // Dónde se recuerda la carpeta elegida entre arranques.
@@ -1442,6 +1444,7 @@ function renderPlanCanvas() {
 
   renderPlanLevels();
   renderPlanLegend(colores);
+  renderPlanCost();
   renderPlanInfo();
   wirePlanDrag(el);
 }
@@ -1451,6 +1454,59 @@ function renderPlanCanvas() {
 /// quepan dentro de las cajas.
 /// Las plantas, con su altura real. La altura la marca la máquina más alta, y
 /// eso decide cuántos cimientos de ocho metros hace falta dejar.
+/// Coste de construir UNA unidad de un edificio. La receta de construcción
+/// tiene como salida el descriptor del edificio (Build_ConstructorMk1_C ->
+/// Desc_ConstructorMk1_C) y las cantidades vienen en por-minuto, así que se
+/// dividen entre el ritmo.
+let costCache: { data: GameData | null; map: Record<string, { item: string; amount: number }[]> } = {
+  data: null,
+  map: {},
+};
+function buildCostOf(): Record<string, { item: string; amount: number }[]> {
+  if (costCache.data === gameData) return costCache.map;
+  const map: Record<string, { item: string; amount: number }[]> = {};
+  if (gameData) {
+    const porSalida: Record<string, GameRecipe> = {};
+    for (const r of Object.values(gameData.recipes)) if (r.out && !porSalida[r.out]) porSalida[r.out] = r;
+    for (const cls of Object.keys(gameData.buildings)) {
+      const r = porSalida[cls.replace(/^Build_/, "Desc_")];
+      if (!r || !r.rate) continue;
+      map[cls] = (r.inputs || []).map((i) => ({ item: i.item, amount: i.rate / r.rate }));
+    }
+  }
+  costCache = { data: gameData, map };
+  return map;
+}
+
+/// El hormigón, por su clase: el juego lo llama Desc_Cement_C, no Concrete.
+/// Ya nos mordió una vez con los glifos.
+function concreteClass(): string {
+  if (gameData && gameData.items["Desc_Cement_C"]) return "Desc_Cement_C";
+  return "Desc_Cement_C";
+}
+
+function renderPlanCost() {
+  const el = document.querySelector("#plan-cost") as HTMLElement | null;
+  if (!el) return;
+  if (!planItems.length || !gameData) {
+    el.innerHTML = "";
+    return;
+  }
+  const costes = buildCostOf();
+  const c = buildCost(planItems, planRoom, (cls) => costes[cls] || null, concreteClass());
+  const filas = Object.entries(c.items)
+    .sort((a, b) => b[1] - a[1])
+    .map(
+      ([cls, n]) =>
+        `<span class="pl-key">${iconGlyph(cls, gdItemName(cls) || cls, 14)}<b>${n.toLocaleString()}</b> ${escapeXml(gdItemName(cls) || cls)}</span>`
+    )
+    .join("");
+  el.innerHTML =
+    `<span class="pl-cost-t">${t("pl.cost")}</span>` +
+    filas +
+    `<span class="muted">${t("pl.costNote", { n: c.foundations })}</span>`;
+}
+
 function renderPlanLevels() {
   const el = document.querySelector("#plan-levels") as HTMLElement | null;
   if (!el) return;

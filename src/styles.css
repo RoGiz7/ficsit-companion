@@ -2270,3 +2270,18 @@ table.saves {
   color: inherit;
   cursor: pointer;
 }
+
+.pl-cost {
+  display: flex;
+  gap: 13px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 0.8rem;
+  padding: 7px 11px;
+  margin-bottom: 9px;
+  border-radius: 8px;
+  background: var(--panel);
+}
+.pl-cost:empty { display: none; }
+.pl-cost-t { color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.72rem; }
+.pl-cost .pl-key b { font-variant-numeric: tabular-nums; }
