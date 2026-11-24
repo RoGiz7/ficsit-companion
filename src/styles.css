@@ -256,12 +256,17 @@ table.saves {
   border-bottom: 1px solid #2c2f37;
 }
 
+/* Cabecera de tabla como banda, igual que los titulos de seccion. En el juego
+   toda lista larga va bajo una tira mas clara que la separa del contenido. */
 .saves th {
-  color: #8b8f9a;
-  font-weight: 500;
-  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.12em;
+  background: var(--panel-2);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
 .saves td.num,
@@ -1417,11 +1422,12 @@ table.saves {
 .lvl-n {
   display: inline-block;
   margin-left: 5px;
-  padding: 0 5px;
+  padding: 1px 6px;
   border-radius: 0;
-  background: rgba(255, 158, 61, 0.16);
-  color: var(--accent);
-  font-size: 0.72rem;
+  background: var(--accent);
+  color: #17191d;
+  font-size: 0.7rem;
+  font-weight: 700;
 }
 
 /* ---- Ajustes ---- */
@@ -1523,9 +1529,19 @@ table.saves {
   background: rgba(255, 158, 61, 0.06);
 }
 
+/* Esta NO se rellena, y es la excepcion a la regla de arriba. Los rellenos
+   naranjas del juego son todos estrechos: una pestaña, una tarjeta de hito, un
+   elemento de lista lateral. Una fila de 900 px saturada no aparece en ninguna
+   pantalla, y al probarla se come la vista de todo lo que tiene alrededor.
+   Una banda lateral gruesa marca lo elegido igual de claro sin gritar. */
 .zone-row.active {
-  border-color: var(--accent);
-  background: rgba(255, 158, 61, 0.1);
+  border-color: var(--accent-dim);
+  border-left: 4px solid var(--accent);
+  background: rgba(255, 158, 61, 0.12);
+}
+
+.zone-row.active .zone-main > b {
+  color: var(--accent);
 }
 
 .zone-n {
@@ -1832,9 +1848,10 @@ table.saves {
 }
 
 .viz-pick button.active {
-  border-color: var(--accent-dim);
-  background: rgba(255, 158, 61, 0.12);
-  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #17191d;
+  font-weight: 700;
 }
 
 /* ---- Barras divergentes ---- */
@@ -2104,7 +2121,17 @@ table.saves {
 
 .cell-btn.active {
   border-color: var(--accent);
-  background: rgba(255, 158, 61, 0.08);
+  background: var(--accent);
+  color: #17191d;
+}
+
+.cell-btn.active .cell-label,
+.cell-btn.active .cell-sub {
+  color: #4a3414;
+}
+
+.cell-btn.active .cell-value {
+  color: #17191d;
 }
 
 .cell-sub {
@@ -2510,7 +2537,12 @@ table.saves {
   color: var(--muted);
   cursor: pointer;
 }
-.pl-lv.on { border-color: var(--accent); color: var(--accent); }
+.pl-lv.on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #17191d;
+  font-weight: 700;
+}
 .pl-lv-note { font-size: 0.78rem; color: var(--muted); margin-left: 4px; }
 .pl-ghost { opacity: 0.18; pointer-events: none; }
 
