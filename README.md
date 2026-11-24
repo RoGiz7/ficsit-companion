@@ -28,6 +28,33 @@
 OttO runs on Windows, and the whole interface is available in **English and Spanish** —
 switch language from the top bar, no restart needed.
 
+## 📸 What it looks like
+
+<p align="center">
+  <img src="docs/img/01-ahora.png" alt="Now tab: worlds as hexagons, plant alerts and where to pick up" width="860">
+</p>
+
+<p align="center"><em>Each world is a hexagon containing the footprint of your own factory. Below, what is asking for attention right now.</em></p>
+
+<table>
+<tr>
+<td width="50%"><img src="docs/img/02-fabrica.png" alt="Factory tab: unlocked alternate recipes and what your storage really does"></td>
+<td width="50%"><img src="docs/img/03-planeta.png" alt="Planet tab: 2D map of the factory by floor, with fog of war"></td>
+</tr>
+<tr>
+<td><strong>Factory</strong> — the alternates your hard drives unlocked, and what each would save on the parts you are actually making.</td>
+<td><strong>Planet</strong> — your factory from above, floor by floor. It shows only what you have explored.</td>
+</tr>
+<tr>
+<td><img src="docs/img/04-plano.png" alt="Plan tab: lay out machines, see belt ports and what it costs to build"></td>
+<td><img src="docs/img/05-historia.png" alt="History tab: power over time and how the factory grew"></td>
+</tr>
+<tr>
+<td><strong>Plan</strong> — lay machines out before building them, with the game's own dimensions. It tells you whether it fits a blueprint designer.</td>
+<td><strong>History</strong> — how your factory has grown across every save it has seen.</td>
+</tr>
+</table>
+
 ## 🎯 What makes it different
 
 Most Satisfactory tools are calculators: you type what you want to build and they tell you the

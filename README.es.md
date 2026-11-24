@@ -28,6 +28,33 @@
 OttO funciona en Windows y toda la interfaz está disponible en **español e inglés** —
 se cambia de idioma desde la barra superior, sin reiniciar.
 
+## 📸 Qué aspecto tiene
+
+<p align="center">
+  <img src="docs/img/01-ahora.png" alt="Now tab: worlds as hexagons, plant alerts and where to pick up" width="860">
+</p>
+
+<p align="center"><em>Cada mundo es un hexágono con la huella de tu propia fábrica. Debajo, lo que reclama atención ahora mismo.</em></p>
+
+<table>
+<tr>
+<td width="50%"><img src="docs/img/02-fabrica.png" alt="Factory tab: unlocked alternate recipes and what your storage really does"></td>
+<td width="50%"><img src="docs/img/03-planeta.png" alt="Planet tab: 2D map of the factory by floor, with fog of war"></td>
+</tr>
+<tr>
+<td><strong>Fábrica</strong> — las alternativas que han abierto tus discos duros, y qué ahorraría cada una en las piezas que fabricas de verdad.</td>
+<td><strong>Planeta</strong> — tu fábrica desde arriba, planta por planta. Sólo enseña lo que has explorado.</td>
+</tr>
+<tr>
+<td><img src="docs/img/04-plano.png" alt="Plan tab: lay out machines, see belt ports and what it costs to build"></td>
+<td><img src="docs/img/05-historia.png" alt="History tab: power over time and how the factory grew"></td>
+</tr>
+<tr>
+<td><strong>Plano</strong> — coloca las máquinas antes de construirlas, con las medidas reales del juego. Te dice si cabe en un diseñador de planos.</td>
+<td><strong>Historia</strong> — cómo ha crecido tu fábrica a lo largo de todas las partidas que ha visto.</td>
+</tr>
+</table>
+
 ## 🎯 Qué la hace distinta
 
 Casi todas las herramientas de Satisfactory son calculadoras: escribes lo que quieres construir y
