@@ -1394,6 +1394,76 @@ table.saves {
   margin-bottom: 4px;
 }
 
+/* ---- Alternativas desbloqueadas ---------------------------------------- */
+
+.alt-row {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  padding: 9px 12px 10px;
+  margin-top: 8px;
+}
+
+.alt-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.alt-rec {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* El recorte, en tecla naranja: es el dato por el que se mira esta seccion. */
+.alt-win {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: var(--accent);
+  color: #17191d;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+.alt-sub {
+  margin: 7px 0 3px;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.alt-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.84rem;
+}
+
+.alt-list li {
+  margin: 1px 0;
+}
+
+/* Tachado para lo que deja de hacer falta: se ve de un vistazo que no es un
+   material que cambia de cantidad, sino uno que desaparece. */
+.alt-list s {
+  color: var(--muted);
+}
+
+.alt-list em {
+  font-style: normal;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.alt-maq,
+.alt-no {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 /* ---- Compatibilidad de la partida -------------------------------------
    Etiquetas en la lista de guardados y aviso en el resumen. El tono es de
    advertencia, no de error: la partida se lee bien, lo que pasa es que sus

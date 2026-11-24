@@ -788,6 +788,9 @@ struct RecipeCount {
 struct ProgressInfo {
     current_tier: i32,
     milestones: Vec<String>, // "1-1", "2-3", ...
+    /// Clases de los esquemas de receta alternativa que esta partida ha abierto
+    /// con discos duros. Ej: "Schematic_Alternate_Coal2_C".
+    alternates: Vec<String>,
     research_count: u32,
     schematic_total: u32,
 }
@@ -948,6 +951,11 @@ fn extract_game_version(body: &[u8]) -> String {
     "desconocida".to_string()
 }
 
+/// Los caracteres que pueden formar parte de una ruta de clase de Unreal.
+fn path_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_' || b == b'/' || b == b'.' || b == b'-'
+}
+
 // Extrae las rutas de schematics (hitos, investigación, etc.) presentes en el cuerpo.
 fn extract_schematics(body: &[u8]) -> Vec<String> {
     let marker = b"/Game/FactoryGame/Schematics/";
@@ -956,27 +964,23 @@ fn extract_schematics(body: &[u8]) -> Vec<String> {
     let mut i = 0usize;
     while i + marker.len() <= n {
         if &body[i..i + marker.len()] == marker {
-            // Leemos hacia delante hasta encontrar "_C" (fin de la ruta de clase).
+            // Leemos TODA la ruta y nos quedamos con el ULTIMO "_C", no con el
+            // primero. Cortar en el primero parte por la mitad cualquier nombre
+            // que empiece por C: Schematic_Alternate_Coal2 se quedaba en
+            // Schematic_Alternate_C. En una partida real volvian rotas 5 de 68,
+            // y entre ellas justo una alternativa desbloqueada.
             let endmax = (i + 200).min(n);
             let mut j = i;
-            let mut end = None;
-            while j + 2 <= endmax {
-                if &body[j..j + 2] == b"_C" {
-                    end = Some(j + 2);
-                    break;
-                }
-                if !(32..127).contains(&body[j]) {
-                    break;
-                }
+            while j < endmax && path_byte(body[j]) {
                 j += 1;
             }
-            if let Some(e) = end {
-                if let Ok(s) = std::str::from_utf8(&body[i..e]) {
-                    set.insert(s.to_string());
+            if let Ok(s) = std::str::from_utf8(&body[i..j]) {
+                if let Some(k) = s.rfind("_C") {
+                    set.insert(s[..k + 2].to_string());
                 }
-                i = e;
-                continue;
             }
+            i = j.max(i + 1);
+            continue;
         }
         i += 1;
     }
@@ -987,11 +991,20 @@ fn extract_schematics(body: &[u8]) -> Vec<String> {
 fn parse_progression(body: &[u8]) -> ProgressInfo {
     let schematics = extract_schematics(body);
     let mut milestones: Vec<String> = Vec::new();
+    let mut alternates: Vec<String> = Vec::new();
     let mut research_count: u32 = 0;
     let mut current_tier: i32 = 0;
 
     let prog_marker = "/Progression/Schematic_";
     for s in &schematics {
+        // Las alternativas no son hitos ni investigacion: viven en su propia
+        // carpeta y hasta ahora se tiraban. Guardamos solo la CLASE, que es con
+        // lo que la documentacion del juego las identifica.
+        if s.contains("/Alternate/") {
+            if let Some(c) = s.rsplit('.').next() {
+                alternates.push(c.to_string());
+            }
+        }
         if let Some(idx) = s.find(prog_marker) {
             // p. ej. "1-1.Schematic_1-1_C" -> token "1-1"
             let rest = &s[idx + prog_marker.len()..];
@@ -1008,10 +1021,13 @@ fn parse_progression(body: &[u8]) -> ProgressInfo {
     }
     milestones.sort();
     milestones.dedup();
+    alternates.sort();
+    alternates.dedup();
 
     ProgressInfo {
         current_tier,
         milestones,
+        alternates,
         research_count,
         schematic_total: schematics.len() as u32,
     }

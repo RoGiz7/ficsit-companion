@@ -3,6 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Parser, SatisfactorySaveHeader, SaveReader } from "@etothepii/satisfactory-file-parser";
+import { consejosAlternativas } from "./alternates";
 import { huellaDe, huellaGuardar, huellasLeer, teselaSVG } from "./worldtiles";
 import {
   certifications,
@@ -110,6 +111,8 @@ function invName(it: InvItem): string {
 interface ProgressInfo {
   current_tier: number;
   milestones: string[];
+  /// Clases de los esquemas de receta alternativa abiertos con discos duros.
+  alternates: string[];
   research_count: number;
   schematic_total: number;
 }
@@ -2333,6 +2336,7 @@ async function inspect(name: string) {
         a.clsOf
       );
       renderBottlenecks(a.perItem, a.consumed, a.clsOf);
+      renderAlternates(info.progression, a.perItem, a.clsOf);
       renderStored(a.storedByClass);
       renderExploration(a.collect);
       lastPoints = a.points;
@@ -3075,6 +3079,93 @@ function renderProductionView(
 // resto se quedaban en inglés y sin glifo, porque no hay forma de volver de
 // un nombre inventado a la clase del juego. Con la clase se resuelve todo
 // desde la documentación oficial, igual que el resto de la app.
+// Lo que los discos duros de esta partida han abierto y de verdad te sirve.
+// El cruce lo hace alternates.ts; aquí sólo se pinta.
+function renderAlternates(
+  prog: ProgressInfo,
+  perItem: Record<string, number>,
+  clsOf: Record<string, string>
+) {
+  const host = document.querySelector("#alternates");
+  if (!host) return;
+  host.innerHTML = "";
+  if (!gameData || !prog.alternates?.length) return;
+
+  // Lo que la partida fabrica AHORA, por clase. perItem va por nombre visible,
+  // así que el puente es clsOf.
+  const produce = new Set<string>();
+  for (const nombre of Object.keys(perItem)) {
+    const cls = clsOf[nombre];
+    if (cls) produce.add(cls);
+  }
+
+  const consejos = consejosAlternativas(
+    prog.alternates,
+    gameData.schematics,
+    gameData.recipes,
+    canonRecipe(),
+    (pieza) => produce.has(pieza)
+  );
+  // Sin nada que decir, ni el título: una sección que sale siempre para decir
+  // "nada por aquí" es una sección que se aprende a saltar.
+  if (!consejos.length) return;
+
+  const num = (n: number) => n.toFixed(2).replace(/\.?0+$/, "").replace(".", ",");
+  const nom = (cls: string) => gdItemName(cls) || cls;
+  const nomReceta = (cls: string) => {
+    const r = gameData?.recipes[cls];
+    return (r && (r.name[getLang()] || r.name.en)) || cls;
+  };
+
+  const filas = consejos
+    .map((c) => {
+      const titulo =
+        `<div class="alt-head"><b>${escapeXml(nom(c.pieza))}</b>` +
+        `<span class="alt-rec">${escapeXml(nomReceta(c.receta))}</span>`;
+      if (!c.comparable) {
+        return (
+          `<div class="alt-row">${titulo}</div>` +
+          `<p class="alt-no">${t("alt.nocomp")}</p></div>`
+        );
+      }
+      const pct = Math.round(c.mejora * 100);
+      const mejor = c.cambios.find(
+        (x) => x.antes > 0 && x.ahora > 0 && (x.antes - x.ahora) / x.antes >= c.mejora - 1e-9
+      );
+      const etiqueta =
+        pct > 0 && mejor
+          ? `<span class="alt-win">${t("alt.less", { n: pct, item: escapeXml(nom(mejor.item)) })}</span>`
+          : "";
+      const lineas = c.cambios
+        .map((x) => {
+          if (x.ahora === 0) {
+            return `<li><s>${num(x.antes)} ${escapeXml(nom(x.item))}</s> <em>${t("alt.gone")}</em></li>`;
+          }
+          if (x.antes === 0) {
+            return `<li>${num(x.ahora)} ${escapeXml(nom(x.item))} <em>${t("alt.new")}</em></li>`;
+          }
+          return `<li>${num(x.antes)} → <b>${num(x.ahora)}</b> ${escapeXml(nom(x.item))}</li>`;
+        })
+        .join("");
+      const maq = c.porMaquina
+        ? `<p class="alt-maq">${t("alt.perMachine", {
+            a: num(c.porMaquina.antes),
+            b: num(c.porMaquina.ahora),
+          })}</p>`
+        : "";
+      return (
+        `<div class="alt-row">${titulo}${etiqueta}</div>` +
+        `<p class="alt-sub">${t("alt.perUnit")}</p><ul class="alt-list">${lineas}</ul>${maq}</div>`
+      );
+    })
+    .join("");
+
+  host.innerHTML =
+    `<h3 class="inv-title">${t("alt.title")} · ${consejos.length}</h3>` +
+    filas +
+    `<p class="muted">${t("alt.note")}</p>`;
+}
+
 function renderStored(storedByClass: Record<string, number> | null) {
   if (!storedByClass) {
     storedEl.innerHTML = "";
