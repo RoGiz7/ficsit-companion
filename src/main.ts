@@ -1398,7 +1398,7 @@ function renderPlanCanvas() {
     const tapada = bocas.has(it.id);
     for (const z of portZones(it, sz)) {
       zonas +=
-        `<rect x="${pad + z.x}" y="${pad + z.y}" width="${z.w}" height="${z.d}" rx="0.2" ` +
+        `<rect x="${pad + z.x}" y="${pad + z.y}" width="${z.w}" height="${z.d}" ` +
         `fill="none" stroke="${tapada ? "#d9534f" : "rgba(255,255,255,0.16)"}" ` +
         `stroke-width="0.12" stroke-dasharray="0.6 0.5"/>`;
     }
@@ -1460,7 +1460,7 @@ function renderPlanCanvas() {
       return (
         `<g class="pl-m${sel ? " sel" : ""}${fantasma ? " pl-ghost" : ""}"${fantasma ? "" : ` data-id="${it.id}"`} transform="translate(${pad + it.x},${pad + it.y})">` +
         `<title>${escapeXml(name)} · ${f.w}×${f.d} m</title>` +
-        `<rect class="pl-box" width="${f.w}" height="${f.d}" rx="0.4" fill="${col}" fill-opacity="0.26" ` +
+        `<rect class="pl-box" width="${f.w}" height="${f.d}" fill="${col}" fill-opacity="0.26" ` +
         `stroke="${borde}" stroke-width="${sel ? 0.5 : 0.25}"/>` +
         (fantasma ? "" : portMarks(puertos[it.cls], sz, it.rot, f.w, f.d) + etiqueta) +
         `</g>`

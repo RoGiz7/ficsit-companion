@@ -400,6 +400,17 @@ table.saves {
   display: none;
 }
 
+/* FALLO QUE LLEGO A PUBLICARSE EN LA v0.2.0: existian .tab-panel.hidden y
+   .detail.hidden, pero NO una regla .hidden generica. La barra de aviso de
+   version nueva lleva esa clase en el HTML y nadie se la aplicaba, asi que
+   salia siempre -- vacia, en todas las pestañas, desde el primer dia. Se veia
+   como una tira naranja sin texto debajo de los chips.
+   Generica a proposito: cualquier cosa que se marque como oculta debe
+   ocultarse, sin tener que acordarse de escribir una regla por elemento. */
+.hidden {
+  display: none !important;
+}
+
 /* Dentro de una pestaña, la primera sección no necesita su separación superior. */
 .tab-panel > .calc,
 .tab-panel > .plan {
