@@ -4,6 +4,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Parser, SatisfactorySaveHeader, SaveReader } from "@etothepii/satisfactory-file-parser";
 import { consejosAlternativas } from "./alternates";
+import { repartoDeAlmacenes } from "./buffers";
 import { huellaDe, huellaGuardar, huellasLeer, teselaSVG } from "./worldtiles";
 import {
   certifications,
@@ -2337,6 +2338,7 @@ async function inspect(name: string) {
       );
       renderBottlenecks(a.perItem, a.consumed, a.clsOf);
       renderAlternates(info.progression, a.perItem, a.clsOf);
+      renderBuffers(a.points, a.belts);
       renderStored(a.storedByClass);
       renderExploration(a.collect);
       lastPoints = a.points;
@@ -3166,6 +3168,36 @@ function renderAlternates(
     `<p class="muted">${t("alt.note")}</p>`;
 }
 
+// Dónde están los almacenes de piezas y qué hacen de verdad. El cruce lo hace
+// buffers.ts; aquí sólo se pinta.
+function renderBuffers(
+  puntos: { x: number; y: number; cat: string; cls: string; name: string }[],
+  lineas: { pts: [number, number][]; kind: string }[]
+) {
+  const host = document.querySelector("#buffers");
+  if (!host) return;
+  host.innerHTML = "";
+  const r = repartoDeAlmacenes(puntos, lineas);
+  // Sin almacenes no hay nada que contar, y una sección vacía es una sección
+  // que se aprende a saltar.
+  if (!r.total) return;
+
+  const celda = (etiqueta: string, n: number, sub: string) =>
+    n > 0
+      ? `<div class="cell"><span class="cell-label">${etiqueta}</span>` +
+        `<span class="cell-value">${n}</span><span class="cell-sub">${sub}</span></div>`
+      : "";
+
+  host.innerHTML =
+    `<h3 class="inv-title">${t("buf.title")} · ${r.total}</h3>` +
+    `<div class="detail"><div class="detail-grid">` +
+    celda(t("buf.inline"), r.intercalados.length, t("buf.inlineSub")) +
+    celda(t("buf.end"), r.finales.length, t("buf.endSub")) +
+    celda(t("buf.loose"), r.sueltos.length, t("buf.looseSub")) +
+    `</div></div>` +
+    `<p class="muted">${t("buf.note")}</p>`;
+}
+
 function renderStored(storedByClass: Record<string, number> | null) {
   if (!storedByClass) {
     storedEl.innerHTML = "";
@@ -3714,7 +3746,9 @@ async function analyzeWithParser(folder: string, name: string) {
   // una cinta que sube de la planta baja a la primera no pertenece a ninguna de
   // las dos, pertenece a las dos, y al aislar un piso tiene que seguir viéndose
   // porque es justo lo que explica cómo se conectan.
-  const belts: { pts: [number, number][]; z: number; z0: number; z1: number }[] = [];
+  // `kind` distingue cinta de tuberia: hasta ahora iban en el mismo saco, y
+  // para preguntarle algo a un extremo de linea ("que llega aqui") no da igual.
+  const belts: { pts: [number, number][]; z: number; z0: number; z1: number; kind: string }[] = [];
   let dryGen = 0; // MW de catálogo que NO se están generando por falta de combustible
   let dryCount = 0;
   // Dónde está el pionero. En partidas en compañía hay varios, así que es
@@ -3781,7 +3815,13 @@ async function analyzeWithParser(folder: string, name: string) {
             if (z > zmax) zmax = z;
           }
           if (poly.length >= 2) {
-            belts.push({ pts: poly, z: zsum / poly.length, z0: zmin, z1: zmax });
+            const leaf = (o.typePath.split("/").pop() || "").split(".")[0];
+            const kind = /Pipeline/.test(leaf)
+              ? "pipe"
+              : /Conveyor/.test(leaf)
+                ? "belt"
+                : "other"; // hipertubos y lo que venga
+            belts.push({ pts: poly, z: zsum / poly.length, z0: zmin, z1: zmax, kind });
           }
         } else {
           const leaf = (o.typePath.split("/").pop() || "").split(".")[0];
@@ -4665,8 +4705,8 @@ function comparableSnaps(): Snapshot[] {
 }
 
 function renderMap(
-  points: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string; floor: number; zone: number }[],
-  belts: { pts: [number, number][]; z: number; z0: number; z1: number }[],
+  points: { x: number; y: number; z: number; cat: string; cls: string; name: string; detail: string; item: string; floor: number; zone: number }[],
+  belts: { pts: [number, number][]; z: number; z0: number; z1: number; kind: string }[],
   slabs: { x: number; y: number; z: number; r: any }[] = [],
   zones: Zone[] = []
 ) {
@@ -5063,8 +5103,8 @@ function renderMap(
 }
 
 // Estado del mapa para resaltar cuellos de botella.
-let lastPoints: { x: number; y: number; z: number; cat: string; name: string; detail: string; item: string; floor: number; zone: number }[] = [];
-let lastBelts: { pts: [number, number][]; z: number; z0: number; z1: number }[] = [];
+let lastPoints: { x: number; y: number; z: number; cat: string; cls: string; name: string; detail: string; item: string; floor: number; zone: number }[] = [];
+let lastBelts: { pts: [number, number][]; z: number; z0: number; z1: number; kind: string }[] = [];
 let mapGround = 0; // altura del nivel más bajo, para mostrar metros relativos
 let lastSlabs: { x: number; y: number; z: number; r: any }[] = [];
 let mapFloor: number | null = null; // planta elegida; null = todas
