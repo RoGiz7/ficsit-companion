@@ -1416,15 +1416,19 @@ table.saves {
   color: var(--muted);
 }
 
-/* El recorte, en tecla naranja: es el dato por el que se mira esta seccion. */
+/* El recorte, en tecla naranja: es el dato por el que se mira esta seccion.
+   SIN white-space: nowrap. Con el, un nombre largo de pieza empujaba la tecla
+   fuera del panel y la cortaba el borde ("-44% Plancha de hier"). El ancho de
+   la ventana no lo elegimos nosotros, asi que la tecla tiene que poder partirse
+   sola. max-width ademas impide que se coma la fila entera. */
 .alt-win {
   margin-left: auto;
+  max-width: 45%;
   font-size: 0.7rem;
   font-weight: 700;
   background: var(--accent);
   color: #17191d;
   padding: 2px 7px;
-  white-space: nowrap;
 }
 
 .alt-sub {
