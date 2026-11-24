@@ -209,6 +209,13 @@ button:hover {
   background: #ffb061;
 }
 
+/* Las casillas de verificacion salian azules: es el color por defecto del
+   navegador y canta al lado de todo lo demas. accent-color las tiñe sin
+   perder el control nativo, que es el que ya sabe de teclado y lectores. */
+input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
 /* Botones "fantasma": icono o texto suelto, sin pastilla naranja. La regla de
    arriba les pinta el fondo al pasar el cursor, que no es lo que quiere ninguno
    de ellos. Hace falta esta regla porque button:hover (0,1,1) le gana a .clase
@@ -2417,7 +2424,10 @@ table.saves {
   flex-wrap: wrap;
   margin-bottom: 10px;
 }
-.pl-bar input[type="number"] {
+/* :not([type="checkbox"]) y no [type="number"]: #pl-item no lleva atributo type,
+   asi que es un campo de texto y se quedaba con el aspecto por defecto del
+   navegador, desentonando al lado de los demas. */
+.pl-bar input:not([type="checkbox"]) {
   width: 64px;
   font: inherit;
   padding: 4px 6px;

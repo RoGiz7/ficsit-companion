@@ -172,8 +172,9 @@
           <datalist id="pl-items"></datalist>
           <input id="pl-rate" type="number" min="1" max="100000" step="1" value="60" />
           <span class="muted">/min</span>
-          <label for="pl-depth" data-i18n="pl.depth">Niveles</label>
+          <label for="pl-depth" data-i18n="pl.depth">Cadena</label>
           <input id="pl-depth" type="number" min="1" max="5" step="1" value="2" />
+          <span class="muted" data-i18n="pl.steps">pasos atrás</span>
           <select id="pl-mode">
             <option value="mixta" data-i18n="pl.m_mix">Una sala</option>
             <option value="vertical" data-i18n="pl.m_vert">Por plantas</option>
@@ -194,6 +195,9 @@
         <p class="muted" data-i18n="pl.ports">
           Los triángulos son cintas y los círculos tuberías. El punteado es el hueco que hace falta
           para engancharlas: si se pone rojo, ahí no entra una cinta.
+        </p>
+        <p class="muted" data-i18n="pl.depthNote">
+          «Cadena» es cuánto se planifica hacia atrás, no cuántas plantas tiene.
         </p>
         <p class="muted" data-i18n="pl.note">
           Mide si cabe y cuánto suelo sobra, con las medidas reales del juego. Las cintas las pones

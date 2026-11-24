@@ -353,7 +353,15 @@ export const STRINGS: Record<string, Entry> = {
     es: "La {m} mide {h} m: esta planta no cabe en un cimiento.",
     en: "The {m} is {h} m tall: this floor needs more than one foundation.",
   },
-  "pl.depth": { es: "Niveles", en: "Levels" },
+  // "Niveles" apuntaba al sitio equivocado: parecia plantas, sobre todo con
+  // "Por plantas" en el desplegable de al lado. No lo es. Este numero va a
+  // solveChain y dice cuanto se retrocede por la cadena de recetas.
+  "pl.depth": { es: "Cadena", en: "Chain" },
+  "pl.steps": { es: "pasos atrás", en: "steps back" },
+  "pl.depthNote": {
+    es: "«Cadena» es cuánto se planifica hacia atrás, no cuántas plantas tiene: con 2 pasos se colocan la máquina final y la que la alimenta. Lo que queda fuera no desaparece, sale en «Hay que traer» — eso es lo que tendrás que llevar con cintas desde otro sitio.",
+    en: "\"Chain\" is how far back the plan reaches, not how many floors it has: with 2 steps you get the final machine and the one feeding it. What falls outside does not vanish, it shows up under \"Bring in\" — that is what you will have to belt in from somewhere else.",
+  },
   "pl.build": { es: "Montar", en: "Lay out" },
   "pl.unknown": { es: "No conozco esa pieza.", en: "I don't know that part." },
   "pl.noRecipe": { es: "Esa pieza no se fabrica en ninguna máquina.", en: "Nothing manufactures that part." },
