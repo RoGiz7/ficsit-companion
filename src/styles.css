@@ -2128,6 +2128,22 @@ table.saves {
   animation: spotPulse 2.6s ease-in-out infinite;
 }
 
+/* Mismo tratamiento que las etiquetas de crecimiento, que ya viven en este
+   mapa: pequeña y con halo oscuro, para que se lea sobre cualquier fondo.
+   pointer-events: none para que el texto no robe el raton a lo que haya
+   debajo. Escala con el zoom, igual que las otras: es el comportamiento que
+   el mapa ya tenia y no vamos a tener dos. */
+.pl-name {
+  font-size: 7px;
+  font-weight: 700;
+  fill: #e9eaec;
+  paint-order: stroke;
+  stroke: #0c0e12;
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
 .map-fit.on {
   border-color: var(--accent-dim);
   color: var(--accent);

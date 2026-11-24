@@ -4918,11 +4918,15 @@ function renderMap(
   for (const pl of lastPlayers) {
     const ax = px(pl.x).toFixed(1);
     const ay = py(pl.y).toFixed(1);
+    const quien = pl.name || t("map.you");
     playerSvg +=
       `<g class="map-player">` +
       `<circle class="mk" cx="${ax}" cy="${ay}" r="7" fill="none" stroke="#e9eaec" stroke-width="1.2" stroke-opacity="0.55" vector-effect="non-scaling-stroke"/>` +
       `<circle class="mk" cx="${ax}" cy="${ay}" r="3" fill="#e9eaec" stroke="#0c0e12" stroke-width="1" vector-effect="non-scaling-stroke"/>` +
-      `<title>${escapeXml(pl.name || t("map.you"))}</title></g>`;
+      // El nombre va encima y siempre visible, no solo en el globo: con varios
+      // pioneros la pregunta no es "hay alguien ahi" sino "quien".
+      `<text class="pl-name" x="${ax}" y="${(Number(ay) - 11).toFixed(1)}" text-anchor="middle">${escapeXml(quien)}</text>` +
+      `<title>${escapeXml(quien)}</title></g>`;
   }
 
   // Chincheta del aviso: un anillo en el sitio exacto al que se ha pedido ir.
