@@ -758,10 +758,48 @@ table.saves {
   font-size: 0.8rem;
 }
 
+/* Dos asas sobre el MISMO rango, no dos barras de progreso. Con accent-color el
+   navegador rellena la pista hasta el pulgar, asi que z-min (al principio)
+   salia vacio y z-max (al final) lleno, y los dos juntos parecian un control
+   roto: uno apagado y otro encendido. Aqui el relleno no significa nada, asi
+   que no lo hay: pista igual en los dos y el pulgar marca donde esta cada uno.
+   Redondo porque el deslizador de zoom del mapa del juego tambien lo es. */
 .map-height input[type="range"] {
   flex: 1;
-  accent-color: var(--accent);
   max-width: 260px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.map-height input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--line);
+}
+
+.map-height input[type="range"]::-moz-range-track {
+  height: 4px;
+  background: var(--line);
+}
+
+.map-height input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.map-height input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 #z-label {

@@ -2203,10 +2203,23 @@ function render(saves: SaveEntry[]) {
       `<td>${playTime}</td>` +
       `<td>${formatDate(dateMs)}</td>` +
       `<td class="num">${formatSize(s.size_bytes)}</td>` +
-      `<td>${compatBadges(meta)}</td>`;
+      `<td class="st-cell">${compatBadges(meta)}</td>`;
     tr.addEventListener("click", () => inspect(s.name));
     tableBody.appendChild(tr);
   }
+
+  // La columna "Estado" solo dice algo cuando una partida lleva mods, formato
+  // antiguo o es creativa. Con todo en orden quedaba una cabecera con cuatro
+  // celdas vacias debajo, que parece que algo no ha cargado. Misma regla que
+  // la barra de actualizacion: lo que no tiene noticia que dar, no ocupa sitio.
+  const conEstado = [...tableBody.querySelectorAll(".st-cell")].some(
+    (c) => (c.textContent || "").trim() !== ""
+  );
+  const th = document.querySelector<HTMLElement>("#th-state");
+  if (th) th.hidden = !conEstado;
+  tableBody.querySelectorAll<HTMLElement>(".st-cell").forEach((c) => {
+    c.hidden = !conEstado;
+  });
 }
 
 // El nombre del archivo no sirve de titulo. "Lurra bi_autosave_2.sav" repite el
