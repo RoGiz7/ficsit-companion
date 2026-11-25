@@ -103,11 +103,14 @@ interface InvItem {
 }
 
 // El nombre de un edificio del inventario, por el mismo camino que el resto de
-// la app: documentación oficial primero, tabla de respaldo después. Antes el
+// la app: documentación oficial primero, HUB_PARTS después, y si no, el nombre
+// guardado tal cual. Antes el
 // inventario iba por su cuenta y podía llamar a la misma máquina de dos formas
 // según se mirara aquí o en el mapa.
 function invName(it: InvItem): string {
-  return (it.cls && gdBuildingName(it.cls)) || trBuilding(it.name);
+  const cls = it.cls || clsFromPretty(it.name);
+  if (gdBuildingName(cls) || HUB_PARTS[cls]) return buildingName(cls);
+  return it.name;
 }
 interface ProgressInfo {
   current_tier: number;
@@ -396,133 +399,38 @@ let currentTier = 99; // tier del mundo abierto (99 = mostrar todo hasta saberlo
 let currentNoteKey = "";
 let openSaveName = ""; // guardado abierto, para poder repasarlo al cambiar de idioma
 
-// ---- Traducción de términos del juego (inglés → español) ----
-// Si un nombre no está en la tabla, se muestra tal cual (respaldo en inglés).
-const BUILDING_ES: Record<string, string> = {
-  "Constructor Mk1": "Constructor Mk1",
-  "Smelter Mk1": "Horno Mk1",
-  "Assembler Mk1": "Ensambladora Mk1",
-  "Foundry Mk1": "Fundición Mk1",
-  Manufacturer: "Productor",
-  Refinery: "Refinería",
-  "Miner Mk1": "Minero Mk1",
-  "Miner Mk2": "Minero Mk2",
-  "Miner Mk3": "Minero Mk3",
-  "Power Line": "Tendido eléctrico",
-  "Power Pole Mk1": "Poste eléctrico Mk1",
-  "Power Pole Mk2": "Poste eléctrico Mk2",
-  "Power Pole Mk3": "Poste eléctrico Mk3",
-  "Conveyor Belt Mk1": "Cinta transportadora Mk1",
-  "Conveyor Belt Mk2": "Cinta transportadora Mk2",
-  "Conveyor Belt Mk3": "Cinta transportadora Mk3",
-  "Conveyor Belt Mk4": "Cinta transportadora Mk4",
-  "Conveyor Belt Mk5": "Cinta transportadora Mk5",
-  "Conveyor Belt Mk6": "Cinta transportadora Mk6",
-  "Conveyor Pole": "Poste de cinta",
-  "Conveyor Lift Mk1": "Elevador de cinta Mk1",
-  "Conveyor Lift Mk2": "Elevador de cinta Mk2",
-  "Conveyor Attachment Splitter": "Divisor",
-  "Conveyor Attachment Merger": "Fusionador",
-  "Storage Container Mk1": "Contenedor de almacenamiento",
-  "Storage Integrated": "Almacenamiento integrado",
-  "Generator Integrated Biomass": "Generador de biomasa",
-  "Generator Biomass": "Generador de biomasa",
-  Workshop: "Banco de equipamiento",
-  "Work Bench Integrated": "Banco de trabajo",
-  "Hub Terminal": "Terminal del HUB",
-  "Trading Post": "Puesto del HUB",
-  "Space Elevator": "Ascensor espacial",
-  Mam: "MAM",
-  "Resource Sink Shop": "Tienda AWESOME",
-  "Resource Sink": "Sumidero AWESOME",
-  "Packager": "Empaquetadora",
-  "Blender": "Mezcladora",
-  "Particle Accelerator": "Acelerador de partículas",
-  "Oil Pump": "Extractor de petróleo",
-  "Oil Refinery": "Refinería",
-  "Water Pump": "Extractor de agua",
-  "Fracking Extractor": "Extractor de fracking",
-  "Fracking Smasher": "Perforadora de fracking",
-  "Generator Coal": "Generador de carbón",
-  "Generator Fuel": "Generador de combustible",
-  "Generator Nuclear": "Central nuclear",
-  "Pipeline Mk1": "Tubería Mk1",
-  "Pipeline Mk2": "Tubería Mk2",
-  "Pipeline Pump Mk1": "Bomba de tubería Mk1",
-  "Pipeline Junction Cross": "Cruce de tubería",
-  "Power Storage": "Batería de energía",
-  "Power Switch": "Interruptor",
+// ---- Building classes the official catalogue does not carry ----
+// The HUB's built-in parts exist in every save but are not in Docs.json, so
+// gamedata has no name for them. This is NOT an alternative translation of
+// something the catalogue has: it is consulted only after gamedata, so the day
+// the catalogue carries these classes it wins on its own. Anything else outside
+// the catalogue (undocumented pieces, every mod) keeps its generated name.
+// Build_Locker_MK1_C has no Spanish name here because no source gives one.
+const HUB_PARTS: Record<string, { es?: string; en?: string }> = {
+  Build_HubTerminal_C: { es: "Terminal del HUB" },
+  Build_StorageIntegrated_C: { es: "Almacenamiento integrado" },
+  Build_WorkBenchIntegrated_C: { es: "Banco de trabajo" },
+  Build_GeneratorIntegratedBiomass_C: { es: "Generador de biomasa" },
+  Build_Locker_MK1_C: {},
 };
-const ITEM_ES: Record<string, string> = {
-  "Iron Ingot": "Lingote de hierro",
-  "Iron Plate": "Plancha de hierro",
-  "Iron Rod": "Barra de hierro",
-  "Iron Screw": "Tornillos",
-  Screw: "Tornillos",
-  "Copper Ingot": "Lingote de cobre",
-  Wire: "Alambre",
-  Cable: "Cable",
-  Cement: "Hormigón",
-  Concrete: "Hormigón",
-  "Iron Plate Reinforced": "Plancha de hierro reforzada",
-  Rotor: "Rotor",
-  "Modular Frame": "Armazón modular",
-  "Copper Sheet": "Lámina de cobre",
-  "Steel Ingot": "Lingote de acero",
-  "Steel Beam": "Viga de acero",
-  "Steel Pipe": "Tubería de acero",
-  Biofuel: "Biocombustible sólido",
-  "Generic Biomass": "Biomasa",
-  Leaves: "Hojas",
-  Wood: "Madera",
-  Mycelia: "Micelio",
-  Shroom: "Seta",
-  Coal: "Carbón",
-  Limestone: "Caliza",
-  "Iron Ore": "Mineral de hierro",
-  "Copper Ore": "Mineral de cobre",
-  "Caterium Ore": "Mineral de caterio",
-  "Caterium Ingot": "Lingote de caterio",
-  Quickwire: "Turboalambre",
-  "Crude Oil": "Petróleo crudo",
-  "Liquid Oil": "Petróleo crudo",
-  Plastic: "Plástico",
-  Rubber: "Caucho",
-  "Polymer Resin": "Resina de polímero",
-  "Heavy Oil Residue": "Residuo de aceite pesado",
-  "Liquid Fuel": "Combustible líquido",
-  Fuel: "Combustible",
-  "Petroleum Coke": "Coque de petróleo",
-  "Circuit Board": "Circuito impreso",
-  Computer: "Ordenador",
-  Motor: "Motor",
-  Stator: "Estátor",
-  "Ai Limiter": "Limitador de IA",
-  "AI Limiter": "Limitador de IA",
-  "Encased Industrial Beam": "Viga industrial reforzada",
-  "Modular Frame Heavy": "Armazón modular pesado",
-  "Quartz Crystal": "Cristal de cuarzo",
-  Silica: "Sílice",
-  "Raw Quartz": "Cuarzo en bruto",
-  Sulfur: "Azufre",
-  Bauxite: "Bauxita",
-  "Aluminum Ingot": "Lingote de aluminio",
-  "Aluminum Scrap": "Chatarra de aluminio",
-  "Alumina Solution": "Solución de alúmina",
-  "Hard Drive": "Disco duro",
-  "Mercer Sphere": "Esfera Mercer",
-  Somersloop: "Somersloop",
-  "Power Shard": "Fragmento de energía",
-  "Color Cartridge": "Cartucho de color",
-  "Packaged Water": "Agua envasada",
-  Water: "Agua",
-};
-// Las tablas de respaldo traducen del inglés al español, así que solo se
-// aplican cuando la app está en español. Antes se aplicaban siempre: alguien
-// con la app en inglés y sin el juego instalado veía "Fundición Mk1", y el
-// README promete una app bilingüe. El nombre original ya viene en inglés.
-const trBuilding = (n: string) => (getLang() === "es" ? BUILDING_ES[n] || n : n);
-const trItem = (n: string) => (getLang() === "es" ? ITEM_ES[n] || n : n);
+
+// The display name of a building class: catalogue first, then HUB_PARTS, then
+// the name generated from the class itself.
+function buildingName(cls: string): string {
+  const hub = HUB_PARTS[cls];
+  return (
+    gdBuildingName(cls) ||
+    (hub && hub[getLang()]) ||
+    prettyBuild(cls.replace(/_C$/, ""))
+  );
+}
+
+// Old snapshots store only prettyBuild's output ("Smelter Mk1"), not the class.
+// prettyBuild only inserts spaces into a class name that has none, so removing
+// them recovers the class exactly.
+function clsFromPretty(name: string): string {
+  return `Build_${name.replace(/ /g, "")}_C`;
+}
 
 // Coleccionables sin recoger (siguen en el mundo) → nombre legible.
 const COLLECTABLES: Record<string, { es: string; en: string }> = {
@@ -2840,7 +2748,7 @@ function renderResume(
     const changes: [string, number][] = [];
     for (const t of last.types) {
       const d = t.count - (pm[t.name] || 0);
-      if (d > 0) changes.push([trBuilding(t.name), d]);
+      if (d > 0) changes.push([invName(t), d]);
     }
     changes.sort((a, b) => b[1] - a[1]);
     const top = changes.slice(0, 3).map(([n, d]) => `+${d} ${n}`).join(", ");
@@ -3249,7 +3157,7 @@ function renderStored(storedByClass: Record<string, number> | null) {
       // siempre, que al menos se lee.
       // prettyItem espera una ruta; con una clase suelta hay que quitarle el
       // sufijo _C o el nombre sale como "Iron Plate C".
-      const name = gdItemName(cls) || trItem(prettyItem(cls.replace(/_C$/, "")));
+      const name = gdItemName(cls) || prettyItem(cls.replace(/_C$/, ""));
       return (
         `<div class="inv-row"><span class="inv-name">${iconGlyph(cls, name)}${escapeXml(name)}</span>` +
         `<span class="inv-bar"><span class="inv-fill" style="width:${pct}%"></span></span>` +
@@ -3893,7 +3801,7 @@ async function analyzeWithParser(folder: string, name: string) {
             y: t.y,
             z: t.z,
             cat: categoryOf(o.typePath),
-            name: gdBuildingName(cls) || trBuilding(prettyBuild(leaf)),
+            name: buildingName(cls),
             detail,
             item: prodItem,
             cls,
@@ -4411,8 +4319,8 @@ function renderBottlenecks(
         const rec = RECIPES[r.item];
         if (rec) {
           const n = Math.ceil(-r.net / rec.out);
-          // rec.building es el nombre en espanol de la tabla escrita a mano, y
-          // trBuilding espera uno en ingles: en ingles no encontraba nada y lo
+          // rec.building es el nombre en espanol de la tabla escrita a mano; la
+          // traduccion antigua esperaba uno en ingles, no encontraba nada y lo
           // devolvia tal cual, asi que la sugerencia decia "+3 Horno". calcName
           // cruza ese nombre con el catalogo oficial y da el del idioma de turno.
           detail = `+${n} ${calcName(rec.building)}`;
