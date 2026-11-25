@@ -1491,6 +1491,15 @@ table.saves {
   cursor: help;
 }
 
+/* Mismo aviso que .compat-card: un hecho que conviene mirar, no una alarma. */
+.bal-stranded {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 3px solid #f4c531;
+  background: rgba(244, 197, 49, 0.06);
+  font-size: 0.88rem;
+}
+
 .compat-card {
   margin: 12px 0 4px;
   padding: 13px 16px;

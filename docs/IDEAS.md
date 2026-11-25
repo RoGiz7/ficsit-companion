@@ -246,6 +246,19 @@ feed a residual-fuel refinery, which changes how much of everything else is need
 stops being a tree and becomes a flow problem, solved as a whole rather than one step at a time.
 That is the next piece of work here, not a tweak to `computeProduction`.
 
+Three more things that came with it:
+
+- **Fluid byproducts nobody consumes are named in the balance**, as a fact: "you make 20 m³/min of
+  heavy oil residue and nothing consumes it". Fluids only: a solid can go to a container or the
+  AWESOME Sink, a fluid only has a buffer, and when it fills the machine stops. Worded as a fact,
+  not a prediction, because the app cannot see whether a buffer is in place.
+- **The snapshot `schema` went from 1 to 2**: `production` now includes byproducts, so a
+  parts/min chart would show a step for anyone with refineries that did not happen in the
+  factory. Same case as `recipe_coverage`.
+- **Known limitation: `diffGameData` compares only the main product.** The "N changed rate(s)"
+  notice after a game update compares `out` and `rate`; a rebalanced byproduct goes unnoticed.
+  Not fixed on purpose — noted so nobody trusts that notice for byproducts.
+
 ## Later: ask Coffee Stain
 
 Once the app is stronger and more stable, write to Coffee Stain and ask what they are willing to

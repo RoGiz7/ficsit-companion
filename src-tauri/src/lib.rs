@@ -1190,7 +1190,7 @@ struct ItemCount {
 #[derive(Serialize, Deserialize, Clone, Default)]
 #[serde(default)]
 struct SnapshotMetrics {
-    schema: u32, // versión del formato de métricas (1 = primera)
+    schema: u32, // versión del formato de métricas (1 = primera; 2 = production con subproductos)
     tier: Option<i32>,
     milestones: Option<u32>,
     research_count: Option<u32>,

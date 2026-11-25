@@ -203,8 +203,12 @@ export const STRINGS: Record<string, Entry> = {
   "map.locate": { es: "Ver en el mapa", en: "Show on map" },
   "bal.title": { es: "Balance de la cadena", en: "Chain balance" },
   "bal.note": {
-    es: "Solo las piezas que su cadena consume: a la izquierda lo que falta, a la derecha el margen que sobra. Lo que fabrica y nadie consume no aparece aquí, porque no hay balance que medir.",
-    en: "Only the parts your chain consumes: shortfall on the left, spare margin on the right. What you make and nobody consumes is absent here, because there is no balance to measure.",
+    es: "Solo las piezas que su cadena consume: a la izquierda lo que falta, a la derecha el margen que sobra. Lo que fabrica y nadie consume no aparece aquí, porque no hay balance que medir; los subproductos fluidos sí, aparte.",
+    en: "Only the parts your chain consumes: shortfall on the left, spare margin on the right. What you make and nobody consumes is absent here, because there is no balance to measure; fluid byproducts are the exception, listed apart.",
+  },
+  "bal.stranded": {
+    es: "Produces <b>{rate} m³/min</b> de <b>{item}</b> y nada lo consume.",
+    en: "You make <b>{rate} m³/min</b> of <b>{item}</b> and nothing consumes it.",
   },
   "bal.ok": {
     es: "Ni un déficit. Alguien ha estado haciendo los cálculos, y sospechamos que no ha sido FICSIT.",

@@ -4133,7 +4133,13 @@ async function analyzeWithParser(folder: string, name: string) {
 // Esto es historia irrepetible: lo que no se guarde hoy no se podrá
 // reconstruir mañana, porque el juego sobrescribe los autoguardados. Si
 // quieres medir algo nuevo, añádelo aquí cuanto antes y sube SNAPSHOT_SCHEMA.
-const SNAPSHOT_SCHEMA = 1;
+//
+// 1 -> 2 (25 nov 2026): production incluye los subproductos de cada receta (el
+// residuo pesado del plástico, el agua del uranio...). Con refinerías, la
+// gráfica de piezas/min da un escalón entre una foto 1 y una 2 que no ha
+// pasado en la fábrica: las dos no se comparan sin más. Mismo caso que
+// recipe_coverage, que ahora es null sin datos del juego.
+const SNAPSHOT_SCHEMA = 2;
 
 function toRates(m: Record<string, number>, max = 80): ItemRate[] {
   return Object.entries(m)
@@ -4325,6 +4331,43 @@ function computeBalance(produced: Record<string, number>, consumed: Record<strin
   return rows;
 }
 
+/// Fluidos que alguna receta del catálogo deja como subproducto: el residuo
+/// pesado, el agua, el ácido sulfúrico, el residuo de materia oscura...
+let byFluidCache: { data: GameData | null; set: Set<string> } = { data: null, set: new Set() };
+function byproductFluids(): Set<string> {
+  if (byFluidCache.data === gameData) return byFluidCache.set;
+  const set = new Set<string>();
+  if (gameData) {
+    for (const r of Object.values(gameData.recipes)) {
+      for (const b of r.byproducts) {
+        const it = gameData.items[b.item];
+        if (it && it.fluid) set.add(b.item);
+      }
+    }
+  }
+  byFluidCache = { data: gameData, set };
+  return set;
+}
+
+/// Subproductos fluidos que la fábrica produce y ninguna máquina consume.
+/// Solo fluidos: un sólido va a un contenedor o al Triturador; un fluido solo
+/// tiene depósito, y cuando se llena la máquina que lo saca se para. Se dice
+/// como hecho, no como predicción: la app no ve si hay un depósito puesto.
+function strandedByproducts(
+  produced: Record<string, number>,
+  consumed: Record<string, number>,
+  clsOf: Record<string, string>
+): { item: string; rate: number }[] {
+  const fluids = byproductFluids();
+  const out: { item: string; rate: number }[] = [];
+  for (const [item, rate] of Object.entries(produced)) {
+    const cls = clsOf[item];
+    if (!cls || !fluids.has(cls) || rate < 0.01 || (consumed[item] || 0) > 0) continue;
+    out.push({ item, rate });
+  }
+  return out.sort((a, b) => b.rate - a.rate);
+}
+
 function renderBottlenecks(
   produced: Record<string, number>,
   consumed: Record<string, number>,
@@ -4332,11 +4375,15 @@ function renderBottlenecks(
 ) {
   const rows = computeBalance(produced, consumed);
   const bad = rows.filter((r) => r.net < -0.01);
+  const stranded = strandedByproducts(produced, consumed, clsOf)
+    .map((s) => `<p class="bal-stranded">${t("bal.stranded", { rate: fmt(Math.round(s.rate * 10) / 10), item: escapeXml(s.item) })}</p>`)
+    .join("");
 
   if (!rows.length) {
     balanceEl.innerHTML =
       `<h3 class="inv-title">${t("bal.title")}</h3>` +
-      `<p class="muted">${t("balance.ok")}</p>`;
+      `<p class="muted">${t("balance.ok")}</p>` +
+      stranded;
     return;
   }
 
@@ -4379,7 +4426,7 @@ function renderBottlenecks(
     "/min"
   );
 
-  balanceEl.innerHTML = head + chart;
+  balanceEl.innerHTML = head + stranded + chart;
 
   balanceEl.querySelectorAll<HTMLButtonElement>(".bn-map").forEach((b) => {
     b.addEventListener("click", () => highlightOnMap(b.dataset.item || ""));
