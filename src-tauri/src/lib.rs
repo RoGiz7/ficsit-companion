@@ -1190,7 +1190,7 @@ struct ItemCount {
 #[derive(Serialize, Deserialize, Clone, Default)]
 #[serde(default)]
 struct SnapshotMetrics {
-    schema: u32, // versión del formato de métricas (1 = primera; 2 = production con subproductos)
+    schema: u32, // versión del formato de métricas (1 = primera; 2 = production con subproductos; 3 = clases, no nombres)
     tier: Option<i32>,
     milestones: Option<u32>,
     research_count: Option<u32>,
@@ -1389,6 +1389,214 @@ fn record_snapshot(
 fn get_history(app: AppHandle, session: String) -> Result<Vec<Snapshot>, String> {
     let map = load_history(&app)?;
     Ok(map.get(&session).cloned().unwrap_or_default())
+}
+
+// ---- Migración del histórico: de nombres a clases (métricas, esquema 3) ----
+//
+// Hasta el esquema 2, production, consumption, deficits y stored guardaban el
+// NOMBRE visible de cada pieza, y el nombre es prosa que se corrige: el día que
+// "Placa de hierro" pasó a "Plancha de hierro" cada gráfica vio dos piezas
+// distintas. Desde el 3 guardan la clase. Esta migración pasa las fotos viejas.
+//
+// El reparto: el frontend resuelve nombre -> clase, porque para eso hace falta
+// el catálogo del juego; aquí solo se aplica el mapa que llega. Y aquí, no allí,
+// se hace la copia de seguridad, en el mismo comando que escribe: si la copia
+// falla, no se toca nada.
+//
+// Dos reglas que no se saltan:
+// - Copia ANTES de escribir. Es lo único de todo el cambio que no se deshace
+//   con un git reset: son datos del disco del usuario.
+// - Nunca se tira una entrada ni una foto. Lo que el mapa no resuelve se queda
+//   con la cadena que tenía. Una gráfica con un hueco es honesta; una a la que
+//   le falta un año en silencio, no.
+//
+// Es un comando síncrono, como record_snapshot: Tauri los ejecuta en serie en
+// el hilo principal, así que no pueden pisarse leyendo y escribiendo a la vez.
+const CLASS_SCHEMA: u32 = 3;
+
+#[derive(Serialize, Clone, Default)]
+struct OldNames {
+    /// Fotos con métricas anteriores al esquema 3.
+    pending: u32,
+    /// Nombres distintos que hay en sus production/consumption/deficits/stored.
+    names: Vec<String>,
+}
+
+#[derive(Serialize, Clone, Default)]
+struct MigrationReport {
+    snapshots: u32,
+    resolved: u32,
+    kept: u32,
+    backup: Option<String>,
+}
+
+fn old_names(map: &HashMap<String, Vec<Snapshot>>) -> OldNames {
+    let mut pending = 0u32;
+    let mut set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for list in map.values() {
+        for s in list {
+            let Some(m) = &s.metrics else { continue };
+            if m.schema >= CLASS_SCHEMA {
+                continue;
+            }
+            pending += 1;
+            for v in [&m.production, &m.consumption, &m.deficits].into_iter().flatten() {
+                for e in v {
+                    set.insert(e.item.clone());
+                }
+            }
+            for e in m.stored.iter().flatten() {
+                set.insert(e.item.clone());
+            }
+        }
+    }
+    OldNames { pending, names: set.into_iter().collect() }
+}
+
+// Renombra y, si dos nombres viejos caen en la misma clase, los suma en una
+// sola entrada: no se pierde ni una unidad, y el orden es el de la primera.
+fn rename_rates(v: &mut Option<Vec<ItemRate>>, names: &HashMap<String, String>, rep: &mut MigrationReport) {
+    let Some(list) = v else { return };
+    let mut out: Vec<ItemRate> = Vec::with_capacity(list.len());
+    for e in list.drain(..) {
+        let item = match names.get(&e.item) {
+            Some(c) => {
+                rep.resolved += 1;
+                c.clone()
+            }
+            None => {
+                rep.kept += 1;
+                e.item
+            }
+        };
+        match out.iter_mut().find(|x| x.item == item) {
+            Some(x) => x.rate += e.rate,
+            None => out.push(ItemRate { item, rate: e.rate }),
+        }
+    }
+    *list = out;
+}
+
+fn rename_counts(v: &mut Option<Vec<ItemCount>>, names: &HashMap<String, String>, rep: &mut MigrationReport) {
+    let Some(list) = v else { return };
+    let mut out: Vec<ItemCount> = Vec::with_capacity(list.len());
+    for e in list.drain(..) {
+        let item = match names.get(&e.item) {
+            Some(c) => {
+                rep.resolved += 1;
+                c.clone()
+            }
+            None => {
+                rep.kept += 1;
+                e.item
+            }
+        };
+        match out.iter_mut().find(|x| x.item == item) {
+            Some(x) => x.count += e.count,
+            None => out.push(ItemCount { item, count: e.count }),
+        }
+    }
+    *list = out;
+}
+
+// La migración en sí, sin disco: se puede probar contra una copia.
+// collectables no se toca: siempre fueron clases.
+fn migrate_names(map: &mut HashMap<String, Vec<Snapshot>>, names: &HashMap<String, String>) -> MigrationReport {
+    let mut rep = MigrationReport::default();
+    for list in map.values_mut() {
+        for s in list.iter_mut() {
+            let Some(m) = s.metrics.as_mut() else { continue };
+            if m.schema >= CLASS_SCHEMA {
+                continue;
+            }
+            rename_rates(&mut m.production, names, &mut rep);
+            rename_rates(&mut m.consumption, names, &mut rep);
+            rename_rates(&mut m.deficits, names, &mut rep);
+            rename_counts(&mut m.stored, names, &mut rep);
+            m.schema = CLASS_SCHEMA;
+            rep.snapshots += 1;
+        }
+    }
+    rep
+}
+
+// Comando: qué queda por migrar. El frontend resuelve estos nombres.
+#[tauri::command]
+fn history_old_names(app: AppHandle) -> Result<OldNames, String> {
+    Ok(old_names(&load_history(&app)?))
+}
+
+// Comando: aplica el mapa nombre -> clase. Copia primero; sin copia, nada.
+#[tauri::command]
+fn migrate_history(app: AppHandle, names: HashMap<String, String>) -> Result<MigrationReport, String> {
+    let mut map = load_history(&app)?;
+    if old_names(&map).pending == 0 {
+        return Ok(MigrationReport::default());
+    }
+    let backup = write_backup(&app, &format!("pre-schema{CLASS_SCHEMA}-{}.json", now_ms() / 1000))?;
+    let mut rep = migrate_names(&mut map, &names);
+    save_history(&app, &map)?;
+    rep.backup = Some(backup);
+    Ok(rep)
+}
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+
+    // Contra una COPIA del histórico real, nunca contra el original. Solo
+    // corre si se le dan las rutas:
+    //   OTTO_HISTORY_COPY  copia de history.json
+    //   OTTO_NAME_MAP      mapa nombre -> clase en JSON, el que haría el frontend
+    //   OTTO_MIGRATED_OUT  dónde dejar el resultado para mirarlo
+    #[test]
+    fn migrates_a_copy_without_losing_anything() {
+        let (Ok(src), Ok(names_path)) = (std::env::var("OTTO_HISTORY_COPY"), std::env::var("OTTO_NAME_MAP")) else {
+            return;
+        };
+        let mut map: HashMap<String, Vec<Snapshot>> =
+            serde_json::from_slice(&std::fs::read(&src).unwrap()).unwrap();
+        let names: HashMap<String, String> =
+            serde_json::from_slice(&std::fs::read(&names_path).unwrap()).unwrap();
+
+        let snaps_before: usize = map.values().map(|l| l.len()).sum();
+        let with_metrics_before: usize = map.values().flatten().filter(|s| s.metrics.is_some()).count();
+        let pending = old_names(&map).pending;
+        let total = |map: &HashMap<String, Vec<Snapshot>>| -> f64 {
+            map.values()
+                .flatten()
+                .filter_map(|s| s.metrics.as_ref())
+                .map(|m| {
+                    [&m.production, &m.consumption, &m.deficits]
+                        .into_iter()
+                        .flatten()
+                        .flatten()
+                        .map(|e| e.rate)
+                        .sum::<f64>()
+                        + m.stored.iter().flatten().map(|e| e.count).sum::<f64>()
+                })
+                .sum()
+        };
+        let sum_before = total(&map);
+
+        let rep = migrate_names(&mut map, &names);
+
+        let snaps_after: usize = map.values().map(|l| l.len()).sum();
+        let with_metrics_after: usize = map.values().flatten().filter(|s| s.metrics.is_some()).count();
+        assert_eq!(snaps_before, snaps_after, "una foto perdida");
+        assert_eq!(with_metrics_before, with_metrics_after, "unas métricas perdidas");
+        assert_eq!(rep.snapshots, pending);
+        assert!((total(&map) - sum_before).abs() < 1e-6, "cambió la suma de ritmos y unidades");
+        assert_eq!(old_names(&map).pending, 0, "quedó algo sin pasar al esquema 3");
+        // Dos veces no hace nada.
+        let again = migrate_names(&mut map, &names);
+        assert_eq!(again.snapshots, 0);
+
+        println!("snapshots {} resolved {} kept {}", rep.snapshots, rep.resolved, rep.kept);
+        if let Ok(out) = std::env::var("OTTO_MIGRATED_OUT") {
+            std::fs::write(out, serde_json::to_vec_pretty(&map).unwrap()).unwrap();
+        }
+    }
 }
 
 // ---- Copias de seguridad ----
@@ -1733,6 +1941,8 @@ pub fn run() {
             get_notes,
             set_note,
             record_snapshot,
+            history_old_names,
+            migrate_history,
             get_history,
             get_plans,
             set_plan,

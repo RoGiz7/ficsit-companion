@@ -164,6 +164,29 @@ in `BUILDING_ES`, which had the pair inverted as well.
    alias table (five or six entries covers most of the 39), the de-camel-cased asset names are
    probably not. Do not silently drop a snapshot — a chart with a gap is honest, a chart quietly
    missing a year is not.
+   **Steps 4 and 5 done together, 25 Nov 2026 — metrics schema 3** (2 had gone to byproducts).
+   - *Step 4.* `production`, `consumption` and `deficits` are written by class through `a.clsOf`,
+     `stored` from `a.storedByClass`. A name with no known class is written as is rather than
+     dropped. `collectables` was already classes. `types`: Rust already emits `cls` on every new
+     snapshot (it is a `String`, not an `Option`); the 1365 old entries with an empty `cls` were
+     left alone, since `invName` recovers their class at read time.
+   - *Step 5.* Old names resolve in `src/migrate.ts`, in order: `nameIndex()`; the mechanical
+     inverse (remove spaces, try `Desc_X_C`, `BP_X_C`, `X_C`); and a one-off map of the app's own
+     old Spanish, eight entries, commented as migration, not translation. On the real history:
+     108 distinct names, 47 by the index, 49 by the inverse, 8 by the old-Spanish map, **4 left**
+     (`Hard Drive`, `Boom Box`, `BP_Equipment Descriptor Cup`, `BP_Item Descriptor Portable
+     Miner` — not in the catalogue) and keeping their strings. In entries: 1393 resolved, 63 kept,
+     22 snapshots. The alias table turned out to need eight, not "five or six", and the
+     de-camel-cased names were the easy part, not the lost cause.
+   - Rust writes: `migrate_history` takes the name map, **writes a backup first**
+     (`pre-schema3-<stamp>.json`, see `docs/BACKUP.md`) and writes nothing if that fails, then
+     renames and saves atomically. Nothing is dropped; if two old names land on one class they
+     are summed into one entry. It runs at startup once game data is loaded, and again after a
+     restore, since an old backup can bring schema-2 snapshots back. Without game data it does
+     not run.
+   - Verified with a Rust test against a **copy** of the real `history.json`: 55 snapshots in, 55
+     out; the sum of every rate and count unchanged; all 22 at schema 3; a second run does
+     nothing. Iron plate is one line across all 20 of `Lurra bi`'s snapshots with production.
 
 ### Caveats worth stating before starting
 

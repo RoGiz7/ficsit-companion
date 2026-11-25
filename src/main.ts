@@ -64,6 +64,7 @@ import {
   type Size,
 } from "./planner";
 import { medalIcon } from "./medalicons";
+import { buildNameMap } from "./migrate";
 import { applyStaticI18n, detectLang, getLang, setLang, t, type Lang } from "./i18n";
 import {
   describeDiff,
@@ -145,12 +146,12 @@ interface ItemCount {
   item: string;
   count: number;
 }
-// Métricas ricas de una foto del histórico. OJO con los nombres de pieza:
-// en schema 1 van con el nombre visible, no con la clase, y casi siempre en
-// español: las tablas a mano RECIPE_OUTPUT y RECIPES, ya borradas, estaban
-// indexadas así.
-// Si algún día canonizamos a inglés, el campo schema permite migrar el
-// histórico viejo sin perderlo.
+// Métricas ricas de una foto del histórico. Desde el esquema 3, production,
+// consumption, deficits y stored guardan la CLASE de cada pieza
+// (Desc_IronPlate_C), no su nombre: el nombre se pone al pintar. Hasta el 2
+// guardaban el nombre visible, y migrateHistory() pasa esas fotos a clases.
+// Lo que no se pudo resolver se quedó con su cadena vieja, así que quien lea
+// estos campos debe aceptar una cadena que no sea una clase.
 interface SnapshotMetrics {
   schema: number;
   tier: number | null;
@@ -683,6 +684,8 @@ async function renderBackups(msg = "") {
     b.addEventListener("click", async () => {
       try {
         const r = await invoke<ImportReport>("import_backup", { name: b.dataset.name });
+        // Una copia vieja puede traer fotos de antes del esquema 3.
+        await migrateHistory();
         notesCache = await invoke<Record<string, string>>("get_notes");
         plansCache = await invoke<Record<string, Record<string, number>>>("get_plans");
         await renderBackups(
@@ -1900,6 +1903,29 @@ function setupPlanner() {
     planSave();
     renderPlanCanvas();
   });
+}
+
+// Pasa las fotos viejas del histórico de nombres a clases (esquema 3). Aquí
+// solo se resuelven los nombres, porque hace falta el catálogo; Rust hace la
+// copia de seguridad y la escritura en un mismo comando, y si la copia falla
+// no escribe nada. Sin datos del juego no se migra: no habría con qué resolver
+// y las fotos esperan a la próxima vez tal como están.
+async function migrateHistory() {
+  if (!gameData) return;
+  try {
+    const old = await invoke<{ pending: number; names: string[] }>("history_old_names");
+    if (!old.pending) return;
+    const names = buildNameMap(old.names, gameData, nameIndex());
+    const r = await invoke<{ snapshots: number; resolved: number; kept: number; backup: string | null }>(
+      "migrate_history",
+      { names }
+    );
+    console.info(
+      `Histórico migrado a clases: ${r.snapshots} fotos, ${r.resolved} entradas resueltas, ${r.kept} con su nombre viejo. Copia previa: ${r.backup}`
+    );
+  } catch (e) {
+    console.error("Migración del histórico:", e);
+  }
 }
 
 async function initGameData(force = false) {
@@ -4139,7 +4165,14 @@ async function analyzeWithParser(folder: string, name: string) {
 // gráfica de piezas/min da un escalón entre una foto 1 y una 2 que no ha
 // pasado en la fábrica: las dos no se comparan sin más. Mismo caso que
 // recipe_coverage, que ahora es null sin datos del juego.
-const SNAPSHOT_SCHEMA = 2;
+//
+// 2 -> 3 (25 nov 2026): production, consumption, deficits y stored guardan la
+// clase, no el nombre visible. El nombre es prosa que se corrige: cuando la
+// tabla de la app cambió "Placa de hierro" por "Plancha de hierro", cada gráfica
+// vio dos piezas. Las fotos viejas se migran al arrancar (migrateHistory, con
+// copia de seguridad antes); lo que no se resuelve conserva su cadena.
+// collectables no cambia: siempre fueron clases.
+const SNAPSHOT_SCHEMA = 3;
 
 function toRates(m: Record<string, number>, max = 80): ItemRate[] {
   return Object.entries(m)
@@ -4147,6 +4180,17 @@ function toRates(m: Record<string, number>, max = 80): ItemRate[] {
     .sort((a, b) => b[1] - a[1])
     .slice(0, max)
     .map(([item, rate]) => ({ item, rate: Math.round(rate * 100) / 100 }));
+}
+
+// De "nombre -> cifra" a "clase -> cifra". Si dos nombres caen en la misma
+// clase se suman; si un nombre no tiene clase, se queda con su nombre.
+function byClass(m: Record<string, number>, clsOf: Record<string, string>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [name, v] of Object.entries(m)) {
+    const k = clsOf[name] || name;
+    out[k] = (out[k] || 0) + v;
+  }
+  return out;
 }
 
 function toCounts(m: Record<string, number>, max = 80): ItemCount[] {
@@ -4188,10 +4232,12 @@ function buildMetrics(
     overclocked: a.overclocked,
     power_consumption_mw: Math.round(powerIn * 10) / 10,
     power_generation_mw: Math.round(powerGen * 10) / 10,
-    production: toRates(a.perItem),
-    consumption: toRates(a.consumed),
-    deficits: deficits.map((d) => ({ item: d.item, rate: Math.round(d.deficit * 100) / 100 })),
-    stored: toCounts(a.stored),
+    // Clases, no nombres (esquema 3). Un nombre sin clase conocida se guarda
+    // tal cual antes que perderlo.
+    production: toRates(byClass(a.perItem, a.clsOf)),
+    consumption: toRates(byClass(a.consumed, a.clsOf)),
+    deficits: deficits.map((d) => ({ item: a.clsOf[d.item] || d.item, rate: Math.round(d.deficit * 100) / 100 })),
+    stored: toCounts(a.storedByClass),
     collectables: toCounts(a.collect),
     modded: meta ? meta.isModded : null,
     mod_count: meta ? meta.mods.length : null,
@@ -5846,6 +5892,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   // desde la clase y no necesitan los datos del juego para nada. De ahí que
   // pareciera un fallo de unas secciones y no de todas: era cuestión de cuándo.
   initGameData()
+    .then(() => migrateHistory())
     .finally(() => initIcons())
     .finally(() => {
       // El catálogo del plano sale de las recetas y de las medidas, así que

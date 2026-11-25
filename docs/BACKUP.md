@@ -47,6 +47,13 @@ the disk dying. Only a file taken somewhere else does that. The app says so in t
 rather than letting anyone assume otherwise, and the folder opens in one click so the file can be
 moved out.
 
+**Copies before a migration.** Anything that rewrites data already on disk writes a backup first,
+in the same Rust command, and writes nothing if the backup fails. The first one is the move of the
+history's metrics from names to classes (metrics schema 3): `pre-schema3-<stamp>.json`. These are
+named apart from the automatic ones on purpose, so the rotation that keeps the last ten `auto-`
+copies never deletes them. They are ordinary backups otherwise: they show in the list and restore
+by merging, and a restored pre-migration snapshot is migrated again on the spot.
+
 ## Known gap
 
 There is no backup folder setting yet, so automatic copies stay beside the app's data. Pointing
