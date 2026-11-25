@@ -121,6 +121,38 @@ in `BUILDING_ES`, which had the pair inverted as well.
 3. **Derive the calculator from `gamedata`**, reusing `canonRecipe()` — which already excludes
    `Build_Converter_C`, a trap that has caught this project three times. Gains every base-game
    recipe instead of 25, and the tier filter of item 2 for free.
+   **Done, 25 Nov 2026.** `RECIPES` is gone. The calculator works on classes through
+   `canonRecipe()` and offers 132 parts instead of 25; names are only put on when painting. The
+   `<select>` is now a type-to-filter field with a datalist, like the planner's "I want" bar.
+   Without game data the calculator is empty, as decided in step 2.
+   - **Unpackaging joined the Converter in `fakeSource()`** — the fourth time a raw resource
+     slipped in as a made part. Twelve `Recipe_Unpackage*` recipes gave twelve cycles (crude oil
+     made from packaged oil made from crude oil); a recursive calculator would have blown the
+     stack, and the planner was saying crude oil comes from a Packager. Zero cycles without them,
+     across every combination of standard recipes. `computeProduction` still carries a cycle
+     guard in case a game update brings one back.
+   - **The filter is the real one, not the tier** (item 2 below). A part is offered if any of its
+     recipes is in the unlocks of a schematic this save has completed — milestones, MAM, events,
+     shop. Rust now publishes every schematic class in `ProgressInfo.schematics`. On `Lurra bi`
+     the tier filter offered 17 parts; this offers 23. **If the list comes back empty, every part
+     is shown**: empty means "could not read it", not "nothing unlocked".
+   - **Eight parts have several standard recipes** and nothing in `gamedata` ranks them: Biomass
+     (4), Alien Protein (4), Power Shard (4), Plastic, Rubber, Fuel, Aluminum Ingot and Turbo
+     Rifle Ammo (2 each). `canonRecipe()` keeps the ones the open save has unlocked and, among
+     those, catalogue order — not a favourite, just never a recipe the player cannot make. The
+     planner gets the same choice. When more than one is left, the result says so in one line.
+     Preferring the earliest unlock was tried and dropped: it fixes Biomass and worsens Plastic,
+     Fuel, Aluminum and Turbo Rifle Ammo. Note what catalogue order gives on `Lurra bi`, where all
+     four Biomass recipes are unlocked: Biomass from Alien Protein, not from Leaves. The line under
+     the result says so. **The real fix is to let the player choose**, and that is separate work.
+     Two catalogue quirks in that list: "Alternate: Pure Aluminum Ingot" has a class without
+     `Alternate` (`Recipe_PureAluminumIngot_C`), so it counts as standard; and the two Turbo Rifle
+     Ammo recipes share one display name, so the line cannot tell them apart.
+   - **Known limitation:** `extract_schematics` returns every schematic path in the save, not only
+     completed ones, plus classes that are not schematics (`BP_SchematicManager_C`,
+     `BPD_ResearchTree_*`). Those match nothing in `gamedata.schematics` and do no harm. If an
+     active milestone not yet finished were in the list, the calculator would offer its parts a
+     little early — which, by the fog-of-war rule, is better than hiding them.
 4. **Stop writing beautified names into the snapshot.** Smaller than it looks: `renderStored`
    already takes classes, and `storedByClass` is computed on the line beside the one that is
    actually stored (`stored: toCounts(a.stored)`). Verify whether `production`, `consumption` and
@@ -161,6 +193,10 @@ The calculator currently filters recipes by a `tier` number typed in by hand. Ev
 declares its tier and the recipes it unlocks, so the real unlock graph is available: recipe →
 schematic → tier. Replacing the hand-typed numbers removes a whole class of quiet errors, and it
 makes the filter exact rather than approximate.
+
+**Done, 25 Nov 2026, with step 3 of section 0** — and by schematic rather than by tier, which is
+more exact still: FICSMAS decorations and Alien Protein are opened by an event or by the MAM, not
+by a tier, and the tier filter let them through or kept them out for the wrong reason.
 
 ## 3. Alternate recipes
 

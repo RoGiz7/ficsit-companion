@@ -552,8 +552,20 @@ export const STRINGS: Record<string, Entry> = {
   "calc.perMin": { es: "/min de", en: "/min of" },
   "calc.go": { es: "Calcular", en: "Calculate" },
   "calc.locked": {
-    es: "Mostrando solo lo desbloqueado en este mundo (Tier {t}). {n} receta(s) de tiers superiores ocultas.",
-    en: "Showing only what is unlocked in this world (Tier {t}). {n} recipe(s) from higher tiers hidden.",
+    es: "Mostrando solo lo que esta partida ha desbloqueado. {n} pieza(s) ocultas.",
+    en: "Showing only what this save has unlocked. {n} part(s) hidden.",
+  },
+  "calc.noData": {
+    es: "Sin los datos del juego no hay recetas que calcular. Mira el panel de ajustes.",
+    en: "Without the game data there are no recipes to calculate. See the settings panel.",
+  },
+  "calc.notYet": {
+    es: "Esta partida todavía no ha desbloqueado esa pieza.",
+    en: "This save has not unlocked that part yet.",
+  },
+  "calc.choice": {
+    es: "{item} tiene {n} recetas estándar; esta cadena usa «{recipe}».",
+    en: "{item} has {n} standard recipes; this chain uses “{recipe}”.",
   },
   "calc.head": { es: "Para <b>{rate}/min</b> de <b>{item}</b>:", en: "For <b>{rate}/min</b> of <b>{item}</b>:" },
   "calc.miner1": { es: "≈1 minero Mk1", en: "≈1 Mk1 miner" },

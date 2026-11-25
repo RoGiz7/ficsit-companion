@@ -1098,6 +1098,10 @@ table.saves {
   width: 80px;
 }
 
+.calc-controls #calc-item {
+  width: 220px;
+}
+
 .calc-controls input:focus,
 .calc-controls select:focus {
   outline: none;

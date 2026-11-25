@@ -146,7 +146,9 @@ interface ItemCount {
   count: number;
 }
 // Métricas ricas de una foto del histórico. OJO con los nombres de pieza:
-// en schema 1 van en español, porque RECIPES (y antes RECIPE_OUTPUT) están indexados así.
+// en schema 1 van con el nombre visible, no con la clase, y casi siempre en
+// español: las tablas a mano RECIPE_OUTPUT y RECIPES, ya borradas, estaban
+// indexadas así.
 // Si algún día canonizamos a inglés, el campo schema permite migrar el
 // histórico viejo sin perderlo.
 interface SnapshotMetrics {
@@ -398,7 +400,6 @@ let plansCache: Record<string, Record<string, number>> = {};
 let currentInventory: Record<string, number> = {}; // del mundo abierto: nombre (ES) → cantidad
 let currentPowerMW = 0; // consumo estimado del mundo abierto
 let currentGenMW = 0; // generación estimada del mundo abierto
-let currentTier = 99; // tier del mundo abierto (99 = mostrar todo hasta saberlo)
 let currentNoteKey = "";
 let openSaveName = ""; // guardado abierto, para poder repasarlo al cambiar de idioma
 
@@ -775,7 +776,7 @@ function itemFamilies(): Record<string, string> {
 
 function isCraftable(item: string): boolean {
   const set = craftableItems();
-  return set.size ? set.has(item) : !!RECIPES[item];
+  return set.has(item);
 }
 
 // ---- Datos oficiales del juego ----
@@ -2332,8 +2333,8 @@ async function inspect(name: string) {
     }
     renderPlan(key);
 
-    // Progreso del mundo + calculadora filtrada por el tier de esta partida.
-    currentTier = info.progression.current_tier;
+    // Progreso del mundo + calculadora filtrada por lo que esta partida ha
+    // desbloqueado.
     doneSchematics = info.progression.schematics || [];
     renderProgress(info.progression);
     renderCalc();
@@ -4334,14 +4335,11 @@ function renderBottlenecks(
         // La sugerencia de máquinas solo si de verdad conocemos la receta.
         // Antes esto daba por hecho que la pieza estaba en la tabla interna y
         // con los datos oficiales cargados eso ya no es cierto.
-        const rec = RECIPES[r.item];
-        if (rec) {
-          const n = Math.ceil(-r.net / rec.out);
-          // rec.building es el nombre en espanol de la tabla escrita a mano; la
-          // traduccion antigua esperaba uno en ingles, no encontraba nada y lo
-          // devolvia tal cual, asi que la sugerencia decia "+3 Horno". calcName
-          // cruza ese nombre con el catalogo oficial y da el del idioma de turno.
-          detail = `+${n} ${calcName(rec.building)}`;
+        const pcls = clsOf[r.item];
+        const rec = pcls ? canonRecipe()[pcls] : undefined;
+        if (rec && rec.building) {
+          const n = Math.ceil(-r.net / rec.rate);
+          detail = `+${n} ${buildingName(rec.building)}`;
         }
       } else if (r.cons > 0) {
         detail = `${Math.round((r.net / r.cons) * 100)}%`;
@@ -5322,88 +5320,67 @@ function applyMapFilters() {
 }
 
 // ---- Calculadora de producción ----
-// Recetas del principio del juego (Satisfactory 1.x). out = unidades/min por máquina.
-// Los ingredientes son rate/min por máquina. Lo que no tiene receta es materia prima.
-interface Recipe {
-  building: string;
-  out: number;
-  tier: number; // tier en el que se desbloquea (aprox.)
-  inputs: { item: string; rate: number }[];
-}
+// Todo sale del catálogo: canonRecipe() da una receta estándar por pieza, sin
+// alternativas, sin el Convertidor y sin desempaquetar. Trabaja con clases; los
+// nombres solo se ponen al pintar. Sin datos del juego se queda vacía, igual
+// que la producción: una tabla parcial daría cifras que parecen completas.
 const MINER_MK1_NORMAL = 60; // /min en un nodo de pureza normal
-const RECIPES: Record<string, Recipe> = {
-  "Lingote de hierro": { building: "Horno", out: 30, tier: 0, inputs: [{ item: "Mineral de hierro", rate: 30 }] },
-  "Lingote de cobre": { building: "Horno", out: 30, tier: 0, inputs: [{ item: "Mineral de cobre", rate: 30 }] },
-  "Plancha de hierro": { building: "Constructor", out: 20, tier: 0, inputs: [{ item: "Lingote de hierro", rate: 30 }] },
-  "Barra de hierro": { building: "Constructor", out: 15, tier: 0, inputs: [{ item: "Lingote de hierro", rate: 15 }] },
-  Tornillos: { building: "Constructor", out: 40, tier: 0, inputs: [{ item: "Barra de hierro", rate: 10 }] },
-  "Alambre": { building: "Constructor", out: 30, tier: 0, inputs: [{ item: "Lingote de cobre", rate: 15 }] },
-  Cable: { building: "Constructor", out: 30, tier: 0, inputs: [{ item: "Alambre", rate: 60 }] },
-  Hormigón: { building: "Constructor", out: 15, tier: 0, inputs: [{ item: "Caliza", rate: 45 }] },
-  "Lámina de cobre": { building: "Constructor", out: 10, tier: 2, inputs: [{ item: "Lingote de cobre", rate: 20 }] },
-  "Plancha de hierro reforzada": { building: "Ensambladora", out: 5, tier: 2, inputs: [{ item: "Plancha de hierro", rate: 30 }, { item: "Tornillos", rate: 60 }] },
-  Rotor: { building: "Ensambladora", out: 4, tier: 2, inputs: [{ item: "Barra de hierro", rate: 20 }, { item: "Tornillos", rate: 100 }] },
-  "Armazón modular": { building: "Ensambladora", out: 2, tier: 2, inputs: [{ item: "Plancha de hierro reforzada", rate: 3 }, { item: "Barra de hierro", rate: 12 }] },
-  "Lingote de acero": { building: "Fundición", out: 45, tier: 3, inputs: [{ item: "Mineral de hierro", rate: 45 }, { item: "Carbón", rate: 45 }] },
-  "Viga de acero": { building: "Constructor", out: 15, tier: 3, inputs: [{ item: "Lingote de acero", rate: 60 }] },
-  "Tubería de acero": { building: "Constructor", out: 20, tier: 3, inputs: [{ item: "Lingote de acero", rate: 30 }] },
-  "Viga industrial reforzada": { building: "Ensambladora", out: 6, tier: 4, inputs: [{ item: "Viga de acero", rate: 24 }, { item: "Hormigón", rate: 30 }] },
-  "Armazón modular pesado": { building: "Productor", out: 2, tier: 4, inputs: [{ item: "Armazón modular", rate: 10 }, { item: "Tubería de acero", rate: 30 }, { item: "Viga industrial reforzada", rate: 10 }, { item: "Tornillos", rate: 200 }] },
-  "Lingote de caterio": { building: "Horno", out: 15, tier: 5, inputs: [{ item: "Mineral de caterio", rate: 45 }] },
-  Turboalambre: { building: "Constructor", out: 60, tier: 5, inputs: [{ item: "Lingote de caterio", rate: 12 }] },
-  Plástico: { building: "Refinería", out: 20, tier: 5, inputs: [{ item: "Petróleo crudo", rate: 30 }] },
-  Caucho: { building: "Refinería", out: 20, tier: 5, inputs: [{ item: "Petróleo crudo", rate: 30 }] },
-  "Circuito impreso": { building: "Ensambladora", out: 7.5, tier: 5, inputs: [{ item: "Lámina de cobre", rate: 15 }, { item: "Plástico", rate: 30 }] },
-  Estátor: { building: "Ensambladora", out: 5, tier: 5, inputs: [{ item: "Tubería de acero", rate: 15 }, { item: "Alambre", rate: 40 }] },
-  Motor: { building: "Ensambladora", out: 5, tier: 5, inputs: [{ item: "Rotor", rate: 10 }, { item: "Estátor", rate: 10 }] },
-  Ordenador: { building: "Productor", out: 2.5, tier: 6, inputs: [{ item: "Circuito impreso", rate: 25 }, { item: "Cable", rate: 22.5 }, { item: "Plástico", rate: 45 }] },
-};
 
-// Calcula la demanda total por item (sumando todas las ramas de la cadena).
-// La tabla RECIPES esta indexada por el nombre en espanol, y asi se queda: el
-// historico guardado usa esas mismas claves (ver la nota del esquema 1), y
-// cambiarlas invalidaria partidas ya analizadas. Lo que si se puede es
-// traducir al pintar, cruzando ese nombre con los datos del juego, que
-// conocen todos los idiomas y son los mismos que usa el resto de la app. Si
-// la pieza no esta en el catalogo oficial se queda como estaba: un nombre en
-// el idioma que no toca se lee; una casilla vacia, no.
-function calcName(es: string): string {
-  if (getLang() === "es") return es;
-  const cls = nameIndex().get(es.toLowerCase());
-  if (!cls || !gameData) return es;
-  const n = (gameData.items[cls] && gameData.items[cls].name) ||
-    (gameData.buildings[cls] && gameData.buildings[cls].name);
-  return (n && (n[getLang()] || n.en)) || es;
+/// Las piezas que la calculadora ofrece. Una pieza entra si alguna de sus
+/// recetas está en los unlocks de algún esquema que ESTA partida ha completado:
+/// así entran también las que abre el MAM o un evento, que el tier no veía.
+/// Si no se sabe qué hay desbloqueado, todas: vacío es "no he podido leerlo",
+/// no "no has desbloqueado nada". Es la regla de la niebla: esconder cosas por
+/// una lectura fallida sería peor que enseñarlas.
+function calcItems(): { all: number; offered: string[] } {
+  const all = Object.keys(canonRecipe());
+  const unlocked = unlockedRecipes();
+  if (!unlocked || !gameData) return { all: all.length, offered: all };
+  const open = new Set<string>();
+  for (const [rc, r] of Object.entries(gameData.recipes)) {
+    if (r.out && unlocked.has(rc) && !fakeSource(rc, r)) open.add(r.out);
+  }
+  return { all: all.length, offered: all.filter((c) => open.has(c)) };
 }
 
+// Calcula la demanda total por pieza (sumando todas las ramas de la cadena).
 function computeProduction(item: string, rate: number) {
+  const canon = canonRecipe();
   const itemRate: Record<string, number> = {};
   const order: string[] = [];
+  // Hoy no hay ciclos (ver fakeSource), pero esta función es recursiva y sin
+  // límite: si una actualización del juego trae uno, se corta aquí en vez de
+  // reventar la pila.
+  const path = new Set<string>();
   function accumulate(it: string, r: number) {
     if (!(it in itemRate)) order.push(it);
     itemRate[it] = (itemRate[it] || 0) + r;
-    const rec = RECIPES[it];
-    if (!rec) return;
-    const machines = r / rec.out;
+    const rec = canon[it];
+    if (!rec || path.has(it)) return;
+    path.add(it);
+    const machines = r / rec.rate;
     for (const inp of rec.inputs) accumulate(inp.item, machines * inp.rate);
+    path.delete(it);
   }
   accumulate(item, rate);
 
   const steps: { item: string; rate: number; building: string; machines: number }[] = [];
   const buildings: Record<string, number> = {};
   const raw: Record<string, number> = {};
+  const choices: { item: string; n: number; rc: string }[] = [];
   for (const it of order) {
-    const rec = RECIPES[it];
+    const rec = canon[it];
     const r = itemRate[it];
-    if (!rec) {
+    if (!rec || !rec.building) {
       raw[it] = r;
       continue;
     }
-    const machines = r / rec.out;
+    const machines = r / rec.rate;
     steps.push({ item: it, rate: r, building: rec.building, machines });
     buildings[rec.building] = (buildings[rec.building] || 0) + machines;
+    if (rec.options > 1) choices.push({ item: it, n: rec.options, rc: rec.rc });
   }
-  return { steps, buildings, raw };
+  return { steps, buildings, raw, choices };
 }
 
 function fmt(n: number): string {
@@ -5411,57 +5388,76 @@ function fmt(n: number): string {
 }
 
 function renderCalc() {
-  // Solo ofrecemos lo desbloqueado según el tier del mundo abierto.
-  const all = Object.keys(RECIPES).sort();
-  const available = all.filter((k) => RECIPES[k].tier <= currentTier);
-  const hidden = all.length - available.length;
-  const opts = available
-    .map((k) => ({ k, n: calcName(k) }))
-    .sort((a, b) => a.n.localeCompare(b.n))
-    .map((o) => `<option value="${escapeAttr(o.k)}">${escapeXml(o.n)}</option>`)
-    .join("");
+  const title = `<h3 class="inv-title">${t("sec.calc")}</h3>`;
+  if (!gameData) {
+    calcEl.innerHTML = title + `<p class="muted">${t("calc.noData")}</p>`;
+    return;
+  }
+  const { all, offered } = calcItems();
+  const hidden = all - offered.length;
+  const names = offered
+    .map((c) => gdItemName(c))
+    .filter((n): n is string => !!n)
+    .sort((a, b) => a.localeCompare(b));
 
-  const hint =
-    hidden > 0
-      ? `<p class="muted">${t("calc.locked", { t: currentTier, n: hidden })}</p>`
-      : "";
+  const hint = hidden > 0 ? `<p class="muted">${t("calc.locked", { n: hidden })}</p>` : "";
 
+  // Igual que la barra "Quiero" del Plano: un campo que filtra al escribir.
   calcEl.innerHTML =
-    `<h3 class="inv-title">${t("sec.calc")}</h3>` +
+    title +
     hint +
     `<div class="calc-controls">` +
     `<span>${t("calc.want")}</span>` +
     `<input id="calc-rate" type="number" min="1" value="100" />` +
     `<span>${t("calc.perMin")}</span>` +
-    `<select id="calc-item">${opts}</select>` +
+    `<input id="calc-item" list="calc-items" placeholder="${escapeAttr(t("pl.phItem"))}" />` +
+    `<datalist id="calc-items">${names.map((n) => `<option value="${escapeAttr(n)}"></option>`).join("")}</datalist>` +
     `<button id="calc-btn" type="button">${t("calc.go")}</button>` +
     `</div>` +
     `<div id="calc-result" class="calc-result"></div>`;
 
-  document.querySelector("#calc-btn")?.addEventListener("click", () => {
-    const item = (document.querySelector("#calc-item") as HTMLSelectElement).value;
-    const rate = parseFloat((document.querySelector("#calc-rate") as HTMLInputElement).value);
-    if (item && rate > 0) renderCalcResult(item, rate);
+  document.querySelector("#calc-btn")?.addEventListener("click", calcGo);
+  document.querySelector("#calc-item")?.addEventListener("keydown", (e) => {
+    if ((e as KeyboardEvent).key === "Enter") calcGo();
   });
 }
 
+function calcGo() {
+  const nombre = (document.querySelector("#calc-item") as HTMLInputElement | null)?.value?.trim() || "";
+  const rate = parseFloat((document.querySelector("#calc-rate") as HTMLInputElement | null)?.value || "");
+  const resultEl = document.querySelector("#calc-result") as HTMLElement | null;
+  if (!resultEl || !nombre || !(rate > 0)) return;
+  const cls = nameIndex().get(nombre.toLowerCase());
+  if (!cls || !canonRecipe()[cls]) {
+    resultEl.innerHTML = `<span class="pl-bad">${t("pl.unknown")}</span>`;
+    return;
+  }
+  if (!calcItems().offered.includes(cls)) {
+    resultEl.innerHTML = `<span class="pl-bad">${t("calc.notYet")}</span>`;
+    return;
+  }
+  renderCalcResult(cls, rate);
+}
+
 function renderCalcResult(item: string, rate: number) {
-  const { steps, buildings, raw } = computeProduction(item, rate);
+  const { steps, buildings, raw, choices } = computeProduction(item, rate);
   const resultEl = document.querySelector("#calc-result") as HTMLElement;
+  const itemName = (c: string) => gdItemName(c) || c;
+  const label = (c: string, name: string, size: number) => `${iconGlyph(c, name, size)}${escapeXml(name)}`;
 
   const buildingRows = Object.entries(buildings)
     .sort((a, b) => b[1] - a[1])
     .map(
       ([b, m]) =>
-        `<div class="calc-line"><span>${iconImg(b, 16)}${escapeXml(calcName(b))}</span><span class="calc-num"><b>${Math.ceil(m)}</b> <span class="muted">(${fmt(m)})</span></span></div>`
+        `<div class="calc-line"><span>${label(b, buildingName(b), 16)}</span><span class="calc-num"><b>${Math.ceil(m)}</b> <span class="muted">(${fmt(m)})</span></span></div>`
     )
     .join("");
 
   const stepRows = steps
     .map(
       (s) =>
-        `<div class="calc-line"><span>${iconImg(s.item, 16)}${escapeXml(calcName(s.item))} · ${fmt(s.rate)}/min</span>` +
-        `<span class="calc-num">${fmt(s.machines)} × ${iconImg(s.building, 14)}${escapeXml(calcName(s.building))}</span></div>`
+        `<div class="calc-line"><span>${label(s.item, itemName(s.item), 16)} · ${fmt(s.rate)}/min</span>` +
+        `<span class="calc-num">${fmt(s.machines)} × ${label(s.building, buildingName(s.building), 14)}</span></div>`
     )
     .join("");
 
@@ -5469,17 +5465,28 @@ function renderCalcResult(item: string, rate: number) {
     .sort((a, b) => b[1] - a[1])
     .map(([r, rt]) => {
       const miners = Math.ceil(rt / MINER_MK1_NORMAL);
-      return `<div class="calc-line"><span>${iconImg(r, 16)}${escapeXml(calcName(r))}</span><span class="calc-num">${fmt(rt)}/min <span class="muted">(${t(miners === 1 ? "calc.miner1" : "calc.minerN", { n: miners })})</span></span></div>`;
+      return `<div class="calc-line"><span>${label(r, itemName(r), 16)}</span><span class="calc-num">${fmt(rt)}/min <span class="muted">(${t(miners === 1 ? "calc.miner1" : "calc.minerN", { n: miners })})</span></span></div>`;
+    })
+    .join("");
+
+  // Cuando había varias recetas estándar para elegir, se dice cuál se usó.
+  const choiceRows = choices
+    .map((c) => {
+      const rn = gameData && gameData.recipes[c.rc];
+      const recipe = (rn && (rn.name[getLang()] || rn.name.en)) || c.rc;
+      return `<p class="muted calc-note">${t("calc.choice", { item: escapeXml(itemName(c.item)), n: c.n, recipe: escapeXml(recipe) })}</p>`;
     })
     .join("");
 
   resultEl.innerHTML =
-    `<p class="calc-head">${t("calc.head", { rate: fmt(rate), item: escapeXml(calcName(item)) })}</p>` +
+    `<p class="calc-head">${t("calc.head", { rate: fmt(rate), item: escapeXml(itemName(item)) })}</p>` +
     `<h4 class="calc-sub">${t("calc.machines")}</h4>${buildingRows}` +
     `<h4 class="calc-sub">${t("calc.chain")}</h4>${stepRows}` +
     `<h4 class="calc-sub">${t("calc.raw")}</h4>${rawRows}` +
+    choiceRows +
     `<p class="muted calc-note">${t("calc.note")}</p>`;
 }
+
 
 // Guarda la nota del mundo actualmente seleccionado.
 async function saveNote() {
