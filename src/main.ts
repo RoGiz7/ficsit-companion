@@ -117,6 +117,9 @@ interface ProgressInfo {
   milestones: string[];
   /// Clases de los esquemas de receta alternativa abiertos con discos duros.
   alternates: string[];
+  /// Clases de todos los esquemas de la partida, como gamedata.schematics.
+  /// Vacía = no se pudo leer, no "nada desbloqueado".
+  schematics: string[];
   research_count: number;
   schematic_total: number;
 }

@@ -791,6 +791,12 @@ struct ProgressInfo {
     /// Clases de los esquemas de receta alternativa que esta partida ha abierto
     /// con discos duros. Ej: "Schematic_Alternate_Coal2_C".
     alternates: Vec<String>,
+    /// Clases de TODOS los esquemas que aparecen en la partida (hitos, MAM,
+    /// eventos, tienda AWESOME, alternativas...), indexadas igual que
+    /// gamedata.schematics. Incluye alguna clase que no es un esquema
+    /// (BP_SchematicManager_C); no casa con nada en el catalogo y no molesta.
+    /// Vacia significa "no he podido leerlo", no "no has desbloqueado nada".
+    schematics: Vec<String>,
     research_count: u32,
     schematic_total: u32,
 }
@@ -1023,11 +1029,18 @@ fn parse_progression(body: &[u8]) -> ProgressInfo {
     milestones.dedup();
     alternates.sort();
     alternates.dedup();
+    let mut classes: Vec<String> = schematics
+        .iter()
+        .filter_map(|s| s.rsplit('.').next().map(|c| c.to_string()))
+        .collect();
+    classes.sort();
+    classes.dedup();
 
     ProgressInfo {
         current_tier,
         milestones,
         alternates,
+        schematics: classes,
         research_count,
         schematic_total: schematics.len() as u32,
     }
