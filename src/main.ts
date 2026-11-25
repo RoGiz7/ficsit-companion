@@ -4411,7 +4411,11 @@ function renderBottlenecks(
         const rec = RECIPES[r.item];
         if (rec) {
           const n = Math.ceil(-r.net / rec.out);
-          detail = `+${n} ${trBuilding(rec.building)}`;
+          // rec.building es el nombre en espanol de la tabla escrita a mano, y
+          // trBuilding espera uno en ingles: en ingles no encontraba nada y lo
+          // devolvia tal cual, asi que la sugerencia decia "+3 Horno". calcName
+          // cruza ese nombre con el catalogo oficial y da el del idioma de turno.
+          detail = `+${n} ${calcName(rec.building)}`;
         }
       } else if (r.cons > 0) {
         detail = `${Math.round((r.net / r.cons) * 100)}%`;
