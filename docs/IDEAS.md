@@ -20,6 +20,108 @@ verified against the real files, not guessed: the counts are what is actually th
 The save already tells us which schematics a world has completed. Crossing that with the list
 above is where most of the remaining value is.
 
+## 0. One vocabulary: the master table the app already has
+
+Raised by Zigor on 25 Nov 2026, in his words: *a database generated from reading the save and the
+game data, master tables where everything is recorded once, and each section calls it and does its
+own arithmetic.* That is the right shape, with one correction: **the master table already exists.**
+It is `gamedata.json`, extracted from the game's own `Docs.json` — 746 items, 546 buildings, 872
+recipes, 574 milestones, named in both languages, keyed by class. The problem is not that it is
+missing. It is that four hand-written tables still shadow it, and the history file was written
+through them.
+
+This section absorbs items 2, 6 and 7 below, which are three views of the same job.
+
+### The evidence: four vocabularies in one history file
+
+Measured against the owner's real `history.json` — 55 snapshots across three worlds, of which 33
+predate the `schema` field entirely and 22 are at schema 1.
+
+| Field | Entries | Current Spanish | Current English | Raw class | Matches nothing |
+|---|---|---|---|---|---|
+| `production` | 267 | 228 | — | — | **39** |
+| `consumption` | 287 | 248 | — | — | **39** |
+| `deficits` | 57 | 40 | — | — | **17** |
+| `stored` | 845 | 43 | 306 | — | **496** |
+| `collectables` | 132 | — | — | 132 | — |
+
+61 distinct names match nothing in the game's catalogue. They are of two kinds, and the first kind
+is the important one.
+
+**The app's own older Spanish.** `Placa de hierro`, `Tornillo`, `Hilo de cobre`, `Marco modular`,
+`Viga industrial revestida`. Today the game calls these `Plancha de hierro`, `Tornillos`,
+`Alambre`, `Armazón modular`, `Viga industrial reforzada`. Same items. The break is visible in the
+file: six snapshots say `Placa de hierro` and the next fourteen say `Plancha de hierro` — and the
+game build is **identical on both sides** (1.2.6, build 520140). The vocabulary did not change
+because Coffee Stain changed it. It changed because `ITEM_ES` was corrected to agree with the game,
+and every snapshot written before that edit was orphaned by it.
+
+That is the whole argument in one line: **the display name is the primary key, and the display name
+is editable prose.** Any chart following iron plate production across that date sees two unrelated
+items and breaks the line.
+
+**De-camel-cased asset names**, in `stored`: `Cement`, `Ore Iron`, `Berry`,
+`BP_Equipment Descriptor Candy Cane`. The game says `Concrete`, `Iron Ore`, `Paleberry`. These come
+from the Rust string-scan and were never real names in any language, so there is no table that
+could ever translate them back.
+
+### What the master table already carries
+
+| `gamedata.json` gives | Hand-written table it replaces |
+|---|---|
+| `items`: name es/en, fluid flag | `ITEM_ES` (63 lines) |
+| `buildings`: name, size w/d/h, power, generation | `BUILDING_ES` (54 lines) |
+| `recipes`: building, inputs with rates, output, rate | `RECIPE_OUTPUT` (48) and `RECIPES` (25 entries) |
+| `schematics`: **tier**, cost, what it unlocks | the hand-typed `tier` column |
+
+Nothing is missing. Even the tier comes out: each milestone lists the recipes it unlocks, so a
+recipe's tier is that of the lowest milestone unlocking it — which is exactly what the hand-typed
+column approximates. That is item 2 below, and it is a consequence of this work rather than a
+separate task.
+
+### Why it also protects the numbers against game updates
+
+When a recipe is rebalanced, `gamedata.json` notices on the next read and the app says so out loud
+— *3 changed rate(s)*. `RECIPES` would go on saying what it always said. The factory panel and the
+calculator would disagree, silently, and the one that is wrong is the one with no way to find out.
+
+This is not hypothetical. An audit of all 25 entries against the catalogue on 25 Nov 2026 found
+**three wrong buildings and zero wrong rates**: iron, copper and caterium ingot were all assigned
+to `Fundición`, which the game uses for the **Foundry**. The Smelter is `Horno`. The error was
+invisible in Spanish for months because *Fundición* reads plausibly for smelting; it only surfaced
+when the names were translated and the English said *Foundry*. Fixed the same day, in `RECIPES` and
+in `BUILDING_ES`, which had the pair inverted as well.
+
+### The work, cheapest and safest first
+
+1. **Delete `ITEM_ES` and `BUILDING_ES`** (~117 lines). Pure translation; `gamedata` has it. Keep a
+   minimal fallback for the no-game-data case, or accept class names there.
+2. **Delete `RECIPE_OUTPUT`** (48 lines). Already keyed by the same recipe class as
+   `gamedata.recipes`, so this is close to a straight removal.
+3. **Derive the calculator from `gamedata`**, reusing `canonRecipe()` — which already excludes
+   `Build_Converter_C`, a trap that has caught this project three times. Gains every base-game
+   recipe instead of 25, and the tier filter of item 2 for free.
+4. **Stop writing beautified names into the snapshot.** Smaller than it looks: `renderStored`
+   already takes classes, and `storedByClass` is computed on the line beside the one that is
+   actually stored (`stored: toCounts(a.stored)`). Verify whether `production`, `consumption` and
+   `deficits` have a class-keyed twin available at the same point; if not, that is the real work
+   here.
+5. **Migrate the history.** Bump the metrics `schema` to 2 and resolve old names to classes through
+   `nameIndex()`, which indexes every language and so handles the Spanish and English entries
+   together. Budget for the orphans: the app's own older Spanish may be recoverable with a short
+   alias table (five or six entries covers most of the 39), the de-camel-cased asset names are
+   probably not. Do not silently drop a snapshot — a chart with a gap is honest, a chart quietly
+   missing a year is not.
+
+### Caveats worth stating before starting
+
+- Steps 4 and 5 touch Rust, the save parser and a migration of real user history. They want their
+  own branch and a release behind them, not to be wedged in front of one.
+- Step 3 turns a 25-item dropdown into a several-hundred-item one. The tier filter helps, but the
+  list needs a thought it has not had.
+- `collectables` is already consistent (132 of 132 raw classes). It is the one field that needs
+  resolving for display rather than fixing at the source.
+
 ## 1. "What the next milestone costs, and what you are missing"
 
 The flagship. Each milestone carries its exact cost — Base Building is 200 concrete, 100 iron

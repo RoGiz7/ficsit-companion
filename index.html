@@ -57,7 +57,8 @@
           <div class="set-block">
             <h4 class="set-title" data-i18n="settings.folder">Carpeta de partidas</h4>
             <div class="folder-row">
-              <input id="folder" spellcheck="false" aria-label="Ruta de la carpeta de partidas" />
+              <input id="folder" spellcheck="false" data-i18n-aria="settings.folderAria"
+                     aria-label="Ruta de la carpeta de partidas" />
               <button id="refresh" type="button" data-i18n="settings.watch">Vigilar</button>
             </div>
           </div>
@@ -173,7 +174,7 @@
         </div>
         <div class="pl-bar pl-goal">
           <label for="pl-item" data-i18n="pl.want">Quiero</label>
-          <input id="pl-item" list="pl-items" placeholder="Plancha de hierro" />
+          <input id="pl-item" list="pl-items" data-i18n-ph="pl.phItem" placeholder="Plancha de hierro" />
           <datalist id="pl-items"></datalist>
           <input id="pl-rate" type="number" min="1" max="100000" step="1" value="60" />
           <span class="muted">/min</span>

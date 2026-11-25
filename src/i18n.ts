@@ -26,6 +26,7 @@ export const STRINGS: Record<string, Entry> = {
   "settings.folder": { es: "Carpeta de partidas", en: "Save folder" },
   "settings.gamedata": { es: "Datos del juego", en: "Game data" },
   "settings.watch": { es: "Vigilar", en: "Watch" },
+  "settings.folderAria": { es: "Ruta de la carpeta de partidas", en: "Path to the save folder" },
   "world": { es: "Mundo", en: "World" },
   "loading": { es: "Cargando…", en: "Loading…" },
 
@@ -242,6 +243,19 @@ export const STRINGS: Record<string, Entry> = {
   "saves.name": { es: "Partida", en: "Save" },
   "saves.played": { es: "Tiempo jugado", en: "Play time" },
   "saves.saved": { es: "Guardada", en: "Saved" },
+  // ---- Chapas de la lista de guardados ----
+  "tag.mods": { es: "{n} mods", en: "{n} mods" },
+  "tag.modsTitle": {
+    es: "Esta partida necesita estos mods para abrirse en el juego:",
+    en: "This save needs these mods to open in the game:",
+  },
+  "tag.oldFormat": { es: "formato v{v}", en: "format v{v}" },
+  "tag.oldFormatTitle": {
+    es: "Guardada con un formato anterior (v{v}) al de tus partidas más nuevas (v{n}).",
+    en: "Saved in an older format (v{v}) than your newest saves (v{n}).",
+  },
+  "tag.creative": { es: "creativa", en: "creative" },
+
   "saves.size": { es: "Tamaño", en: "Size" },
   "saves.state": { es: "Estado", en: "Status" },
   "saves.newest": { es: "más reciente", en: "newest" },
@@ -307,6 +321,7 @@ export const STRINGS: Record<string, Entry> = {
   "map.ground": { es: "Terreno", en: "Terrain" },
   "map.height": { es: "Altura (ajuste fino):", en: "Height (fine tuning):" },
   "map.hint": { es: "rueda = zoom · arrastra = mover", en: "wheel = zoom · drag = pan" },
+  "map.aboveGround": { es: "{a} – {b} m sobre el suelo", en: "{a} – {b} m above ground" },
   "layer.prod": { es: "Producción", en: "Production" },
   "layer.extr": { es: "Extracción", en: "Extraction" },
   "layer.power": { es: "Generadores", en: "Generators" },
@@ -382,6 +397,7 @@ export const STRINGS: Record<string, Entry> = {
   // "Por plantas" en el desplegable de al lado. No lo es. Este numero va a
   // solveChain y dice cuanto se retrocede por la cadena de recetas.
   "pl.depth": { es: "Cadena", en: "Chain" },
+  "pl.phItem": { es: "Plancha de hierro", en: "Iron Plate" },
   "pl.steps": { es: "pasos atrás", en: "steps back" },
   "pl.depthNote": {
     es: "«Cadena» es cuánto se planifica hacia atrás, no cuántas plantas tiene: con 2 pasos se colocan la máquina final y la que la alimenta. Lo que queda fuera no desaparece, sale en «Hay que traer» — eso es lo que tendrás que llevar con cintas desde otro sitio.",
@@ -471,6 +487,13 @@ export const STRINGS: Record<string, Entry> = {
   "plan.done": { es: "✓ completado", en: "✓ done" },
   "plan.left": { es: "faltan {n}", en: "{n} to go" },
   "plan.removeGoal": { es: "Quitar objetivo", en: "Remove goal" },
+  "plan.phType": { es: "Tipo (ej: Constructor Mk1)", en: "Type (e.g. Constructor Mk1)" },
+  "plan.phQty": { es: "Cantidad", en: "Amount" },
+
+  // ---- Progreso del mundo ----
+  "prog.tier": { es: "Tier actual", en: "Current tier" },
+  "prog.milestones": { es: "Hitos completados", en: "Milestones completed" },
+  "prog.research": { es: "Investigaciones (MAM)", en: "Research (MAM)" },
 
   "prod.title": { es: "Producción actual (máquinas activas)", en: "Current production (active machines)" },
   "prod.machines": { es: "Máquinas con receta", en: "Machines with a recipe" },
@@ -526,6 +549,15 @@ export const STRINGS: Record<string, Entry> = {
     en: "Base rates (machines at 100%, standard recipes). Miners are estimated on a normal-purity node.",
   },
   "calc.want": { es: "Quiero producir", en: "I want to make" },
+  "calc.perMin": { es: "/min de", en: "/min of" },
+  "calc.go": { es: "Calcular", en: "Calculate" },
+  "calc.locked": {
+    es: "Mostrando solo lo desbloqueado en este mundo (Tier {t}). {n} receta(s) de tiers superiores ocultas.",
+    en: "Showing only what is unlocked in this world (Tier {t}). {n} recipe(s) from higher tiers hidden.",
+  },
+  "calc.head": { es: "Para <b>{rate}/min</b> de <b>{item}</b>:", en: "For <b>{rate}/min</b> of <b>{item}</b>:" },
+  "calc.miner1": { es: "≈1 minero Mk1", en: "≈1 Mk1 miner" },
+  "calc.minerN": { es: "≈{n} mineros Mk1", en: "≈{n} Mk1 miners" },
   "gd.detail": {
     es: "{r} recetas · {s} hitos · {langs}",
     en: "{r} recipes · {s} milestones · {langs}",
@@ -725,6 +757,9 @@ export function applyStaticI18n() {
   // Botones que son solo un icono: sin texto dentro, el nombre accesible y el
   // globo de ayuda son lo unico que dice que hacen, y los dos hay que
   // traducirlos como cualquier otro texto.
+  document.querySelectorAll<HTMLElement>("[data-i18n-aria]").forEach((el) => {
+    el.setAttribute("aria-label", t(el.dataset.i18nAria!));
+  });
   document.querySelectorAll<HTMLElement>("[data-i18n-at]").forEach((el) => {
     const s = t(el.dataset.i18nAt!);
     el.setAttribute("aria-label", s);

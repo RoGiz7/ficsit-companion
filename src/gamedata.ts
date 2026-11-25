@@ -338,19 +338,26 @@ export function diffGameData(prev: GameData | null, next: GameData): GameDataDif
 
 export function describeDiff(d: GameDataDiff | null, data: GameData, lang: string): string {
   const nameOf = (k: string) => (data.recipes[k] && data.recipes[k].name[lang]) || k;
+  // El parametro lang traducia los nombres de receta pero no esta prosa, asi
+  // que el resumen de cambios salia en espanol aunque la app estuviera en
+  // ingles. Ahora decide las dos cosas.
+  const en = lang.startsWith("en");
   if (!d) {
-    return (
-      `Primera lectura: ${Object.keys(data.recipes).length} recetas, ` +
-      `${Object.keys(data.items).length} objetos, ` +
-      `${Object.keys(data.buildings).length} edificios y ` +
-      `${Object.keys(data.schematics).length} hitos.`
-    );
+    const n = [
+      Object.keys(data.recipes).length,
+      Object.keys(data.items).length,
+      Object.keys(data.buildings).length,
+      Object.keys(data.schematics).length,
+    ];
+    return en
+      ? `First read: ${n[0]} recipes, ${n[1]} items, ${n[2]} buildings and ${n[3]} milestones.`
+      : `Primera lectura: ${n[0]} recetas, ${n[1]} objetos, ${n[2]} edificios y ${n[3]} hitos.`;
   }
   const parts: string[] = [];
   if (d.addedRecipes.length) {
     const sample = d.addedRecipes.slice(0, 4).map(nameOf).join(", ");
     parts.push(
-      `${d.addedRecipes.length} receta(s) nueva(s): ${sample}${d.addedRecipes.length > 4 ? "…" : ""}`
+      `${d.addedRecipes.length} ${en ? "new recipe(s)" : "receta(s) nueva(s)"}: ${sample}${d.addedRecipes.length > 4 ? "…" : ""}`
     );
   }
   if (d.changedRates.length) {
@@ -358,11 +365,14 @@ export function describeDiff(d: GameDataDiff | null, data: GameData, lang: strin
       .slice(0, 3)
       .map((c) => `${nameOf(c.recipe)} ${c.from.toFixed(1)} → ${c.to.toFixed(1)}/min`)
       .join(", ");
-    parts.push(`${d.changedRates.length} ritmo(s) cambiado(s): ${sample}`);
+    parts.push(`${d.changedRates.length} ${en ? "changed rate(s)" : "ritmo(s) cambiado(s)"}: ${sample}`);
   }
-  if (d.removedRecipes.length) parts.push(`${d.removedRecipes.length} receta(s) retirada(s)`);
-  if (d.addedBuildings) parts.push(`${d.addedBuildings} edificio(s) nuevo(s)`);
-  return parts.length ? parts.join(" · ") : "Sin cambios respecto a la última lectura.";
+  if (d.removedRecipes.length)
+    parts.push(`${d.removedRecipes.length} ${en ? "recipe(s) withdrawn" : "receta(s) retirada(s)"}`);
+  if (d.addedBuildings)
+    parts.push(`${d.addedBuildings} ${en ? "new building(s)" : "edificio(s) nuevo(s)"}`);
+  if (parts.length) return parts.join(" · ");
+  return en ? "No changes since the last read." : "Sin cambios respecto a la última lectura.";
 }
 
 // Tier de progresion de cada pieza: en que punto de la partida aparece en tu

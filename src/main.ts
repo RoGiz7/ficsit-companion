@@ -400,9 +400,9 @@ let openSaveName = ""; // guardado abierto, para poder repasarlo al cambiar de i
 // Si un nombre no está en la tabla, se muestra tal cual (respaldo en inglés).
 const BUILDING_ES: Record<string, string> = {
   "Constructor Mk1": "Constructor Mk1",
-  "Smelter Mk1": "Fundición Mk1",
+  "Smelter Mk1": "Horno Mk1",
   "Assembler Mk1": "Ensambladora Mk1",
-  "Foundry Mk1": "Fundición avanzada Mk1",
+  "Foundry Mk1": "Fundición Mk1",
   Manufacturer: "Productor",
   Refinery: "Refinería",
   "Miner Mk1": "Minero Mk1",
@@ -864,6 +864,16 @@ function isCraftable(item: string): boolean {
 // la app. Solo se releen cuando el juego se actualiza, porque son 10 MB por
 // idioma; el resto del tiempo vale el destilado cacheado.
 
+// Lo ultimo que se pinto en el bloque de datos del juego, guardado como la
+// propia llamada y no como su resultado. Al cambiar de idioma hay que volver
+// a pintarlo, y un texto ya traducido se habria quedado en el idioma viejo.
+let gdRedraw: (() => void) | null = null;
+
+function showGameData(view: () => void) {
+  gdRedraw = view;
+  view();
+}
+
 function renderGameData(status: string, detail: string, busy = false) {
   if (!gameDataEl) return;
   gameDataEl.innerHTML =
@@ -1311,6 +1321,20 @@ function planFreeSpot(size: Size): { x: number; y: number } {
     }
   }
   return { x: 0, y: 0 };
+}
+
+// Lo que se dibuja una sola vez al arrancar y por tanto se quedaba en el
+// idioma de entonces: los ajustes, el catalogo del plano y el plano mismo. La
+// partida abierta no entra aqui porque sus nombres salen del analisis, y eso
+// se rehace entero aparte.
+function relocalize() {
+  gdRedraw?.();
+  renderIcons();
+  void renderBackups();
+  renderPlanPalette();
+  renderPlanItems();
+  renderPlanCanvas();
+  renderCalc();
 }
 
 function renderPlanPalette() {
@@ -1884,11 +1908,13 @@ async function initGameData(force = false) {
 
     if (!folders.length) {
       gameData = cached && cached.schema === GAMEDATA_SCHEMA ? cached : null;
-      renderGameData(
-        gameData ? t("gd.cached") : t("gd.notFound"),
-        gameData
-          ? t("gd.cachedDetail", { r: Object.keys(gameData.recipes).length, date: new Date(gameData.extractedAt).toLocaleDateString() })
-          : t("gd.noGameNote")
+      showGameData(() =>
+        renderGameData(
+          gameData ? t("gd.cached") : t("gd.notFound"),
+          gameData
+            ? t("gd.cachedDetail", { r: Object.keys(gameData.recipes).length, date: new Date(gameData.extractedAt).toLocaleDateString() })
+            : t("gd.noGameNote")
+        )
       );
       return;
     }
@@ -1902,14 +1928,16 @@ async function initGameData(force = false) {
 
     if (upToDate && !force) {
       gameData = cached;
-      renderGameData(
-        t("gd.upToDate"),
-        t("gd.detail", { r: Object.keys(cached!.recipes).length, s: Object.keys(cached!.schematics).length, langs: cached!.langs.join(", ") })
+      showGameData(() =>
+        renderGameData(
+          t("gd.upToDate"),
+          t("gd.detail", { r: Object.keys(cached!.recipes).length, s: Object.keys(cached!.schematics).length, langs: cached!.langs.join(", ") })
+        )
       );
       return;
     }
 
-    renderGameData(t("gd.reading"), `${docs.path}`, true);
+    showGameData(() => renderGameData(t("gd.reading"), `${docs.path}`, true));
     const fresh = await extractGameData(docs.path, docs.languages);
     fresh.docsNewestMs = docs.newest_ms;
 
@@ -1919,9 +1947,11 @@ async function initGameData(force = false) {
 
     const changed =
       diff && (diff.addedRecipes.length || diff.changedRates.length || diff.removedRecipes.length);
-    renderGameData(
-      changed ? t("gd.changed") : t("gd.updated"),
-      describeDiff(diff, fresh, "es")
+    showGameData(() =>
+      renderGameData(
+        changed ? t("gd.changed") : t("gd.updated"),
+        describeDiff(diff, fresh, getLang())
+      )
     );
     // Si algo cambió, que no pase desapercibido aunque la sección esté plegada.
     if (changed) {
@@ -1929,7 +1959,7 @@ async function initGameData(force = false) {
     }
   } catch (e) {
     console.error("Datos del juego:", e);
-    renderGameData(t("gd.failed"), String(e));
+    showGameData(() => renderGameData(t("gd.failed"), String(e)));
   }
 }
 
@@ -2030,15 +2060,15 @@ function compatBadges(meta: SaveMeta | undefined): string {
   if (meta.isModded) {
     const list = meta.mods.map((m) => `${m.name} ${m.version}`).join(", ");
     out.push(
-      `<span class="tagw" title="Esta partida necesita estos mods para abrirse en el juego:\n${escapeAttr(list)}">⚙ ${meta.mods.length} mods</span>`
+      `<span class="tagw" title="${escapeAttr(t("tag.modsTitle"))}\n${escapeAttr(list)}">⚙ ${t("tag.mods", { n: meta.mods.length })}</span>`
     );
   }
   if (newestSaveVersion && meta.saveVersion < newestSaveVersion) {
     out.push(
-      `<span class="tagw" title="Guardada con un formato anterior (v${meta.saveVersion}) al de tus partidas mas nuevas (v${newestSaveVersion}).">formato v${meta.saveVersion}</span>`
+      `<span class="tagw" title="${escapeAttr(t("tag.oldFormatTitle", { v: meta.saveVersion, n: newestSaveVersion }))}">${t("tag.oldFormat", { v: meta.saveVersion })}</span>`
     );
   }
-  if (meta.creative) out.push(`<span class="tagw">creativa</span>`);
+  if (meta.creative) out.push(`<span class="tagw">${t("tag.creative")}</span>`);
   return out.join(" ");
 }
 
@@ -2862,9 +2892,9 @@ function renderProgress(p: ProgressInfo) {
   progressEl.innerHTML =
     `<h3 class="inv-title">${t("sec.progress")}</h3>` +
     `<div class="detail-grid">` +
-    cell("Tier actual", p.current_tier > 0 ? `Tier ${p.current_tier}` : "—") +
-    cell("Hitos completados", String(p.milestones.length)) +
-    cell("Investigaciones (MAM)", String(p.research_count)) +
+    cell(t("prog.tier"), p.current_tier > 0 ? `Tier ${p.current_tier}` : "—") +
+    cell(t("prog.milestones"), String(p.milestones.length)) +
+    cell(t("prog.research"), String(p.research_count)) +
     `</div>` +
     (tierRows ? `<div class="tier-list">${tierRows}</div>` : "");
 }
@@ -2908,9 +2938,9 @@ function renderPlan(world: string) {
     `<h3 class="inv-title">${t("plan.title")}</h3>` +
     (goalRows || `<p class="muted">${t("plan.empty")}</p>`) +
     `<div class="goal-add">` +
-    `<input id="goal-name" list="goal-names" placeholder="Tipo (ej: Constructor Mk1)" />` +
+    `<input id="goal-name" list="goal-names" placeholder="${escapeAttr(t("plan.phType"))}" />` +
     `<datalist id="goal-names">${datalist}</datalist>` +
-    `<input id="goal-target" type="number" min="1" placeholder="Cantidad" />` +
+    `<input id="goal-target" type="number" min="1" placeholder="${escapeAttr(t("plan.phQty"))}" />` +
     `<button id="goal-add-btn" type="button">${t("plan.add")}</button>` +
     `</div>`;
 
@@ -4520,11 +4550,11 @@ function categoryOf(tp: string): string {
 // Eso es aceptable SOLO con una segunda codificación, y la tenemos: cada
 // categoría tiene su forma (círculo, triángulo, cuadrado, rombo) y la leyenda
 // las nombra. Por eso las formas no son decoración y no se tocan.
-const CATS: Record<string, { color: string; label: string }> = {
-  prod: { color: "#cf7a2a", label: "Producción" },
-  extr: { color: "#3f93e0", label: "Extracción" },
-  power: { color: "#b45fb0", label: "Generadores" },
-  store: { color: "#3f9e6a", label: "Almacenamiento" },
+const CATS: Record<string, { color: string; labelKey: string }> = {
+  prod: { color: "#cf7a2a", labelKey: "layer.prod" },
+  extr: { color: "#3f93e0", labelKey: "layer.extr" },
+  power: { color: "#b45fb0", labelKey: "layer.power" },
+  store: { color: "#3f9e6a", labelKey: "layer.store" },
 };
 
 // Dibuja una forma distinta por categoría, centrada en (cx,cy).
@@ -4838,7 +4868,7 @@ function renderMap(
   const legend = Object.keys(CATS)
     .filter((c) => counts[c])
     .map((c) => {
-      const { color, label } = CATS[c];
+      const { color, labelKey } = CATS[c];
       const glyph =
         c === "prod"
           ? `<svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="${color}"/></svg>`
@@ -4847,7 +4877,7 @@ function renderMap(
           : c === "power"
           ? `<svg width="12" height="12"><rect x="1" y="1" width="10" height="10" fill="${color}"/></svg>`
           : `<svg width="12" height="12"><polygon points="6,1 11,6 6,11 1,6" fill="${color}"/></svg>`;
-      return `<span class="leg-item">${glyph} ${label} (${counts[c]})</span>`;
+      return `<span class="leg-item">${glyph} ${t(labelKey)} (${counts[c]})</span>`;
     })
     .join("");
 
@@ -5094,8 +5124,8 @@ function renderMap(
     (growthNote ? `<p class="muted cmp-note">${growthNote}</p>` : "") +
     `<svg viewBox="0 0 ${W} ${H}" class="map2d" id="map-svg">` +
     `<g id="map-vp">${fogSvg}${slabSvg}${lines}${others}${shapes}${collectSvg}${nestSvg}${trackSvg}${growthSvg}${playerSvg}${spotSvg}</g></svg>` +
-    `<div class="map-legend">${legend}<span class="leg-item"><span style="color:#8a93a3">─</span> cintas</span>` +
-    `<span class="leg-item"><span style="color:#aab0bd">·</span> resto</span></div>` +
+    `<div class="map-legend">${legend}<span class="leg-item"><span style="color:#8a93a3">─</span> ${t("layer.belt")}</span>` +
+    `<span class="leg-item"><span style="color:#aab0bd">·</span> ${t("layer.other")}</span></div>` +
     zoneList(zones) +
     `<p class="muted">${t("map.note")}</p>`;
 
@@ -5322,7 +5352,7 @@ function applyMapFilters() {
     if (lbl) {
       const a0 = Math.round((lo - mapGround) / 100);
       const a1 = Math.round((hi - mapGround) / 100);
-      lbl.textContent = `${a0} – ${a1} m sobre el suelo`;
+      lbl.textContent = t("map.aboveGround", { a: a0, b: a1 });
     }
   }
   const catOn: Record<string, boolean> = {};
@@ -5372,8 +5402,8 @@ interface Recipe {
 }
 const MINER_MK1_NORMAL = 60; // /min en un nodo de pureza normal
 const RECIPES: Record<string, Recipe> = {
-  "Lingote de hierro": { building: "Fundición", out: 30, tier: 0, inputs: [{ item: "Mineral de hierro", rate: 30 }] },
-  "Lingote de cobre": { building: "Fundición", out: 30, tier: 0, inputs: [{ item: "Mineral de cobre", rate: 30 }] },
+  "Lingote de hierro": { building: "Horno", out: 30, tier: 0, inputs: [{ item: "Mineral de hierro", rate: 30 }] },
+  "Lingote de cobre": { building: "Horno", out: 30, tier: 0, inputs: [{ item: "Mineral de cobre", rate: 30 }] },
   "Plancha de hierro": { building: "Constructor", out: 20, tier: 0, inputs: [{ item: "Lingote de hierro", rate: 30 }] },
   "Barra de hierro": { building: "Constructor", out: 15, tier: 0, inputs: [{ item: "Lingote de hierro", rate: 15 }] },
   Tornillos: { building: "Constructor", out: 40, tier: 0, inputs: [{ item: "Barra de hierro", rate: 10 }] },
@@ -5389,7 +5419,7 @@ const RECIPES: Record<string, Recipe> = {
   "Tubería de acero": { building: "Constructor", out: 20, tier: 3, inputs: [{ item: "Lingote de acero", rate: 30 }] },
   "Viga industrial reforzada": { building: "Ensambladora", out: 6, tier: 4, inputs: [{ item: "Viga de acero", rate: 24 }, { item: "Hormigón", rate: 30 }] },
   "Armazón modular pesado": { building: "Productor", out: 2, tier: 4, inputs: [{ item: "Armazón modular", rate: 10 }, { item: "Tubería de acero", rate: 30 }, { item: "Viga industrial reforzada", rate: 10 }, { item: "Tornillos", rate: 200 }] },
-  "Lingote de caterio": { building: "Fundición", out: 15, tier: 5, inputs: [{ item: "Mineral de caterio", rate: 45 }] },
+  "Lingote de caterio": { building: "Horno", out: 15, tier: 5, inputs: [{ item: "Mineral de caterio", rate: 45 }] },
   Turboalambre: { building: "Constructor", out: 60, tier: 5, inputs: [{ item: "Lingote de caterio", rate: 12 }] },
   Plástico: { building: "Refinería", out: 20, tier: 5, inputs: [{ item: "Petróleo crudo", rate: 30 }] },
   Caucho: { building: "Refinería", out: 20, tier: 5, inputs: [{ item: "Petróleo crudo", rate: 30 }] },
@@ -5400,6 +5430,22 @@ const RECIPES: Record<string, Recipe> = {
 };
 
 // Calcula la demanda total por item (sumando todas las ramas de la cadena).
+// La tabla RECIPES esta indexada por el nombre en espanol, y asi se queda: el
+// historico guardado usa esas mismas claves (ver la nota del esquema 1), y
+// cambiarlas invalidaria partidas ya analizadas. Lo que si se puede es
+// traducir al pintar, cruzando ese nombre con los datos del juego, que
+// conocen todos los idiomas y son los mismos que usa el resto de la app. Si
+// la pieza no esta en el catalogo oficial se queda como estaba: un nombre en
+// el idioma que no toca se lee; una casilla vacia, no.
+function calcName(es: string): string {
+  if (getLang() === "es") return es;
+  const cls = nameIndex().get(es.toLowerCase());
+  if (!cls || !gameData) return es;
+  const n = (gameData.items[cls] && gameData.items[cls].name) ||
+    (gameData.buildings[cls] && gameData.buildings[cls].name);
+  return (n && (n[getLang()] || n.en)) || es;
+}
+
 function computeProduction(item: string, rate: number) {
   const itemRate: Record<string, number> = {};
   const order: string[] = [];
@@ -5439,11 +5485,15 @@ function renderCalc() {
   const all = Object.keys(RECIPES).sort();
   const available = all.filter((k) => RECIPES[k].tier <= currentTier);
   const hidden = all.length - available.length;
-  const opts = available.map((k) => `<option value="${escapeAttr(k)}">${k}</option>`).join("");
+  const opts = available
+    .map((k) => ({ k, n: calcName(k) }))
+    .sort((a, b) => a.n.localeCompare(b.n))
+    .map((o) => `<option value="${escapeAttr(o.k)}">${escapeXml(o.n)}</option>`)
+    .join("");
 
   const hint =
     hidden > 0
-      ? `<p class="muted">Mostrando solo lo desbloqueado en este mundo (Tier ${currentTier}). ${hidden} receta(s) de tiers superiores ocultas.</p>`
+      ? `<p class="muted">${t("calc.locked", { t: currentTier, n: hidden })}</p>`
       : "";
 
   calcEl.innerHTML =
@@ -5452,9 +5502,9 @@ function renderCalc() {
     `<div class="calc-controls">` +
     `<span>${t("calc.want")}</span>` +
     `<input id="calc-rate" type="number" min="1" value="100" />` +
-    `<span>/min de</span>` +
+    `<span>${t("calc.perMin")}</span>` +
     `<select id="calc-item">${opts}</select>` +
-    `<button id="calc-btn" type="button">Calcular</button>` +
+    `<button id="calc-btn" type="button">${t("calc.go")}</button>` +
     `</div>` +
     `<div id="calc-result" class="calc-result"></div>`;
 
@@ -5473,15 +5523,15 @@ function renderCalcResult(item: string, rate: number) {
     .sort((a, b) => b[1] - a[1])
     .map(
       ([b, m]) =>
-        `<div class="calc-line"><span>${iconImg(b, 16)}${b}</span><span class="calc-num"><b>${Math.ceil(m)}</b> <span class="muted">(${fmt(m)})</span></span></div>`
+        `<div class="calc-line"><span>${iconImg(b, 16)}${escapeXml(calcName(b))}</span><span class="calc-num"><b>${Math.ceil(m)}</b> <span class="muted">(${fmt(m)})</span></span></div>`
     )
     .join("");
 
   const stepRows = steps
     .map(
       (s) =>
-        `<div class="calc-line"><span>${iconImg(s.item, 16)}${s.item} · ${fmt(s.rate)}/min</span>` +
-        `<span class="calc-num">${fmt(s.machines)} × ${iconImg(s.building, 14)}${s.building}</span></div>`
+        `<div class="calc-line"><span>${iconImg(s.item, 16)}${escapeXml(calcName(s.item))} · ${fmt(s.rate)}/min</span>` +
+        `<span class="calc-num">${fmt(s.machines)} × ${iconImg(s.building, 14)}${escapeXml(calcName(s.building))}</span></div>`
     )
     .join("");
 
@@ -5489,12 +5539,12 @@ function renderCalcResult(item: string, rate: number) {
     .sort((a, b) => b[1] - a[1])
     .map(([r, rt]) => {
       const miners = Math.ceil(rt / MINER_MK1_NORMAL);
-      return `<div class="calc-line"><span>${iconImg(r, 16)}${r}</span><span class="calc-num">${fmt(rt)}/min <span class="muted">(≈${miners} minero${miners === 1 ? "" : "s"} Mk1)</span></span></div>`;
+      return `<div class="calc-line"><span>${iconImg(r, 16)}${escapeXml(calcName(r))}</span><span class="calc-num">${fmt(rt)}/min <span class="muted">(${t(miners === 1 ? "calc.miner1" : "calc.minerN", { n: miners })})</span></span></div>`;
     })
     .join("");
 
   resultEl.innerHTML =
-    `<p class="calc-head">Para <b>${fmt(rate)}/min</b> de <b>${item}</b>:</p>` +
+    `<p class="calc-head">${t("calc.head", { rate: fmt(rate), item: escapeXml(calcName(item)) })}</p>` +
     `<h4 class="calc-sub">${t("calc.machines")}</h4>${buildingRows}` +
     `<h4 class="calc-sub">${t("calc.chain")}</h4>${stepRows}` +
     `<h4 class="calc-sub">${t("calc.raw")}</h4>${rawRows}` +
@@ -5677,7 +5727,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       setLang(l);
       applyStaticI18n();
       markLang();
-      renderCalc();
+      relocalize();
       // Repasamos la partida abierta: los nombres de piezas y edificios salen
       // del análisis, así que hay que rehacerlo para que cambien de idioma.
       const open = currentSaves.find((x) => x.name === openSaveName);
