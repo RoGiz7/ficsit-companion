@@ -1,6 +1,6 @@
 [package]
 name = "otto"
-version = "0.3.0"
+version = "0.3.1"
 description = "OttO: local-first desktop companion for Satisfactory: reads your saves and shows what you built, how it grew and what is missing."
 authors = ["RoGiz7"]
 license = "MIT"

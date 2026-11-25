@@ -31,23 +31,23 @@ se cambia de idioma desde la barra superior, sin reiniciar.
 ## 📸 Qué aspecto tiene
 
 <p align="center">
-  <img src="docs/img/01-ahora.png" alt="Now tab: worlds as hexagons, plant alerts and where to pick up" width="860">
+  <img src="docs/img/es/01-ahora.png" alt="Pestaña Ahora: los mundos como hexágonos, los avisos de planta y por dónde retomar" width="860">
 </p>
 
 <p align="center"><em>Cada mundo es un hexágono con la huella de tu propia fábrica. Debajo, lo que reclama atención ahora mismo.</em></p>
 
 <table>
 <tr>
-<td width="50%"><img src="docs/img/02-fabrica.png" alt="Factory tab: unlocked alternate recipes and what your storage really does"></td>
-<td width="50%"><img src="docs/img/03-planeta.png" alt="Planet tab: 2D map of the factory by floor, with fog of war"></td>
+<td width="50%"><img src="docs/img/es/02-fabrica.png" alt="Pestaña Fábrica: las recetas alternativas desbloqueadas y qué hacen de verdad tus almacenes"></td>
+<td width="50%"><img src="docs/img/es/03-planeta.png" alt="Pestaña Planeta: plano 2D de la fábrica por plantas, con niebla de guerra"></td>
 </tr>
 <tr>
 <td><strong>Fábrica</strong> — las alternativas que han abierto tus discos duros, y qué ahorraría cada una en las piezas que fabricas de verdad.</td>
 <td><strong>Planeta</strong> — tu fábrica desde arriba, planta por planta. Sólo enseña lo que has explorado.</td>
 </tr>
 <tr>
-<td><img src="docs/img/04-plano.png" alt="Plan tab: lay out machines, see belt ports and what it costs to build"></td>
-<td><img src="docs/img/05-historia.png" alt="History tab: power over time and how the factory grew"></td>
+<td><img src="docs/img/es/04-plano.png" alt="Pestaña Plano: colocar máquinas, ver las bocas de las cintas y lo que cuesta construirlo"></td>
+<td><img src="docs/img/es/05-historia.png" alt="Pestaña Historia: la energía en el tiempo y cómo ha crecido la fábrica"></td>
 </tr>
 <tr>
 <td><strong>Plano</strong> — coloca las máquinas antes de construirlas, con las medidas reales del juego. Te dice si cabe en un diseñador de planos.</td>
