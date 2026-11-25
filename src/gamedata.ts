@@ -19,8 +19,13 @@ export interface DocsFolder {
 }
 
 export interface GameRecipe {
-  out: string; // clase del producto
+  out: string; // clase del producto principal (el primero de mProduct)
   rate: number; // unidades por minuto
+  /// El resto de mProduct: el residuo pesado del plástico, el agua del uranio
+  /// no fisible... 37 de 872 recetas sacan más de una cosa. Aparte de out y
+  /// rate a propósito: lo que ya leía recetas sigue igual, y quien quiera los
+  /// subproductos los pide. Por minuto y con los fluidos ya en m³.
+  byproducts: { item: string; rate: number }[];
   inputs: { item: string; rate: number }[];
   building: string | null;
   name: Record<string, string>;
@@ -105,7 +110,9 @@ export interface GameData {
 // 3: los edificios llevan medidas (size), velocidad de cinta (speed) y lado
 // del diseñador de planos (designer). Subir el número obliga a releer la
 // documentación, que es lo que queremos: sin medidas no hay planificador.
-export const GAMEDATA_SCHEMA = 3;
+// 4: las recetas llevan sus subproductos (byproducts). Sin subir el número,
+// quien ya tuviera los datos en caché se quedaría sin ellos y sin saberlo.
+export const GAMEDATA_SCHEMA = 4;
 
 // Los idiomas que nos interesan, en orden de preferencia. El primero que
 // exista de cada pareja es el que se usa.
@@ -207,13 +214,20 @@ function absorb(
         }
       } else if (cls.startsWith("Recipe_")) {
         if (primary) {
-          const product = parseStacks(c.mProduct)[0];
+          // El primero es el principal: en las 37 recetas con varios
+          // productos es el que da nombre a la receta. Los demás se guardan.
+          const products = parseStacks(c.mProduct);
+          const product = products[0];
           const seconds = num(c.mManufactoringDuration);
           if (!product || seconds <= 0) continue;
           const perMinute = 60 / seconds;
           recipes[cls] = {
             out: product.item,
             rate: product.amount * perMinute,
+            byproducts: products.slice(1).map((p) => ({
+              item: p.item,
+              rate: p.amount * perMinute,
+            })),
             inputs: parseStacks(c.mIngredients).map((i) => ({
               item: i.item,
               rate: i.amount * perMinute,
@@ -252,6 +266,8 @@ function fixFluidAmounts(recipes: Record<string, GameRecipe>, items: Record<stri
   const isFluid = (c: string) => !!(items[c] && items[c].fluid);
   for (const r of Object.values(recipes)) {
     if (isFluid(r.out)) r.rate /= 1000;
+    // El residuo pesado del plástico sale x1000: sin esto, mil veces de más.
+    for (const b of r.byproducts) if (isFluid(b.item)) b.rate /= 1000;
     for (const i of r.inputs) if (isFluid(i.item)) i.rate /= 1000;
   }
 }

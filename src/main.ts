@@ -723,6 +723,7 @@ function gdRecipe(leaf: string): {
   cls: string;
   rate: number;
   inputs: { item: string; cls: string; rate: number }[];
+  byproducts: { item: string; cls: string; rate: number }[];
 } | null {
   const r = gameData && gameData.recipes[`${leaf}_C`];
   if (!r) return null;
@@ -737,7 +738,12 @@ function gdRecipe(leaf: string): {
   // todo lo demás: icono, familia, tier. Devolver solo el nombre obligaba a
   // volver de un texto traducido a la clase, y ese viaje de vuelta solo
   // funciona si los datos del juego ya están cargados.
-  return { item: outName, cls: r.out, rate: r.rate, inputs };
+  const byproducts: { item: string; cls: string; rate: number }[] = [];
+  for (const b of r.byproducts) {
+    const n = gdItemName(b.item);
+    if (n) byproducts.push({ item: n, cls: b.item, rate: b.rate });
+  }
+  return { item: outName, cls: r.out, rate: r.rate, inputs, byproducts };
 }
 
 // Piezas que se pueden fabricar, por nombre visible. Sirve para no confundir
@@ -750,6 +756,11 @@ function craftableItems(): Set<string> {
     for (const r of Object.values(gameData.recipes)) {
       const n = gdItemName(r.out);
       if (n) set.add(n);
+      // Un subproducto también sale de una fábrica: no es una mina.
+      for (const b of r.byproducts) {
+        const bn = gdItemName(b.item);
+        if (bn) set.add(bn);
+      }
     }
   }
   craftableCache = { data: gameData, set };
@@ -2999,7 +3010,10 @@ function perItemFromRecipeCounts(prod: RecipeCount[]): Record<string, number> {
   const perItem: Record<string, number> = {};
   for (const rc of prod) {
     const o = gdRecipe(rc.recipe);
-    if (o) perItem[o.item] = (perItem[o.item] || 0) + rc.count * o.rate;
+    if (!o) continue;
+    perItem[o.item] = (perItem[o.item] || 0) + rc.count * o.rate;
+    // Los subproductos también son producción (ver el parser completo).
+    for (const b of o.byproducts) perItem[b.item] = (perItem[b.item] || 0) + rc.count * b.rate;
   }
   return perItem;
 }
@@ -3916,6 +3930,14 @@ async function analyzeWithParser(folder: string, name: string) {
         if (out) {
           perItem[out.item] = (perItem[out.item] || 0) + out.rate * oc;
           clsOf[out.item] = out.cls;
+          // Los subproductos también son producción. Antes se contaba lo que
+          // los consume y no lo que los produce: el balance enseñaba un
+          // déficit de residuo pesado que no existía, y no podía avisar de lo
+          // contrario, que se acumula y acaba parando la línea de plástico.
+          for (const b of out.byproducts) {
+            perItem[b.item] = (perItem[b.item] || 0) + b.rate * oc;
+            clsOf[b.item] = b.cls;
+          }
           // Ingredientes de ESA receta, que la documentación siempre trae.
           for (const inp of out.inputs) {
             consumed[inp.item] = (consumed[inp.item] || 0) + inp.rate * oc;

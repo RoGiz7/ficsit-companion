@@ -230,6 +230,22 @@ hand-written translation table, so it can disagree with the names shown on the m
 `count_buildings` return the class name alongside the count would put the whole app on one
 vocabulary. Small backend change, removes a visible inconsistency.
 
+## 8. Byproducts in the calculator's chain
+
+Since `GAMEDATA_SCHEMA` 4 (25 Nov 2026) every recipe carries `byproducts`: the rest of
+`mProduct`, per minute, fluids already in m³. 37 of 872 recipes have one — the whole oil branch
+(plastic and rubber leave heavy oil residue, fuel leaves polymer resin), nuclear (non-fissile
+uranium leaves water, uranium cells leave sulfuric acid), alumina, batteries, and the late-game
+recipes that leave dark matter residue. In all 37 the first product is the one the recipe is named
+after, so `out` stays the first. One item exists only as a byproduct: Dissolved Silica.
+
+The factory balance already counts them as production, in the full parser and in
+`perItemFromRecipeCounts`. **The calculator's chain does not, on purpose.** Today it walks one
+recipe per part, back from the goal. With byproducts, the residue a plastic refinery leaves can
+feed a residual-fuel refinery, which changes how much of everything else is needed: the chain
+stops being a tree and becomes a flow problem, solved as a whole rather than one step at a time.
+That is the next piece of work here, not a tweak to `computeProduction`.
+
 ## Later: ask Coffee Stain
 
 Once the app is stronger and more stable, write to Coffee Stain and ask what they are willing to
