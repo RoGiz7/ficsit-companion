@@ -1613,30 +1613,101 @@ function wirePlanDrag(host: HTMLElement) {
   });
 }
 
+/// Recetas que "fabrican" una materia prima sin fabricarla de verdad.
+///
+/// El convertidor fuera, por segunda vez en este proyecto. Fabrica mineral de
+/// hierro a partir de caliza y MAR, y como es la ÚNICA receta que "produce"
+/// mineral, el resolutor decidía que para hacer planchas hay que montar un
+/// transformador. El mineral no se fabrica: se pica, y por eso tiene que caer
+/// en "hay que traer".
+///
+/// Y desempaquetar fuera también: la cuarta vez que una materia prima se cuela
+/// como pieza fabricada. Recipe_UnpackageOil "fabrica" petróleo crudo a partir
+/// de petróleo envasado, que a su vez sale del crudo. Doce recetas así daban
+/// doce ciclos (agua, crudo, nitrógeno, residuo pesado, turbocombustible...):
+/// el Plano decía que el crudo sale de una envasadora, y una calculadora
+/// recursiva reventaba la pila. Quitadas, cero ciclos.
+///
+/// Es el mismo fallo que ya apareció derivando los tiers. Si algo vuelve a
+/// tratar una materia prima como pieza fabricada, mirar aquí primero.
+function fakeSource(rc: string, r: { building: string | null }): boolean {
+  return r.building === "Build_Converter_C" || /Unpackage/i.test(rc);
+}
+
+/// Esquemas de la partida abierta, por clase. Vacío = no se pudo leer.
+let doneSchematics: string[] = [];
+
+/// Las recetas que la partida abierta tiene desbloqueadas, o null si no se
+/// sabe: sin datos del juego, sin partida, o con una lista que no casa con
+/// nada del catálogo. Null significa "no filtres", nunca "no hay ninguna":
+/// esconder cosas porque falló una lectura sería peor que enseñarlas.
+let unlockedCache: { data: GameData | null; done: string[]; set: Set<string> | null } = {
+  data: null,
+  done: [],
+  set: null,
+};
+function unlockedRecipes(): Set<string> | null {
+  if (unlockedCache.data === gameData && unlockedCache.done === doneSchematics) return unlockedCache.set;
+  let set: Set<string> | null = null;
+  if (gameData && doneSchematics.length) {
+    const found = new Set<string>();
+    for (const c of doneSchematics) {
+      const sc = gameData.schematics[c];
+      if (sc) for (const u of sc.unlocks) found.add(u);
+    }
+    if (found.size) set = found;
+  }
+  unlockedCache = { data: gameData, done: doneSchematics, set };
+  return set;
+}
+
+/// Todas las recetas estándar de cada pieza, en el orden del catálogo: no
+/// alternativas, hechas en una máquina, y que fabrican de verdad.
+let standardCache: { data: GameData | null; map: Record<string, string[]> } = { data: null, map: {} };
+function standardRecipes(): Record<string, string[]> {
+  if (standardCache.data === gameData) return standardCache.map;
+  const map: Record<string, string[]> = {};
+  if (gameData) {
+    for (const [rc, r] of Object.entries(gameData.recipes)) {
+      if (!r.out || !r.building || /Alternate/i.test(rc) || fakeSource(rc, r)) continue;
+      (map[r.out] = map[r.out] || []).push(rc);
+    }
+  }
+  standardCache = { data: gameData, map };
+  return map;
+}
+
+/// La receta canónica de una pieza, con su clase y cuántas había para elegir.
+type CanonRecipe = ChainRecipe & { rc: string; options: number };
+
 /// La receta canónica de una pieza: la que NO es alternativa y se fabrica en
 /// una máquina. Las alternativas cambian los materiales según lo que lleves
 /// desbloqueado, y un plano no debería depender de eso.
-let chainCache: { data: GameData | null; map: Record<string, ChainRecipe> } = { data: null, map: {} };
-function canonRecipe(): Record<string, ChainRecipe> {
-  if (chainCache.data === gameData) return chainCache.map;
-  const map: Record<string, ChainRecipe> = {};
+///
+/// Ocho piezas tienen varias recetas estándar (la biomasa, cuatro). Entre ésas
+/// se queda con las que ESTA partida tiene desbloqueadas y, de ellas, la
+/// primera del catálogo: no es elegir una favorita, es no proponer una receta
+/// que no se puede fabricar. Si no hay ninguna desbloqueada, o no se sabe,
+/// el orden del catálogo tal cual. `options` dice entre cuántas se eligió, para
+/// que la elección se vea en vez de esconderse.
+let chainCache: { data: GameData | null; unlocked: Set<string> | null; map: Record<string, CanonRecipe> } = {
+  data: null,
+  unlocked: null,
+  map: {},
+};
+function canonRecipe(): Record<string, CanonRecipe> {
+  const unlocked = unlockedRecipes();
+  if (chainCache.data === gameData && chainCache.unlocked === unlocked) return chainCache.map;
+  const map: Record<string, CanonRecipe> = {};
   if (gameData) {
-    for (const [rc, r] of Object.entries(gameData.recipes)) {
-      if (!r.out || !r.building || /Alternate/i.test(rc)) continue;
-      // El convertidor fuera, por segunda vez en este proyecto. Fabrica
-      // mineral de hierro a partir de caliza y MAR, y como es la ÚNICA receta
-      // que "produce" mineral, el resolutor decidía que para hacer planchas
-      // hay que montar un transformador. El mineral no se fabrica: se pica, y
-      // por eso tiene que caer en "hay que traer".
-      //
-      // Es el mismo fallo que ya apareció derivando los tiers. Dos veces la
-      // misma trampa: si algo vuelve a tratar una materia prima como pieza
-      // fabricada, mirar aquí primero.
-      if (r.building === "Build_Converter_C") continue;
-      if (!map[r.out]) map[r.out] = { out: r.out, rate: r.rate, building: r.building, inputs: r.inputs };
+    for (const [out, list] of Object.entries(standardRecipes())) {
+      const open = unlocked ? list.filter((rc) => unlocked.has(rc)) : [];
+      const pool = open.length ? open : list;
+      const r = gameData.recipes[pool[0]];
+      map[out] = { out, rate: r.rate, building: r.building, inputs: r.inputs, rc: pool[0], options: pool.length };
     }
   }
-  chainCache = { data: gameData, map };
+  chainCache = { data: gameData, unlocked, map };
   return map;
 }
 
@@ -2263,6 +2334,7 @@ async function inspect(name: string) {
 
     // Progreso del mundo + calculadora filtrada por el tier de esta partida.
     currentTier = info.progression.current_tier;
+    doneSchematics = info.progression.schematics || [];
     renderProgress(info.progression);
     renderCalc();
 
