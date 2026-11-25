@@ -405,12 +405,18 @@ let openSaveName = ""; // guardado abierto, para poder repasarlo al cambiar de i
 // something the catalogue has: it is consulted only after gamedata, so the day
 // the catalogue carries these classes it wins on its own. Anything else outside
 // the catalogue (undocumented pieces, every mod) keeps its generated name.
-// Build_Locker_MK1_C has no Spanish name here because no source gives one.
+// Where the catalogue has a word for the standalone building, the name is that
+// word plus the HUB marker, so the HUB's crafting bench never reads the same as
+// a Build_WorkBench_C standing next to it.
+// Build_Locker_MK1_C has no name, in any language, and none should be looked
+// for: it is not in the game's Docs in any language. It appears only as
+// mLockerVisibilityLevel, a property of the HUB. To the game it is not a
+// building at all.
 const HUB_PARTS: Record<string, { es?: string; en?: string }> = {
-  Build_HubTerminal_C: { es: "Terminal del HUB" },
-  Build_StorageIntegrated_C: { es: "Almacenamiento integrado" },
-  Build_WorkBenchIntegrated_C: { es: "Banco de trabajo" },
-  Build_GeneratorIntegratedBiomass_C: { es: "Generador de biomasa" },
+  Build_HubTerminal_C: { en: "HUB Terminal", es: "Terminal del HUB" },
+  Build_StorageIntegrated_C: { en: "HUB Storage", es: "Almacenamiento del HUB" },
+  Build_WorkBenchIntegrated_C: { en: "HUB Crafting Bench", es: "Banco de trabajo del HUB" },
+  Build_GeneratorIntegratedBiomass_C: { en: "HUB Biomass Burner", es: "Quemador de biomasa del HUB" },
   Build_Locker_MK1_C: {},
 };
 

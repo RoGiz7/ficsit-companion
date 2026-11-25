@@ -96,6 +96,11 @@ in `BUILDING_ES`, which had the pair inverted as well.
 
 1. **Delete `ITEM_ES` and `BUILDING_ES`** (~117 lines). Pure translation; `gamedata` has it. Keep a
    minimal fallback for the no-game-data case, or accept class names there.
+   **Done, 25 Nov 2026.** Every call site asks gamedata first. Old snapshots carry no class, only
+   `prettyBuild`'s output; removing its spaces recovers the class exactly, 59 of 68 distinct names
+   in the real history. `HUB_PARTS` holds the five HUB classes the catalogue lacks, consulted
+   after it, each named with the HUB marker. The rest (undocumented pieces, mods) keep their
+   generated English name; with no game installed, every name is the generated English one.
 2. **Delete `RECIPE_OUTPUT`** (48 lines). Already keyed by the same recipe class as
    `gamedata.recipes`, so this is close to a straight removal.
 3. **Derive the calculator from `gamedata`**, reusing `canonRecipe()` — which already excludes
