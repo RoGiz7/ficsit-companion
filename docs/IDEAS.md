@@ -104,6 +104,15 @@ in `BUILDING_ES`, which had the pair inverted as well.
    generated English name; with no game installed, every name is the generated English one.
 2. **Delete `RECIPE_OUTPUT`** (48 lines). Already keyed by the same recipe class as
    `gamedata.recipes`, so this is close to a straight removal.
+   **Done, 25 Nov 2026.** The table had 37 entries; all 37 were in the catalogue with the same
+   output name and rate. Two of the three call sites were already `gdRecipe(x) || RECIPE_OUTPUT[x]`
+   and lost only the fallback. The third, `perItemFromRecipeCounts`, lived on the table alone; it
+   now calls `gdRecipe` (the Rust scan's `rc.recipe` is the same class leaf, `Recipe_IngotIron`),
+   and goes from knowing 37 recipes to every one in the catalogue.
+   **Without game data, that path now gives no figures instead of the table's. This is
+   deliberate.** A 37-recipe table returns a number that looks complete and is not: it would say
+   you make three things when you make thirty. The settings panel already says the game data is
+   missing.
 3. **Derive the calculator from `gamedata`**, reusing `canonRecipe()` — which already excludes
    `Build_Converter_C`, a trap that has caught this project three times. Gains every base-game
    recipe instead of 25, and the tier filter of item 2 for free.

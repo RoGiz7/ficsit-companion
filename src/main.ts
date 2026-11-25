@@ -143,7 +143,7 @@ interface ItemCount {
   count: number;
 }
 // Métricas ricas de una foto del histórico. OJO con los nombres de pieza:
-// en schema 1 van en español, porque RECIPE_OUTPUT/RECIPES están indexados así.
+// en schema 1 van en español, porque RECIPES (y antes RECIPE_OUTPUT) están indexados así.
 // Si algún día canonizamos a inglés, el campo schema permite migrar el
 // histórico viejo sin perderlo.
 interface SnapshotMetrics {
@@ -2891,67 +2891,6 @@ async function persistPlan(world: string) {
 }
 
 // ---- Producción real (leída de las máquinas activas) ----
-// Mapa receta del juego → pieza producida y ritmo/min por máquina (al 100%).
-// Qué fabrica cada receta y a qué ritmo. "inputs" solo hace falta cuando una
-// pieza se puede fabricar de varias formas (la biomasa sale de hojas, madera o
-// micelio): ahí no vale mirar RECIPES, que guarda una receta por pieza, porque
-// el consumo dependería de cuál esté puesta en la máquina.
-const RECIPE_OUTPUT: Record<
-  string,
-  { item: string; rate: number; inputs?: { item: string; rate: number }[] }
-> = {
-  Recipe_IngotIron: { item: "Lingote de hierro", rate: 30 },
-  Recipe_IngotCopper: { item: "Lingote de cobre", rate: 30 },
-  Recipe_IngotSteel: { item: "Lingote de acero", rate: 45 },
-  Recipe_IngotCaterium: { item: "Lingote de caterio", rate: 15 },
-  Recipe_IronRod: { item: "Barra de hierro", rate: 15 },
-  Recipe_IronPlate: { item: "Plancha de hierro", rate: 20 },
-  Recipe_Screw: { item: "Tornillos", rate: 40 },
-  Recipe_Wire: { item: "Alambre", rate: 30 },
-  Recipe_Cable: { item: "Cable", rate: 30 },
-  Recipe_Concrete: { item: "Hormigón", rate: 15 },
-  Recipe_CopperSheet: { item: "Lámina de cobre", rate: 10 },
-  Recipe_IronPlateReinforced: { item: "Plancha de hierro reforzada", rate: 5 },
-  Recipe_Rotor: { item: "Rotor", rate: 4 },
-  // Biomasa y derivados: faltaban enteros. Son de las primeras máquinas que
-  // pone cualquiera, así que su ausencia se nota desde el minuto uno.
-  Recipe_Biomass_Leaves: { item: "Biomasa", rate: 60, inputs: [{ item: "Hojas", rate: 120 }] },
-  Recipe_Biomass_Wood: { item: "Biomasa", rate: 300, inputs: [{ item: "Madera", rate: 60 }] },
-  Recipe_Biomass_Mycelia: { item: "Biomasa", rate: 150, inputs: [{ item: "Micelio", rate: 15 }] },
-  Recipe_Biofuel: {
-    item: "Biocombustible sólido",
-    rate: 60,
-    inputs: [{ item: "Biomasa", rate: 120 }],
-  },
-  Recipe_SpaceElevatorPart_1: {
-    item: "Placas inteligentes",
-    rate: 2,
-    inputs: [
-      { item: "Plancha de hierro reforzada", rate: 2 },
-      { item: "Rotor", rate: 2 },
-    ],
-  },
-  Recipe_ModularFrame: { item: "Armazón modular", rate: 2 },
-  Recipe_SteelBeam: { item: "Viga de acero", rate: 15 },
-  Recipe_SteelPipe: { item: "Tubería de acero", rate: 20 },
-  Recipe_QuartzCrystal: { item: "Cristal de cuarzo", rate: 22.5 },
-  Recipe_Silica: { item: "Sílice", rate: 37.5 },
-  Recipe_Quickwire: { item: "Turboalambre", rate: 60 },
-  Recipe_Plastic: { item: "Plástico", rate: 20 },
-  Recipe_Rubber: { item: "Caucho", rate: 20 },
-  Recipe_LiquidFuel: { item: "Combustible", rate: 40 },
-  Recipe_PetroleumCoke: { item: "Coque de petróleo", rate: 120 },
-  Recipe_CircuitBoard: { item: "Circuito impreso", rate: 7.5 },
-  Recipe_Stator: { item: "Estátor", rate: 5 },
-  Recipe_Motor: { item: "Motor", rate: 5 },
-  Recipe_Computer: { item: "Ordenador", rate: 2.5 },
-  Recipe_AILimiter: { item: "Limitador de IA", rate: 5 },
-  Recipe_EncasedIndustrialBeam: { item: "Viga industrial reforzada", rate: 6 },
-  Recipe_ModularFrameHeavy: { item: "Armazón modular pesado", rate: 2 },
-  Recipe_AluminumSheet: { item: "Lámina de aluminio revestido", rate: 30 },
-  Recipe_IngotAluminum: { item: "Lingote de aluminio", rate: 60 },
-};
-
 // Generación (MW) de cada generador a 100%, por su nombre de inventario.
 const GEN_MW: Record<string, number> = {
   "Generator Biomass": 30,
@@ -2977,10 +2916,13 @@ const POWER_MW: Record<string, number> = {
 };
 
 // Convierte el conteo heurístico (fallback) en producción por pieza.
+// rc.recipe es la clase de receta sin el sufijo _C ("Recipe_IngotIron"), la
+// misma que espera gdRecipe. Sin los datos del juego cargados devuelve vacío a
+// propósito: una tabla parcial daría una cifra que parece completa y no lo es.
 function perItemFromRecipeCounts(prod: RecipeCount[]): Record<string, number> {
   const perItem: Record<string, number> = {};
   for (const rc of prod) {
-    const o = RECIPE_OUTPUT[rc.recipe];
+    const o = gdRecipe(rc.recipe);
     if (o) perItem[o.item] = (perItem[o.item] || 0) + rc.count * o.rate;
   }
   return perItem;
@@ -3716,7 +3658,7 @@ async function analyzeWithParser(folder: string, name: string) {
   const collect: Record<string, number> = {};
   // Lo que no sabemos interpretar. El save se lee entero, pero nuestras tablas
   // de recetas solo conocen el juego base: una maquina de un mod fabrica algo
-  // que no esta en RECIPE_OUTPUT. En vez de ignorarlo en silencio, lo contamos
+  // que no esta en los datos del juego. En vez de ignorarlo en silencio, lo contamos
   // y decimos de donde viene.
   const unknownBySource: Record<string, number> = {};
   // Suelos construidos. Desde la 1.0 el juego guarda cimientos, muros y rampas
@@ -3781,7 +3723,7 @@ async function analyzeWithParser(folder: string, name: string) {
           const rec2 = o.properties && o.properties.mCurrentRecipe;
           if (rec2 && rec2.value && rec2.value.pathName) {
             const rl = (rec2.value.pathName.split("/").pop() || "").split(".")[0];
-            const out = gdRecipe(rl) || RECIPE_OUTPUT[rl];
+            const out = gdRecipe(rl);
             if (out) {
               detail = ` · fabrica ${out.item}`;
               prodItem = out.item;
@@ -3892,26 +3834,16 @@ async function analyzeWithParser(folder: string, name: string) {
         const oc = (props.mCurrentPotential && props.mCurrentPotential.value) || 1;
         if (oc !== 1) overclocked++;
         machineCount++;
-        // Documentación oficial primero; si no está, la tabla a mano.
-        const official = gdRecipe(leaf);
-        const fallback = RECIPE_OUTPUT[leaf];
-        const out = official || fallback;
+        // Solo la documentación oficial. Sin ella no hay cifra: una tabla
+        // parcial daría una que parece completa y no lo es.
+        const out = gdRecipe(leaf);
         if (out) {
           perItem[out.item] = (perItem[out.item] || 0) + out.rate * oc;
-          if (official) clsOf[out.item] = official.cls;
-          // Ingredientes de ESA receta. Con los datos oficiales siempre los
-          // hay; con las tablas a mano, los de la receta si los lleva y, si no,
-          // la receta única que la calculadora guarda para esa pieza.
-          const crec = RECIPES[out.item];
-          const inputs = official
-            ? official.inputs
-            : fallback!.inputs || (crec ? crec.inputs : null);
-          if (inputs) {
-            for (const inp of inputs) {
-              consumed[inp.item] = (consumed[inp.item] || 0) + inp.rate * oc;
-              const icls = (inp as { cls?: string }).cls;
-              if (icls) clsOf[inp.item] = icls;
-            }
+          clsOf[out.item] = out.cls;
+          // Ingredientes de ESA receta, que la documentación siempre trae.
+          for (const inp of out.inputs) {
+            consumed[inp.item] = (consumed[inp.item] || 0) + inp.rate * oc;
+            clsOf[inp.item] = inp.cls;
           }
         } else {
           unknownRecipes++;
