@@ -2644,7 +2644,7 @@ function renderInventory(items: InvItem[]) {
       const pct = Math.max(4, Math.round((it.count / max) * 100));
       return (
         `<div class="inv-row">` +
-        `<span class="inv-name" title="${escapeAttr(invName(it))}">${iconGlyph(it.cls || "", invName(it))}${invName(it)}</span>` +
+        `<span class="inv-name" title="${escapeAttr(invName(it))}">${iconGlyph(it.cls || "", invName(it))}${escapeXml(invName(it))}</span>` +
         `<span class="inv-bar"><span class="inv-fill" style="width:${pct}%"></span></span>` +
         `<span class="inv-count">${it.count}</span>` +
         `</div>`
