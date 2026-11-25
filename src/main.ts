@@ -407,16 +407,18 @@ let openSaveName = ""; // guardado abierto, para poder repasarlo al cambiar de i
 // the catalogue (undocumented pieces, every mod) keeps its generated name.
 // Where the catalogue has a word for the standalone building, the name is that
 // word plus the HUB marker, so the HUB's crafting bench never reads the same as
-// a Build_WorkBench_C standing next to it.
+// a Build_WorkBench_C standing next to it. The marker goes first in both
+// languages: .inv-row cuts the name column with an ellipsis, and a marker at the
+// end ("Quemador de biomasa del HUB") is the first thing the cut removes.
 // Build_Locker_MK1_C has no name, in any language, and none should be looked
 // for: it is not in the game's Docs in any language. It appears only as
 // mLockerVisibilityLevel, a property of the HUB. To the game it is not a
 // building at all.
 const HUB_PARTS: Record<string, { es?: string; en?: string }> = {
-  Build_HubTerminal_C: { en: "HUB Terminal", es: "Terminal del HUB" },
-  Build_StorageIntegrated_C: { en: "HUB Storage", es: "Almacenamiento del HUB" },
-  Build_WorkBenchIntegrated_C: { en: "HUB Crafting Bench", es: "Banco de trabajo del HUB" },
-  Build_GeneratorIntegratedBiomass_C: { en: "HUB Biomass Burner", es: "Quemador de biomasa del HUB" },
+  Build_HubTerminal_C: { en: "HUB Terminal", es: "HUB: Terminal" },
+  Build_StorageIntegrated_C: { en: "HUB Storage", es: "HUB: Almacenamiento" },
+  Build_WorkBenchIntegrated_C: { en: "HUB Crafting Bench", es: "HUB: Banco de trabajo" },
+  Build_GeneratorIntegratedBiomass_C: { en: "HUB Biomass Burner", es: "HUB: Quemador de biomasa" },
   Build_Locker_MK1_C: {},
 };
 
@@ -518,7 +520,7 @@ function renderCareer(stats: WorldStats) {
           const name = gdItemName(cls) || prettyItem(cls.replace(/_C$/, ""));
           const pct = Math.max(4, Math.round((n / max) * 100));
           return (
-            `<div class="inv-row"><span class="inv-name">${iconGlyph(cls, name, 16)}${escapeXml(name)}</span>` +
+            `<div class="inv-row"><span class="inv-name" title="${escapeAttr(name)}">${iconGlyph(cls, name, 16)}${escapeXml(name)}</span>` +
             `<span class="inv-bar"><span class="inv-fill" style="width:${pct}%"></span></span>` +
             `<span class="inv-count">${n.toLocaleString()}</span></div>`
           );
@@ -2642,7 +2644,7 @@ function renderInventory(items: InvItem[]) {
       const pct = Math.max(4, Math.round((it.count / max) * 100));
       return (
         `<div class="inv-row">` +
-        `<span class="inv-name">${iconGlyph(it.cls || "", invName(it))}${invName(it)}</span>` +
+        `<span class="inv-name" title="${escapeAttr(invName(it))}">${iconGlyph(it.cls || "", invName(it))}${invName(it)}</span>` +
         `<span class="inv-bar"><span class="inv-fill" style="width:${pct}%"></span></span>` +
         `<span class="inv-count">${it.count}</span>` +
         `</div>`
@@ -2998,7 +3000,7 @@ function renderProductionView(
     .map(([item, rate]) => {
       const pct = Math.max(4, Math.round((rate / max) * 100));
       return (
-        `<div class="inv-row"><span class="inv-name">${iconGlyph(clsOf[item] || "", item)}${escapeXml(item)}</span>` +
+        `<div class="inv-row"><span class="inv-name" title="${escapeAttr(item)}">${iconGlyph(clsOf[item] || "", item)}${escapeXml(item)}</span>` +
         `<span class="inv-bar"><span class="inv-fill" style="width:${pct}%"></span></span>` +
         `<span class="inv-count">${fmt(rate)}/min</span></div>`
       );
@@ -3165,7 +3167,7 @@ function renderStored(storedByClass: Record<string, number> | null) {
       // sufijo _C o el nombre sale como "Iron Plate C".
       const name = gdItemName(cls) || prettyItem(cls.replace(/_C$/, ""));
       return (
-        `<div class="inv-row"><span class="inv-name">${iconGlyph(cls, name)}${escapeXml(name)}</span>` +
+        `<div class="inv-row"><span class="inv-name" title="${escapeAttr(name)}">${iconGlyph(cls, name)}${escapeXml(name)}</span>` +
         `<span class="inv-bar"><span class="inv-fill" style="width:${pct}%"></span></span>` +
         `<span class="inv-count">${n}</span></div>`
       );
