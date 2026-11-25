@@ -113,6 +113,11 @@ in `BUILDING_ES`, which had the pair inverted as well.
    deliberate.** A 37-recipe table returns a number that looks complete and is not: it would say
    you make three things when you make thirty. The settings panel already says the game data is
    missing.
+   For the same reason the snapshot stores **`recipe_coverage: null`**, not 0, when no game data
+   is loaded — the convention it already used with no machines: null is "I cannot say". 0 means
+   "I looked and recognise none of your recipes"; null means "I had no catalogue to look in".
+   Those are different facts and the history has to tell them apart, or a year from now a zero
+   will read as a factory full of mods.
 3. **Derive the calculator from `gamedata`**, reusing `canonRecipe()` — which already excludes
    `Build_Converter_C`, a trap that has caught this project three times. Gains every base-game
    recipe instead of 25, and the tier filter of item 2 for free.

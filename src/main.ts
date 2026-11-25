@@ -4093,8 +4093,11 @@ function buildMetrics(
     mod_count: meta ? meta.mods.length : null,
     save_version: meta ? meta.saveVersion : null,
     build_version: meta ? meta.buildVersion : null,
+    // null es "no puedo decirlo": sin maquinas, o sin catalogo donde mirar.
+    // Un 0 diria "he mirado y no reconozco ninguna receta tuya", que es otro
+    // hecho, y dentro de un ano se leeria como una fabrica llena de mods.
     recipe_coverage:
-      a.machineCount > 0
+      a.machineCount > 0 && gameData
         ? Math.round(((a.machineCount - a.unknownRecipes) / a.machineCount) * 1000) / 1000
         : null,
     levels: a.levels.length,
